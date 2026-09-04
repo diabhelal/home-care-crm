@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — קביעת תור</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <nav>
+      <a href="my-bookings.html">ההזמנות שלי</a>
+      <button class="btn btn-ghost" id="reset-btn">התחלה מחדש</button>
+    </nav>
+  </header>
+  <main>
+    <div class="steps">
+      <div class="step done">1. בחירת צוות</div>
+      <div class="step active">2. הזמנה ופרטים</div>
+    </div>
+
+    <div class="summary-box">
+      <div>איש/אשת צוות: <span class="staff-name" id="staff-name"></span></div>
+      <a href="staff.html">החלפת איש צוות</a>
+    </div>
+
+    <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
+
+    <h2>מטרת הביקור</h2>
+    <div class="chips" id="purpose-chips"></div>
+
+    <h2>תאריך</h2>
+    <div class="date-list" id="date-list"></div>
+
+    <div id="slots-section" style="display:none;">
+      <h2>שעה פנויה</h2>
+      <div class="slot-grid" id="slot-grid" aria-live="polite"></div>
+    </div>
+    <div id="no-slots" class="empty-state" style="display:none;">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
+
+    <h2>הפרטים שלך</h2>
+    <p style="color:var(--text-muted); margin-top:-8px; margin-bottom:16px;">נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה.</p>
+    <div class="field">
+      <label for="patient-name">שם מלא</label>
+      <input type="text" id="patient-name" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
+    </div>
+    <div class="field">
+      <label for="patient-phone">טלפון</label>
+      <input type="tel" id="patient-phone" required autocomplete="tel" placeholder="050-1234567">
+    </div>
+    <div class="field">
+      <label for="patient-address">כתובת לביקור</label>
+      <input type="text" id="patient-address" required autocomplete="street-address" placeholder="רחוב, מספר בית ועיר">
+    </div>
+    <div class="field">
+      <label for="notes">הערות (אופציונלי)</label>
+      <input type="text" id="notes" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
+    </div>
+
+    <div class="actions-row">
+      <button class="btn btn-primary" id="confirm-btn" disabled>אישור הזמנה</button>
+    </div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  (async () => {
+    const user = await ensureGuestSession();
+    if (!user) return;
+    wireReset();
+
+    const staff = JSON.parse(sessionStorage.getItem("selected_staff") || "null");
+    if (!staff) { window.location.href = "staff.html"; return; }
+
+    document.getElementById("staff-name").textContent =
+      `${staff.full_name} (${ROLE_LABELS[staff.role] || staff.role})`;
+
+    const errorBox = document.getElementById("error-box");
+    const successBox = document.getElementById("success-box");
+    const confirmBtn = document.getElementById("confirm-btn");
+    const nameInput = document.getElementById("patient-name");
+    const phoneInput = document.getElementById("patient-phone");
+    const addressInput = document.getElementById("patient-address");
+
+    let selectedPurpose = null;
+    let selectedDate = null;   // Date object at local midnight
+    let selectedSlot = null;   // Date object
+
+    // מטרת ביקור
+    const chipsEl = document.getElementById("purpose-chips");
+    Object.entries(PURPOSE_LABELS).forEach(([key, label]) => {
+      const chip = document.createElement("button");
+      chip.type = "button";
+      chip.className = "chip";
+      chip.textContent = label;
+      chip.setAttribute("aria-pressed", "false");
+      chip.addEventListener("click", () => {
+        chipsEl.querySelectorAll(".chip").forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
+        chip.classList.add("selected");
+        chip.setAttribute("aria-pressed", "true");
+        selectedPurpose = key;
+        updateConfirmState();
+      });
+      chipsEl.appendChild(chip);
+    });
+
+    // תאריכים - הימים הקרובים שאיש הצוות זמין בהם
+    const dateListEl = document.getElementById("date-list");
+    const availableWeekdays = new Set(staff.available_weekdays || []);
+    const dateButtons = [];
+    for (let i = 0; i < 21 && dateButtons.length < 10; i++) {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() + i);
+      if (!availableWeekdays.has(d.getDay())) continue;
+
+      const pill = document.createElement("button");
+      pill.type = "button";
+      pill.className = "date-pill";
+      pill.setAttribute("aria-pressed", "false");
+      pill.innerHTML = `<div class="dow">${WEEKDAY_SHORT[d.getDay()]}</div><div class="dom">${d.getDate()}/${d.getMonth() + 1}</div>`;
+      pill.addEventListener("click", () => {
+        dateListEl.querySelectorAll(".date-pill").forEach((p) => { p.classList.remove("selected"); p.setAttribute("aria-pressed", "false"); });
+        pill.classList.add("selected");
+        pill.setAttribute("aria-pressed", "true");
+        selectedDate = d;
+        selectedSlot = null;
+        updateConfirmState();
+        loadSlots(d);
+      });
+      dateListEl.appendChild(pill);
+      dateButtons.push(pill);
+    }
+    if (dateButtons.length === 0) {
+      dateListEl.innerHTML = '<div class="empty-state">אין ימים זמינים לאיש צוות זה.</div>';
+    }
+
+    async function loadSlots(date) {
+      const slotsSection = document.getElementById("slots-section");
+      const noSlots = document.getElementById("no-slots");
+      const slotGrid = document.getElementById("slot-grid");
+      hideError(errorBox);
+      noSlots.style.display = "none";
+      slotsSection.style.display = "block";
+      showLoadingRow(slotGrid, "טוען שעות פנויות...");
+
+      const startOfDay = new Date(date);
+      const endOfDay = new Date(date);
+      endOfDay.setDate(endOfDay.getDate() + 1);
+
+      let existing, error;
+      try {
+        ({ data: existing, error } = await supabaseClient
+          .from("bookings")
+          .select("scheduled_at")
+          .eq("staff_id", staff.id)
+          .neq("status", "cancelled")
+          .gte("scheduled_at", startOfDay.toISOString())
+          .lt("scheduled_at", endOfDay.toISOString()));
+      } catch (err) {
+        error = err;
+      }
+
+      slotGrid.innerHTML = "";
+
+      if (error) {
+        slotsSection.style.display = "none";
+        showError(errorBox, "שגיאה בטעינת שעות פנויות: " + friendlyErrorMessage(error));
+        return;
+      }
+      const takenTimes = new Set((existing || []).map((b) => new Date(b.scheduled_at).getTime()));
+
+      const [startH, startM] = staff.work_start_time.split(":").map(Number);
+      const [endH, endM] = staff.work_end_time.split(":").map(Number);
+      const durationMs = staff.slot_duration_minutes * 60 * 1000;
+
+      const dayStart = new Date(date);
+      dayStart.setHours(startH, startM, 0, 0);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(endH, endM, 0, 0);
+
+      const now = new Date();
+      let anyEnabled = false;
+
+      for (let t = dayStart.getTime(); t < dayEnd.getTime(); t += durationMs) {
+        const slotDate = new Date(t);
+        const isTaken = takenTimes.has(t);
+        const isPast = slotDate < now;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "slot-btn";
+        btn.textContent = formatTimeHe(slotDate);
+        btn.setAttribute("aria-pressed", "false");
+        if (isTaken || isPast) {
+          btn.disabled = true;
+        } else {
+          anyEnabled = true;
+          btn.addEventListener("click", () => {
+            slotGrid.querySelectorAll(".slot-btn").forEach((b) => { b.classList.remove("selected"); b.setAttribute("aria-pressed", "false"); });
+            btn.classList.add("selected");
+            btn.setAttribute("aria-pressed", "true");
+            selectedSlot = slotDate;
+            updateConfirmState();
+          });
+        }
+        slotGrid.appendChild(btn);
+      }
+
+      if (!anyEnabled) {
+        slotsSection.style.display = "none";
+        noSlots.style.display = "block";
+      }
+    }
+
+    function updateConfirmState() {
+      confirmBtn.disabled = !(selectedPurpose && selectedDate && selectedSlot);
+    }
+
+    [nameInput, phoneInput, addressInput].forEach((input) => {
+      input.addEventListener("input", () => hideError(errorBox));
+    });
+
+    let submittingBooking = false;
+
+    confirmBtn.addEventListener("click", async () => {
+      if (submittingBooking) return;
+      hideError(errorBox);
+      successBox.classList.remove("show");
+
+      const fullName = nameInput.value.trim();
+      const phone = phoneInput.value.trim();
+      const address = addressInput.value.trim();
+      if (!fullName || !phone || !address) {
+        showError(errorBox, "נא למלא שם מלא, טלפון וכתובת לביקור.");
+        return;
+      }
+
+      submittingBooking = true;
+      setButtonLoading(confirmBtn, true, "שומר הזמנה...");
+      const notes = document.getElementById("notes").value.trim() || null;
+
+      let error;
+      try {
+        ({ error } = await savePatientDetails(user, { full_name: fullName, phone, address }));
+        if (!error) {
+          ({ error } = await supabaseClient.from("bookings").insert({
+            patient_id: user.id,
+            staff_id: staff.id,
+            visit_purpose: selectedPurpose,
+            scheduled_at: selectedSlot.toISOString(),
+            notes,
+          }));
+        }
+      } catch (err) {
+        error = err;
+      }
+
+      if (error) {
+        submittingBooking = false;
+        if (error.code === "23505") {
+          showError(errorBox, "מצטערים, השעה הזו נתפסה זה עתה. נא לבחור שעה אחרת.");
+          selectedSlot = null;
+          updateConfirmState();
+          setButtonLoading(confirmBtn, false);
+          loadSlots(selectedDate);
+        } else {
+          showError(errorBox, "שגיאה בשמירת ההזמנה: " + friendlyErrorMessage(error));
+          setButtonLoading(confirmBtn, false);
+        }
+        return;
+      }
+
+      successBox.textContent = "ההזמנה נקבעה בהצלחה! מעביר אותך לרשימת ההזמנות שלך...";
+      successBox.classList.add("show");
+      sessionStorage.removeItem("selected_staff");
+      setTimeout(() => { window.location.href = "my-bookings.html"; }, 1200);
+    });
+  })();
+</script>
+</body>
+</html>

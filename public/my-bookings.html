@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — ההזמנות שלי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <nav>
+      <a href="staff.html">קביעת ביקור חדש</a>
+      <button class="btn btn-ghost" id="reset-btn">התחלה מחדש</button>
+    </nav>
+  </header>
+  <main>
+    <h1>ההזמנות שלי</h1>
+    <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
+
+    <div class="section-title">ביקורים קרובים</div>
+    <div id="upcoming-list" aria-live="polite"></div>
+    <div id="upcoming-empty" class="empty-state" style="display:none;">
+      אין לך ביקורים מתוכננים. <a href="staff.html">קביעת ביקור חדש</a>
+    </div>
+
+    <div class="section-title">היסטוריית ביקורים</div>
+    <div id="past-list"></div>
+    <div id="past-empty" class="empty-state" style="display:none;">אין היסטוריית ביקורים.</div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  (async () => {
+    const user = await ensureGuestSession();
+    if (!user) return;
+    wireReset();
+
+    const errorBox = document.getElementById("error-box");
+
+    async function loadBookings() {
+      hideError(errorBox);
+      showLoadingRow(document.getElementById("upcoming-list"), "טוען את ההזמנות שלך...");
+      document.getElementById("past-list").innerHTML = "";
+      document.getElementById("upcoming-empty").style.display = "none";
+      document.getElementById("past-empty").style.display = "none";
+
+      let bookings, error;
+      try {
+        ({ data: bookings, error } = await supabaseClient
+          .from("bookings")
+          .select("*, medical_staff(full_name, role)")
+          .eq("patient_id", user.id)
+          .order("scheduled_at", { ascending: true }));
+      } catch (err) {
+        error = err;
+      }
+
+      if (error) {
+        document.getElementById("upcoming-list").innerHTML = "";
+        showError(errorBox, "שגיאה בטעינת ההזמנות: " + friendlyErrorMessage(error));
+        return;
+      }
+
+      const now = new Date();
+      const upcoming = (bookings || []).filter((b) => b.status === "scheduled" && new Date(b.scheduled_at) >= now);
+      const past = (bookings || []).filter((b) => b.status !== "scheduled" || new Date(b.scheduled_at) < now);
+      past.sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
+
+      renderList(document.getElementById("upcoming-list"), upcoming, true);
+      document.getElementById("upcoming-empty").style.display = upcoming.length ? "none" : "block";
+
+      renderList(document.getElementById("past-list"), past, false);
+      document.getElementById("past-empty").style.display = past.length ? "none" : "block";
+    }
+
+    function renderList(container, list, cancellable) {
+      container.innerHTML = "";
+      list.forEach((b) => {
+        const date = new Date(b.scheduled_at);
+        const staffLabel = b.medical_staff
+          ? `${b.medical_staff.full_name} (${ROLE_LABELS[b.medical_staff.role] || b.medical_staff.role})`
+          : "—";
+        const item = document.createElement("div");
+        item.className = "booking-item";
+        item.innerHTML = `
+          <div class="info">
+            <div class="purpose">${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</div>
+            <div class="meta">${staffLabel} · ${formatDateHe(date)} ${formatTimeHe(date)}</div>
+            ${b.notes ? `<div class="meta">הערה: ${b.notes}</div>` : ""}
+          </div>
+          <div class="item-actions" style="display:flex; align-items:center; gap:10px;">
+            <span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span>
+          </div>
+        `;
+        if (cancellable) {
+          const cancelBtn = document.createElement("button");
+          cancelBtn.className = "btn btn-danger";
+          cancelBtn.textContent = "ביטול";
+          cancelBtn.addEventListener("click", async () => {
+            if (!confirm("לבטל את הביקור?")) return;
+            hideError(errorBox);
+            setButtonLoading(cancelBtn, true, "מבטל...");
+            let error;
+            try {
+              ({ error } = await supabaseClient
+                .from("bookings")
+                .update({ status: "cancelled" })
+                .eq("id", b.id));
+            } catch (err) {
+              error = err;
+            }
+            if (error) {
+              showError(errorBox, "שגיאה בביטול ההזמנה: " + friendlyErrorMessage(error));
+              setButtonLoading(cancelBtn, false);
+              return;
+            }
+            loadBookings();
+          });
+          item.querySelector(".item-actions").appendChild(cancelBtn);
+        }
+        container.appendChild(item);
+      });
+    }
+
+    loadBookings();
+  })();
+</script>
+</body>
+</html>

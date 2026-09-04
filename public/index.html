@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — טיפול רפואי עד הבית</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <nav>
+      <a href="my-bookings.html">ההזמנות שלי</a>
+    </nav>
+  </header>
+
+  <main class="landing">
+    <section class="hero">
+      <h1>טיפול רפואי מקצועי, ישירות לביתך</h1>
+      <p class="hero-subtitle">אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.</p>
+      <a href="staff.html" class="btn btn-primary hero-cta">הזמנת ביקור עכשיו</a>
+    </section>
+
+    <section class="services-section">
+      <h2>השירותים שלנו</h2>
+      <div class="grid" id="services-grid"></div>
+    </section>
+
+    <section class="why-us">
+      <h2>למה בית חם?</h2>
+      <div class="why-grid">
+        <div class="why-item">
+          <div class="why-icon">✅</div>
+          <div class="why-title">צוות מוסמך ומנוסה</div>
+          <div class="why-text">כל אנשי הצוות מורשים ובעלי ניסיון בטיפול ביתי</div>
+        </div>
+        <div class="why-item">
+          <div class="why-icon">⏱️</div>
+          <div class="why-title">קביעת תור מיידית</div>
+          <div class="why-text">בוחרים תאריך ושעה פנויים ומקבלים אישור מיידי</div>
+        </div>
+        <div class="why-item">
+          <div class="why-icon">🔒</div>
+          <div class="why-title">בלי הרשמה מיותרת</div>
+          <div class="why-text">מזמינים תוך דקה, הפרטים שלכם נשמרים רק אצלכם</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="cta-bottom">
+      <a href="staff.html" class="btn btn-primary hero-cta">בואו נתחיל</a>
+    </section>
+  </main>
+  <footer style="text-align:center; padding:24px; color:var(--text-muted); font-size:14px;">
+    <a href="admin.html" style="color:var(--text-muted);">כניסת מנהל</a>
+  </footer>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  // מכינים session אנונימי ברקע כדי שההזמנה בהמשך תהיה חלקה (בלי לחכות בעמוד ההזמנה)
+  ensureGuestSession();
+
+  (async () => {
+    const grid = document.getElementById("services-grid");
+    showLoadingRow(grid, "טוען שירותים...");
+
+    let staff, error;
+    try {
+      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("role"));
+    } catch (err) {
+      error = err;
+    }
+    grid.innerHTML = "";
+
+    if (error || !staff) {
+      grid.innerHTML = `<div class="empty-state">${friendlyErrorMessage(error || "שגיאה בטעינת השירותים")}</div>`;
+      return;
+    }
+
+    const rolesPresent = [...new Set(staff.map((s) => s.role))];
+    rolesPresent.forEach((role) => {
+      const card = document.createElement("a");
+      card.href = `staff.html?role=${encodeURIComponent(role)}`;
+      card.className = "service-card";
+      card.innerHTML = `
+        <div class="service-icon">${ROLE_ICONS[role] || "🏠"}</div>
+        <div class="service-title">${ROLE_LABELS[role] || role}</div>
+        <div class="service-desc">${ROLE_DESCRIPTIONS[role] || ""}</div>
+        <div class="service-link">לצפייה בזמינות ←</div>
+      `;
+      grid.appendChild(card);
+    });
+  })();
+</script>
+</body>
+</html>

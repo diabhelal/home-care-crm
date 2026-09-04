@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — בחירת איש צוות</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <nav>
+      <a href="my-bookings.html">ההזמנות שלי</a>
+      <button class="btn btn-ghost" id="reset-btn">התחלה מחדש</button>
+    </nav>
+  </header>
+  <main>
+    <div class="steps">
+      <div class="step active">1. בחירת צוות</div>
+      <div class="step">2. הזמנה ופרטים</div>
+    </div>
+    <h1 id="page-title">למי מאנשי הצוות תרצה/י לקבוע ביקור?</h1>
+    <p class="subtitle" style="color:var(--text-muted); margin-bottom:8px;">בחר/י איש צוות פנוי לפי תפקיד וזמינות</p>
+    <p id="role-filter-note" style="display:none; margin-bottom:20px;">
+      <a href="staff.html">← הצגת כל אנשי הצוות</a>
+    </p>
+    <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
+    <div id="staff-grid" class="grid"></div>
+    <div id="empty-state" class="empty-state" style="display:none;">לא נמצאו אנשי צוות זמינים כרגע.</div>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  (async () => {
+    const user = await ensureGuestSession();
+    if (!user) return;
+    wireReset();
+
+    const grid = document.getElementById("staff-grid");
+    const errorBox = document.getElementById("error-box");
+    const params = new URLSearchParams(window.location.search);
+    const roleFilter = params.get("role");
+
+    if (roleFilter && ROLE_LABELS[roleFilter]) {
+      document.getElementById("page-title").textContent = `${ROLE_LABELS[roleFilter]} זמינים לביקור בית`;
+      document.getElementById("role-filter-note").style.display = "block";
+    }
+
+    showLoadingRow(grid, "טוען רשימת אנשי צוות...");
+
+    let staff, error;
+    try {
+      let query = supabaseClient.from("medical_staff").select("*").order("role");
+      if (roleFilter) query = query.eq("role", roleFilter);
+      ({ data: staff, error } = await query);
+    } catch (err) {
+      error = err;
+    }
+
+    grid.innerHTML = "";
+
+    if (error) {
+      showError(errorBox, "שגיאה בטעינת רשימת הצוות: " + friendlyErrorMessage(error));
+      return;
+    }
+    if (!staff || staff.length === 0) {
+      document.getElementById("empty-state").style.display = "block";
+      return;
+    }
+
+    staff.forEach((s) => {
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className = "staff-card";
+      card.innerHTML = `
+        <span class="role-badge">${ROLE_LABELS[s.role] || s.role}</span>
+        <div class="name">${s.full_name}</div>
+        <div class="spec">${s.specialization || ""}</div>
+        <div class="avail">${formatAvailability(s)}</div>
+      `;
+      card.addEventListener("click", () => {
+        sessionStorage.setItem("selected_staff", JSON.stringify(s));
+        window.location.href = "booking.html";
+      });
+      grid.appendChild(card);
+    });
+  })();
+</script>
+</body>
+</html>

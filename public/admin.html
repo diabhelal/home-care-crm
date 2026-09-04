@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — פאנל ניהול</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="login-screen" class="center-screen">
+  <div class="card auth-card">
+    <div class="logo-big">🔑</div>
+    <h1>כניסת מנהל</h1>
+    <p class="subtitle">פאנל ניהול — בית חם</p>
+    <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
+    <form id="admin-login-form">
+      <div class="field">
+        <label for="admin-email">אימייל</label>
+        <input type="email" id="admin-email" required autocomplete="email" autofocus>
+      </div>
+      <div class="field">
+        <label for="admin-password">סיסמה</label>
+        <input type="password" id="admin-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" id="admin-login-btn">התחברות</button>
+    </form>
+  </div>
+</div>
+
+<div id="admin-app" class="page" style="display:none;">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🔑</span> פאנל ניהול</div>
+    <nav>
+      <a href="index.html">האתר הציבורי</a>
+      <button class="btn btn-ghost" id="admin-logout-btn">התנתקות</button>
+    </nav>
+  </header>
+  <main style="max-width:1100px;">
+    <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
+
+    <section>
+      <h2>כל ההזמנות</h2>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="bookings-table">
+          <thead>
+            <tr>
+              <th>מטופל</th><th>טלפון</th><th>איש צוות</th><th>מטרה</th><th>מועד</th><th>סטטוס</th><th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="bookings-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <div class="section-header">
+        <h2>ניהול צוות רפואי</h2>
+        <button class="btn btn-secondary" id="add-staff-btn">+ הוספת איש צוות</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="staff-table">
+          <thead>
+            <tr>
+              <th>שם</th><th>תפקיד</th><th>התמחות</th><th>טלפון</th><th>ימי עבודה</th><th>שעות</th><th>אורך תור</th><th>פעיל</th><th>פעולות</th>
+            </tr>
+          </thead>
+          <tbody id="staff-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>מטופלים</h2>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="patients-table">
+          <thead><tr><th>שם</th><th>טלפון</th><th>כתובת</th></tr></thead>
+          <tbody id="patients-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Staff edit/add modal -->
+<div id="staff-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-card card">
+    <h2 id="staff-modal-title">הוספת איש צוות</h2>
+    <input type="hidden" id="staff-id">
+    <div class="field">
+      <label for="staff-full-name">שם מלא</label>
+      <input type="text" id="staff-full-name">
+    </div>
+    <div class="field">
+      <label for="staff-role">תפקיד</label>
+      <select id="staff-role">
+        <option value="nurse">אח/ות</option>
+        <option value="doctor">רופא/ה</option>
+        <option value="physiotherapist">פיזיותרפיסט/ית</option>
+        <option value="caregiver">מטפל/ת סיעודי/ת</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="staff-spec">התמחות</label>
+      <input type="text" id="staff-spec">
+    </div>
+    <div class="field">
+      <label for="staff-phone">טלפון</label>
+      <input type="text" id="staff-phone">
+    </div>
+    <div class="field">
+      <label>ימי עבודה</label>
+      <div class="chips" id="staff-weekdays"></div>
+    </div>
+    <div class="field">
+      <label for="staff-start">שעת התחלה</label>
+      <input type="time" id="staff-start" value="08:00">
+    </div>
+    <div class="field">
+      <label for="staff-end">שעת סיום</label>
+      <input type="time" id="staff-end" value="16:00">
+    </div>
+    <div class="field">
+      <label for="staff-duration">אורך תור (דקות)</label>
+      <input type="number" id="staff-duration" value="60" min="15" step="15">
+    </div>
+    <div class="field">
+      <label><input type="checkbox" id="staff-active" checked style="width:auto; display:inline-block;"> פעיל/ה</label>
+    </div>
+    <div class="error-msg" id="staff-modal-error" role="alert" aria-live="assertive"></div>
+    <div class="actions-row">
+      <button class="btn btn-ghost" id="staff-modal-cancel">ביטול</button>
+      <button class="btn btn-primary" id="staff-modal-save">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  const loginScreen = document.getElementById("login-screen");
+  const adminApp = document.getElementById("admin-app");
+  const loginError = document.getElementById("login-error");
+  const appError = document.getElementById("app-error");
+  const appSuccess = document.getElementById("app-success");
+
+  function flashSuccess(msg) {
+    appSuccess.textContent = msg;
+    appSuccess.classList.add("show");
+    setTimeout(() => appSuccess.classList.remove("show"), 2500);
+  }
+
+  async function isAdminSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return null;
+    const isAdmin = session.user?.app_metadata?.is_admin === true;
+    return isAdmin ? session.user : null;
+  }
+
+  document.getElementById("admin-login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideError(loginError);
+    const btn = document.getElementById("admin-login-btn");
+    setButtonLoading(btn, true, "מתחבר/ת...");
+    const email = document.getElementById("admin-email").value.trim();
+    const password = document.getElementById("admin-password").value;
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    setButtonLoading(btn, false);
+    if (error) {
+      showError(loginError, "אימייל או סיסמה שגויים");
+      return;
+    }
+    if (data.user?.app_metadata?.is_admin !== true) {
+      showError(loginError, "משתמש זה אינו מנהל מערכת");
+      await supabaseClient.auth.signOut();
+      return;
+    }
+    showAdminApp();
+  });
+
+  document.getElementById("admin-logout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    window.location.reload();
+  });
+
+  async function showAdminApp() {
+    loginScreen.style.display = "none";
+    adminApp.style.display = "flex";
+    await Promise.all([loadBookings(), loadStaff(), loadPatients()]);
+  }
+
+  // ===== הזמנות =====
+  async function loadBookings() {
+    const tbody = document.getElementById("bookings-tbody");
+    tbody.innerHTML = `<tr><td colspan="7"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
+    const { data, error } = await supabaseClient
+      .from("bookings")
+      .select("*, patients(full_name, phone), medical_staff(full_name, role)")
+      .order("scheduled_at", { ascending: false });
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="7">${friendlyErrorMessage(error)}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = "";
+    (data || []).forEach((b) => {
+      const tr = document.createElement("tr");
+      const date = new Date(b.scheduled_at);
+      tr.innerHTML = `
+        <td>${b.patients?.full_name || "—"}</td>
+        <td>${b.patients?.phone || "—"}</td>
+        <td>${b.medical_staff?.full_name || "—"} (${ROLE_LABELS[b.medical_staff?.role] || ""})</td>
+        <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
+        <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>
+        <td><span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span></td>
+        <td></td>
+      `;
+      const actionsTd = tr.lastElementChild;
+      if (b.status === "scheduled") {
+        const completeBtn = document.createElement("button");
+        completeBtn.className = "btn btn-secondary btn-sm";
+        completeBtn.textContent = "סמן כהושלם";
+        completeBtn.addEventListener("click", () => updateBookingStatus(b.id, "completed"));
+        const cancelBtn = document.createElement("button");
+        cancelBtn.className = "btn btn-danger btn-sm";
+        cancelBtn.textContent = "ביטול";
+        cancelBtn.addEventListener("click", () => updateBookingStatus(b.id, "cancelled"));
+        actionsTd.appendChild(completeBtn);
+        actionsTd.appendChild(cancelBtn);
+      }
+      tbody.appendChild(tr);
+    });
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">אין הזמנות</td></tr>`;
+    }
+  }
+
+  async function updateBookingStatus(id, status) {
+    hideError(appError);
+    const { error } = await supabaseClient.from("bookings").update({ status }).eq("id", id);
+    if (error) { showError(appError, friendlyErrorMessage(error)); return; }
+    flashSuccess("הסטטוס עודכן");
+    loadBookings();
+  }
+
+  // ===== צוות =====
+  async function loadStaff() {
+    const tbody = document.getElementById("staff-tbody");
+    tbody.innerHTML = `<tr><td colspan="9"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
+    const { data, error } = await supabaseClient.from("medical_staff").select("*").order("id");
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="9">${friendlyErrorMessage(error)}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = "";
+    (data || []).forEach((s) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${s.full_name}</td>
+        <td>${ROLE_LABELS[s.role] || s.role}</td>
+        <td>${s.specialization || ""}</td>
+        <td>${s.phone || ""}</td>
+        <td>${(s.available_weekdays || []).map((d) => WEEKDAY_SHORT[d]).join(", ")}</td>
+        <td>${s.work_start_time?.slice(0,5)}–${s.work_end_time?.slice(0,5)}</td>
+        <td>${s.slot_duration_minutes} ד'</td>
+        <td>${s.is_active ? "כן" : "לא"}</td>
+        <td></td>
+      `;
+      const actionsTd = tr.lastElementChild;
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn btn-secondary btn-sm";
+      editBtn.textContent = "עריכה";
+      editBtn.addEventListener("click", () => openStaffModal(s));
+      const delBtn = document.createElement("button");
+      delBtn.className = "btn btn-danger btn-sm";
+      delBtn.textContent = "מחיקה";
+      delBtn.addEventListener("click", () => deleteStaff(s.id, s.full_name));
+      actionsTd.appendChild(editBtn);
+      actionsTd.appendChild(delBtn);
+      tbody.appendChild(tr);
+    });
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="9" class="empty-state">אין אנשי צוות</td></tr>`;
+    }
+  }
+
+  async function deleteStaff(id, name) {
+    if (!confirm(`למחוק את ${name}? פעולה זו תמחק גם את כל ההזמנות המשויכות אליו/ה.`)) return;
+    hideError(appError);
+    const { error } = await supabaseClient.from("medical_staff").delete().eq("id", id);
+    if (error) { showError(appError, friendlyErrorMessage(error)); return; }
+    flashSuccess("איש הצוות נמחק");
+    loadStaff();
+    loadBookings();
+  }
+
+  // מודל הוספה/עריכה של איש צוות
+  const staffModal = document.getElementById("staff-modal");
+  const weekdaysEl = document.getElementById("staff-weekdays");
+  WEEKDAY_LABELS.forEach((label, idx) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "chip";
+    chip.textContent = label;
+    chip.dataset.day = idx;
+    chip.setAttribute("aria-pressed", "false");
+    chip.addEventListener("click", () => {
+      const active = chip.classList.toggle("selected");
+      chip.setAttribute("aria-pressed", String(active));
+    });
+    weekdaysEl.appendChild(chip);
+  });
+
+  function openStaffModal(staff) {
+    document.getElementById("staff-modal-title").textContent = staff ? "עריכת איש צוות" : "הוספת איש צוות";
+    document.getElementById("staff-id").value = staff?.id || "";
+    document.getElementById("staff-full-name").value = staff?.full_name || "";
+    document.getElementById("staff-role").value = staff?.role || "nurse";
+    document.getElementById("staff-spec").value = staff?.specialization || "";
+    document.getElementById("staff-phone").value = staff?.phone || "";
+    document.getElementById("staff-start").value = staff?.work_start_time?.slice(0,5) || "08:00";
+    document.getElementById("staff-end").value = staff?.work_end_time?.slice(0,5) || "16:00";
+    document.getElementById("staff-duration").value = staff?.slot_duration_minutes || 60;
+    document.getElementById("staff-active").checked = staff ? staff.is_active : true;
+    const selectedDays = new Set(staff?.available_weekdays || [0,1,2,3,4]);
+    weekdaysEl.querySelectorAll(".chip").forEach((chip) => {
+      const on = selectedDays.has(Number(chip.dataset.day));
+      chip.classList.toggle("selected", on);
+      chip.setAttribute("aria-pressed", String(on));
+    });
+    hideError(document.getElementById("staff-modal-error"));
+    staffModal.style.display = "flex";
+  }
+
+  document.getElementById("add-staff-btn").addEventListener("click", () => openStaffModal(null));
+  document.getElementById("staff-modal-cancel").addEventListener("click", () => { staffModal.style.display = "none"; });
+
+  document.getElementById("staff-modal-save").addEventListener("click", async () => {
+    const modalError = document.getElementById("staff-modal-error");
+    hideError(modalError);
+    const id = document.getElementById("staff-id").value;
+    const fullName = document.getElementById("staff-full-name").value.trim();
+    const weekdays = [...weekdaysEl.querySelectorAll(".chip.selected")].map((c) => Number(c.dataset.day));
+    if (!fullName) { showError(modalError, "נא למלא שם מלא"); return; }
+    if (weekdays.length === 0) { showError(modalError, "נא לבחור לפחות יום עבודה אחד"); return; }
+
+    const payload = {
+      full_name: fullName,
+      role: document.getElementById("staff-role").value,
+      specialization: document.getElementById("staff-spec").value.trim() || null,
+      phone: document.getElementById("staff-phone").value.trim() || null,
+      available_weekdays: weekdays,
+      work_start_time: document.getElementById("staff-start").value,
+      work_end_time: document.getElementById("staff-end").value,
+      slot_duration_minutes: Number(document.getElementById("staff-duration").value),
+      is_active: document.getElementById("staff-active").checked,
+    };
+
+    const btn = document.getElementById("staff-modal-save");
+    setButtonLoading(btn, true, "שומר...");
+    const { error } = id
+      ? await supabaseClient.from("medical_staff").update(payload).eq("id", id)
+      : await supabaseClient.from("medical_staff").insert(payload);
+    setButtonLoading(btn, false);
+
+    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+    staffModal.style.display = "none";
+    flashSuccess("איש הצוות נשמר");
+    loadStaff();
+  });
+
+  // ===== מטופלים (תצוגה בלבד) =====
+  async function loadPatients() {
+    const tbody = document.getElementById("patients-tbody");
+    tbody.innerHTML = `<tr><td colspan="3"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
+    const { data, error } = await supabaseClient.from("patients").select("*").order("created_at", { ascending: false });
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="3">${friendlyErrorMessage(error)}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = "";
+    (data || []).forEach((p) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${p.full_name}</td><td>${p.phone || ""}</td><td>${p.address || ""}</td>`;
+      tbody.appendChild(tr);
+    });
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="3" class="empty-state">אין מטופלים</td></tr>`;
+    }
+  }
+
+  // ===== אתחול =====
+  (async () => {
+    const admin = await isAdminSession();
+    if (admin) {
+      showAdminApp();
+    }
+  })();
+</script>
+</body>
+</html>
