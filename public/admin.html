@@ -43,6 +43,18 @@
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
 
     <section>
+      <h2>תחזית קיבולת לחודש הבא</h2>
+      <div class="card" style="padding:20px;">
+        <div class="field" style="max-width:220px;">
+          <label for="capacity-growth-rate">אחוז צמיחה משוער (%)</label>
+          <input type="number" id="capacity-growth-rate" value="5" step="0.5">
+        </div>
+        <button class="btn btn-secondary btn-sm" id="capacity-forecast-btn">חשב תחזית</button>
+        <div id="capacity-forecast-result" style="margin-top:14px;"></div>
+      </div>
+    </section>
+
+    <section>
       <h2>כל ההזמנות</h2>
       <div style="overflow-x:auto;">
         <table class="admin-table" id="bookings-table">
@@ -138,6 +150,53 @@
   </div>
 </div>
 
+<!-- Visit report modal -->
+<div id="visit-report-modal" class="modal-overlay" style="display:none;">
+  <div class="modal-card card" style="max-width:640px;">
+    <h2 id="visit-report-modal-title">דוח ביקור בית</h2>
+    <input type="hidden" id="vr-booking-id">
+    <div class="field">
+      <div id="vr-context" style="color:var(--text-muted); font-size:15px;"></div>
+    </div>
+
+    <h3>מדדים רפואיים</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+      <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" id="vr-systolic" placeholder="120"></div>
+      <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" id="vr-diastolic" placeholder="80"></div>
+      <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" id="vr-sugar" placeholder="100"></div>
+      <div class="field"><label for="vr-pulse">דופק (BPM)</label><input type="number" id="vr-pulse" placeholder="72"></div>
+      <div class="field"><label for="vr-temp">חום גוף (°C)</label><input type="number" step="0.1" id="vr-temp" placeholder="36.6"></div>
+      <div class="field"><label for="vr-o2">סטורציה (%)</label><input type="number" id="vr-o2" placeholder="98"></div>
+    </div>
+    <div class="actions-row" style="justify-content:flex-start;">
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-check-risk-btn">בדיקת רמת סיכון</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-check-trend-btn">תחזית מגמת מדדים</button>
+    </div>
+    <div id="vr-risk-result"></div>
+    <div id="vr-trend-result"></div>
+
+    <h3>פרוצדורות שבוצעו</h3>
+    <div id="vr-procedures" class="field"></div>
+
+    <div class="field">
+      <label for="vr-summary">סיכום טיפול והנחיות המשך</label>
+      <textarea id="vr-summary" rows="4" placeholder="פרוט מהלך הביקור, מצב הפצע, או דגשים מיוחדים למשפחה..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>חתימת מטופל</label>
+      <canvas id="vr-signature-canvas" class="signature-canvas" width="500" height="150"></canvas>
+      <button type="button" class="btn btn-ghost btn-sm" id="vr-signature-clear" style="margin-top:8px;">ניקוי חתימה</button>
+    </div>
+
+    <div class="error-msg" id="visit-report-modal-error" role="alert" aria-live="assertive"></div>
+    <div class="actions-row">
+      <button class="btn btn-ghost" id="visit-report-modal-cancel">ביטול</button>
+      <button class="btn btn-primary" id="visit-report-modal-save">שמירה</button>
+    </div>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
@@ -199,7 +258,7 @@
     tbody.innerHTML = `<tr><td colspan="7"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
     const { data, error } = await supabaseClient
       .from("bookings")
-      .select("*, patients(full_name, phone), medical_staff(full_name, role)")
+      .select("*, patients(full_name, phone), medical_staff(full_name, role), visit_reports(*)")
       .order("scheduled_at", { ascending: false });
     if (error) {
       tbody.innerHTML = `<tr><td colspan="7">${friendlyErrorMessage(error)}</td></tr>`;
@@ -230,6 +289,14 @@
         cancelBtn.addEventListener("click", () => updateBookingStatus(b.id, "cancelled"));
         actionsTd.appendChild(completeBtn);
         actionsTd.appendChild(cancelBtn);
+      }
+      if (b.status !== "cancelled") {
+        const report = (b.visit_reports && b.visit_reports[0]) || null;
+        const reportBtn = document.createElement("button");
+        reportBtn.className = "btn btn-secondary btn-sm";
+        reportBtn.textContent = report ? "עריכת דוח" : "דוח ביקור";
+        reportBtn.addEventListener("click", () => openVisitReportModal(b, report));
+        actionsTd.appendChild(reportBtn);
       }
       tbody.appendChild(tr);
     });
@@ -391,6 +458,291 @@
       tbody.innerHTML = `<tr><td colspan="3" class="empty-state">אין מטופלים</td></tr>`;
     }
   }
+
+  // ===== תחזית קיבולת (שירות Python מקומי) =====
+  const PREDICTIVE_SERVICE_URL = "http://localhost:8000";
+
+  document.getElementById("capacity-forecast-btn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("capacity-forecast-result");
+    const btn = document.getElementById("capacity-forecast-btn");
+    resultEl.innerHTML = "";
+    setButtonLoading(btn, true, "מחשב...");
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 1).toISOString();
+
+    try {
+      const [visitsRes, patientsRes] = await Promise.all([
+        supabaseClient.from("bookings").select("id", { count: "exact", head: true })
+          .eq("status", "completed").gte("scheduled_at", monthStart).lt("scheduled_at", monthEnd),
+        supabaseClient.from("patients").select("id", { count: "exact", head: true }),
+      ]);
+      if (visitsRes.error) throw visitsRes.error;
+      if (patientsRes.error) throw patientsRes.error;
+
+      const visitsThisMonth = visitsRes.count || 0;
+      const activePatients = patientsRes.count || 0;
+      if (!activePatients) {
+        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין מטופלים פעילים במערכת — לא ניתן לחשב תחזית.</p>`;
+        return;
+      }
+
+      const growthRate = Number(document.getElementById("capacity-growth-rate").value) / 100;
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/capacity`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ visits_this_month: visitsThisMonth, active_patients: activePatients, growth_rate: growthRate }),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      const data = await res.json();
+      resultEl.innerHTML = `
+        <p style="font-weight:700; color:var(--primary-dark); margin:0 0 4px;">${data.message}</p>
+        <p style="color:var(--text-muted); font-size:14px; margin:0;">ביקורים החודש: ${visitsThisMonth} · מטופלים פעילים: ${activePatients} · ממוצע ביקורים למטופל: ${data.avg_visits_per_patient.toFixed(2)}</p>
+      `;
+    } catch (err) {
+      const isConnRefused = /failed to fetch|network|load failed/i.test(err?.message || "");
+      resultEl.innerHTML = `<p style="color:var(--danger);">${isConnRefused ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000." : friendlyErrorMessage(err)}</p>`;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+
+  // ===== דוח ביקור =====
+  const visitReportModal = document.getElementById("visit-report-modal");
+  const vrProceduresEl = document.getElementById("vr-procedures");
+  PROCEDURE_META.forEach((p) => {
+    const row = document.createElement("label");
+    row.className = "procedure-row";
+    row.innerHTML = `<input type="checkbox" data-proc="${p.key}"><span>${p.label}</span>`;
+    vrProceduresEl.appendChild(row);
+  });
+
+  const vrCanvas = document.getElementById("vr-signature-canvas");
+  const vrCtx = vrCanvas.getContext("2d");
+  vrCtx.lineWidth = 2.5;
+  vrCtx.lineCap = "round";
+  vrCtx.strokeStyle = "#1f2a28";
+  let vrDrawing = false;
+  let vrHasSignature = false;
+
+  function vrCanvasPoint(e) {
+    const rect = vrCanvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (vrCanvas.width / rect.width),
+      y: (e.clientY - rect.top) * (vrCanvas.height / rect.height),
+    };
+  }
+  function vrClearCanvas() {
+    vrCtx.clearRect(0, 0, vrCanvas.width, vrCanvas.height);
+    vrHasSignature = false;
+  }
+  vrCanvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    vrDrawing = true;
+    const p = vrCanvasPoint(e);
+    vrCtx.beginPath();
+    vrCtx.moveTo(p.x, p.y);
+  });
+  vrCanvas.addEventListener("pointermove", (e) => {
+    if (!vrDrawing) return;
+    e.preventDefault();
+    const p = vrCanvasPoint(e);
+    vrCtx.lineTo(p.x, p.y);
+    vrCtx.stroke();
+    vrHasSignature = true;
+  });
+  window.addEventListener("pointerup", () => { vrDrawing = false; });
+  document.getElementById("vr-signature-clear").addEventListener("click", vrClearCanvas);
+
+  function vrLoadSignature(dataUrl) {
+    vrClearCanvas();
+    if (!dataUrl) return;
+    const img = new Image();
+    img.onload = () => vrCtx.drawImage(img, 0, 0, vrCanvas.width, vrCanvas.height);
+    img.src = dataUrl;
+    vrHasSignature = true;
+  }
+
+  function openVisitReportModal(booking, report) {
+    document.getElementById("visit-report-modal-title").textContent = report ? "עריכת דוח ביקור" : "הוספת דוח ביקור";
+    document.getElementById("vr-booking-id").value = booking.id;
+    visitReportModal.dataset.patientId = booking.patient_id;
+    visitReportModal.dataset.staffId = booking.staff_id;
+    const date = new Date(booking.scheduled_at);
+    document.getElementById("vr-context").textContent =
+      `${booking.patients?.full_name || "—"} · ${booking.medical_staff?.full_name || "—"} · ${formatDateHe(date)} ${formatTimeHe(date)}`;
+    document.getElementById("vr-systolic").value = report?.systolic_bp ?? "";
+    document.getElementById("vr-diastolic").value = report?.diastolic_bp ?? "";
+    document.getElementById("vr-sugar").value = report?.blood_sugar ?? "";
+    document.getElementById("vr-pulse").value = report?.pulse ?? "";
+    document.getElementById("vr-temp").value = report?.temperature ?? "";
+    document.getElementById("vr-o2").value = report?.oxygen_saturation ?? "";
+    document.getElementById("vr-summary").value = report?.treatment_summary ?? "";
+    vrProceduresEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.checked = report ? !!report[cb.dataset.proc] : false;
+    });
+    vrLoadSignature(report?.patient_signature_data || null);
+    hideError(document.getElementById("visit-report-modal-error"));
+    document.getElementById("vr-risk-result").innerHTML = "";
+    document.getElementById("vr-trend-result").innerHTML = "";
+    visitReportModal.style.display = "flex";
+  }
+
+  function collectVitalsFromForm() {
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v === "" ? null : Number(v);
+    };
+    return {
+      systolic_bp: num("vr-systolic"),
+      diastolic_bp: num("vr-diastolic"),
+      blood_sugar: num("vr-sugar"),
+      pulse: num("vr-pulse"),
+      temperature: num("vr-temp"),
+      oxygen_saturation: num("vr-o2"),
+    };
+  }
+
+  const RISK_BADGE_CLASS = { green: "risk-badge-green", yellow: "risk-badge-yellow", red: "risk-badge-red", no_data: "risk-badge-muted" };
+  const LEVEL_HE = { green: "ירוק", yellow: "צהוב", red: "אדום" };
+
+  function predictiveServiceUnavailableMessage(err) {
+    return /failed to fetch|network|load failed/i.test(err?.message || "")
+      ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
+      : friendlyErrorMessage(err);
+  }
+
+  document.getElementById("vr-check-risk-btn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("vr-risk-result");
+    const btn = document.getElementById("vr-check-risk-btn");
+    resultEl.innerHTML = "";
+    setButtonLoading(btn, true, "בודק...");
+    try {
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-level`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(collectVitalsFromForm()),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      const data = await res.json();
+      const badgeClass = RISK_BADGE_CLASS[data.level] || "risk-badge-muted";
+      const flaggedHtml = data.flagged_vitals.length
+        ? `<ul style="margin:8px 0 0; padding-inline-start:20px;">${data.flagged_vitals.map((f) => `<li>${f.label}: ${f.value} (${LEVEL_HE[f.level] || f.level})</li>`).join("")}</ul>`
+        : "";
+      resultEl.innerHTML = `<div class="risk-badge ${badgeClass}">רמת סיכון: ${data.level_label}</div>${flaggedHtml}`;
+    } catch (err) {
+      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+
+  document.getElementById("vr-check-trend-btn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("vr-trend-result");
+    const btn = document.getElementById("vr-check-trend-btn");
+    resultEl.innerHTML = "";
+    const patientId = visitReportModal.dataset.patientId;
+    if (!patientId) return;
+    setButtonLoading(btn, true, "מחשב...");
+    try {
+      const { data: history, error } = await supabaseClient
+        .from("visit_reports")
+        .select("visit_date, systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
+        .eq("patient_id", patientId)
+        .order("visit_date", { ascending: true });
+      if (error) throw error;
+
+      const rows = [];
+      for (const v of VITALS_META) {
+        const series = (history || [])
+          .map((h, idx) => ({ x: idx, y: h[v.key] }))
+          .filter((p) => p.y !== null && p.y !== undefined);
+        if (series.length < 2) continue;
+        const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/vitals-trend`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ points: series }),
+        });
+        if (!res.ok) continue;
+        const trend = await res.json();
+        rows.push(`<tr><td>${v.label}</td><td>${trend.predicted_next_y}${v.unit ? " " + v.unit : ""}</td><td>${trend.direction}</td></tr>`);
+      }
+
+      if (!rows.length) {
+        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין מספיק היסטוריית ביקורים (נדרשים לפחות 2) לחישוב מגמה.</p>`;
+        return;
+      }
+      resultEl.innerHTML = `
+        <div style="overflow-x:auto;">
+          <table class="admin-table" style="min-width:0; margin-top:10px;">
+            <thead><tr><th>מדד</th><th>תחזית לביקור הבא</th><th>מגמה</th></tr></thead>
+            <tbody>${rows.join("")}</tbody>
+          </table>
+        </div>
+      `;
+    } catch (err) {
+      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
+
+  document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
+    visitReportModal.style.display = "none";
+  });
+
+  document.getElementById("visit-report-modal-save").addEventListener("click", async () => {
+    const modalError = document.getElementById("visit-report-modal-error");
+    hideError(modalError);
+
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v === "" ? null : Number(v);
+    };
+    const systolic = num("vr-systolic");
+    const diastolic = num("vr-diastolic");
+    const sugar = num("vr-sugar");
+    const pulse = num("vr-pulse");
+    const temp = num("vr-temp");
+    const o2 = num("vr-o2");
+    const summary = document.getElementById("vr-summary").value.trim();
+
+    if (systolic !== null && (systolic < 50 || systolic > 250)) { showError(modalError, 'ל"ד סיסטולי תקין נע בין 50 ל-250'); return; }
+    if (diastolic !== null && (diastolic < 30 || diastolic > 150)) { showError(modalError, 'ל"ד דיאסטולי תקין נע בין 30 ל-150'); return; }
+    if (sugar !== null && (sugar < 20 || sugar > 600)) { showError(modalError, "רמת סוכר תקינה נעה בין 20 ל-600"); return; }
+    if (pulse !== null && (pulse < 30 || pulse > 220)) { showError(modalError, "דופק תקין נע בין 30 ל-220"); return; }
+    if (temp !== null && (temp < 30 || temp > 45)) { showError(modalError, "חום גוף תקין נע בין 30 ל-45"); return; }
+    if (o2 !== null && (o2 < 50 || o2 > 100)) { showError(modalError, "סטורציה נעה בין 50 ל-100"); return; }
+    if (!summary) { showError(modalError, "חובה למלא סיכום טיפול"); return; }
+
+    const payload = {
+      booking_id: Number(document.getElementById("vr-booking-id").value),
+      patient_id: visitReportModal.dataset.patientId,
+      staff_id: Number(visitReportModal.dataset.staffId),
+      systolic_bp: systolic,
+      diastolic_bp: diastolic,
+      blood_sugar: sugar,
+      pulse,
+      temperature: temp,
+      oxygen_saturation: o2,
+      treatment_summary: summary,
+      patient_signature_data: vrHasSignature ? vrCanvas.toDataURL("image/png") : null,
+    };
+    PROCEDURE_META.forEach((p) => {
+      payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
+    });
+
+    const btn = document.getElementById("visit-report-modal-save");
+    setButtonLoading(btn, true, "שומר...");
+    const { error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" });
+    setButtonLoading(btn, false);
+
+    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+    visitReportModal.style.display = "none";
+    flashSuccess("דוח הביקור נשמר");
+    loadBookings();
+  });
 
   // ===== אתחול =====
   (async () => {

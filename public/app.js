@@ -40,6 +40,45 @@ const STATUS_LABELS = {
 const WEEKDAY_LABELS = ["ראשון", "שני", "שלישי", "רביעי", "חמישי", "שישי", "שבת"];
 const WEEKDAY_SHORT = ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"];
 
+const VITALS_META = [
+  { key: "systolic_bp", label: 'ל"ד סיסטולי', unit: "" },
+  { key: "diastolic_bp", label: 'ל"ד דיאסטולי', unit: "" },
+  { key: "blood_sugar", label: "סוכר", unit: "mg/dL" },
+  { key: "pulse", label: "דופק", unit: "BPM" },
+  { key: "temperature", label: "חום גוף", unit: "°C" },
+  { key: "oxygen_saturation", label: "סטורציה", unit: "%" },
+];
+
+const PROCEDURE_META = [
+  { key: "performed_blood_draw", label: "בדיקת דם / איסוף דגימות" },
+  { key: "performed_injection", label: "מתן זריקה" },
+  { key: "performed_infusion", label: "מתן עירוי נוזלים/תרופה" },
+  { key: "performed_dressing_change", label: "החלפת חבישה" },
+  { key: "performed_catheter_change", label: "החלפת קטטר/זונדה" },
+];
+
+// בונה תצוגת HTML (read-only) לדוח ביקור, לשימוש במסך "ההזמנות שלי" של המטופל
+function visitReportDetailsHtml(report) {
+  const vitalsHtml = VITALS_META.map((v) => {
+    const val = report[v.key];
+    if (val === null || val === undefined) return "";
+    return `<div class="vr-vital"><span class="vr-vital-label">${v.label}</span><span class="vr-vital-value">${val}${v.unit ? " " + v.unit : ""}</span></div>`;
+  }).join("");
+
+  const proceduresHtml = PROCEDURE_META.filter((p) => report[p.key]).map((p) => `<li>${p.label}</li>`).join("");
+  const date = new Date(report.visit_date);
+
+  return `
+    <div class="visit-report-card">
+      <div class="meta">בוצע ב-${formatDateHe(date)} ${formatTimeHe(date)}</div>
+      ${vitalsHtml ? `<div class="vr-vitals-grid">${vitalsHtml}</div>` : ""}
+      ${proceduresHtml ? `<div class="vr-procedures"><strong>פרוצדורות שבוצעו:</strong><ul>${proceduresHtml}</ul></div>` : ""}
+      <div class="vr-summary"><strong>סיכום:</strong> ${report.treatment_summary}</div>
+      ${report.patient_signature_data ? `<div class="vr-signature"><strong>חתימת מטופל:</strong><br><img src="${report.patient_signature_data}" alt="חתימת מטופל"></div>` : ""}
+    </div>
+  `;
+}
+
 function formatAvailability(staff) {
   const days = (staff.available_weekdays || []).slice().sort().map((d) => WEEKDAY_SHORT[d]).join(", ");
   const start = staff.work_start_time?.slice(0, 5);

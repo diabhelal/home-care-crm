@@ -4,3 +4,6 @@
 .DS_Store
 supabase/.temp/
 node_modules/
+predictive-service/.venv/
+__pycache__/
+*.pyc

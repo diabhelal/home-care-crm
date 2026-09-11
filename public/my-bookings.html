@@ -55,7 +55,7 @@
       try {
         ({ data: bookings, error } = await supabaseClient
           .from("bookings")
-          .select("*, medical_staff(full_name, role)")
+          .select("*, medical_staff(full_name, role), visit_reports(*)")
           .eq("patient_id", user.id)
           .order("scheduled_at", { ascending: true }));
       } catch (err) {
@@ -124,6 +124,22 @@
             loadBookings();
           });
           item.querySelector(".item-actions").appendChild(cancelBtn);
+        }
+        const report = b.visit_reports && b.visit_reports[0];
+        if (!cancellable && report) {
+          const viewBtn = document.createElement("button");
+          viewBtn.className = "btn btn-secondary";
+          viewBtn.textContent = "צפייה בדוח ביקור";
+          const detailsDiv = document.createElement("div");
+          detailsDiv.style.display = "none";
+          detailsDiv.innerHTML = visitReportDetailsHtml(report);
+          viewBtn.addEventListener("click", () => {
+            const open = detailsDiv.style.display !== "none";
+            detailsDiv.style.display = open ? "none" : "block";
+            viewBtn.textContent = open ? "צפייה בדוח ביקור" : "הסתרת דוח ביקור";
+          });
+          item.querySelector(".item-actions").appendChild(viewBtn);
+          item.appendChild(detailsDiv);
         }
         container.appendChild(item);
       });
