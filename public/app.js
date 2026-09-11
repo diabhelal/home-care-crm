@@ -49,6 +49,17 @@ const VITALS_META = [
   { key: "oxygen_saturation", label: "סטורציה", unit: "%" },
 ];
 
+const CONDITION_META = [
+  { key: "diabetes", label: "סוכרת" },
+  { key: "hypertension", label: "יתר לחץ דם" },
+  { key: "heart_failure", label: "אי ספיקת לב" },
+];
+
+function conditionsLabel(conditions) {
+  if (!conditions || conditions.length === 0) return "—";
+  return conditions.map((c) => CONDITION_META.find((m) => m.key === c)?.label || c).join(", ");
+}
+
 const PROCEDURE_META = [
   { key: "performed_blood_draw", label: "בדיקת דם / איסוף דגימות" },
   { key: "performed_injection", label: "מתן זריקה" },
@@ -56,6 +67,30 @@ const PROCEDURE_META = [
   { key: "performed_dressing_change", label: "החלפת חבישה" },
   { key: "performed_catheter_change", label: "החלפת קטטר/זונדה" },
 ];
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+const RISK_LEVEL_HE = { green: "ירוק", yellow: "צהוב", red: "אדום", no_data: "אין נתונים" };
+const RISK_BADGE_CLASS = { green: "risk-badge-green", yellow: "risk-badge-yellow", red: "risk-badge-red", no_data: "risk-badge-muted" };
+const TREND_META = {
+  improving: { arrow: "📉", label: "משתפר" },
+  stable: { arrow: "➡️", label: "יציב" },
+  worsening: { arrow: "📈", label: "מחמיר" },
+};
+const RISK_DISCLAIMER = "כלי תמיכה בקבלת החלטות בלבד — אינו קביעת מצב חירום או אבחון רפואי.";
+
+// תג רמת סיכון קטן לשימוש בטבלאות (למשל עמודת "רמת סיכון" בטבלת ההזמנות)
+function riskBadgeHtml(currentRisk) {
+  if (!currentRisk) {
+    return `<span class="risk-badge risk-badge-muted">לא נבדק</span>`;
+  }
+  const cls = RISK_BADGE_CLASS[currentRisk.risk_level] || "risk-badge-muted";
+  return `<span class="risk-badge ${cls}">${RISK_LEVEL_HE[currentRisk.risk_level] || currentRisk.risk_level}</span>`;
+}
 
 // בונה תצוגת HTML (read-only) לדוח ביקור, לשימוש במסך "ההזמנות שלי" של המטופל
 function visitReportDetailsHtml(report) {
@@ -73,8 +108,8 @@ function visitReportDetailsHtml(report) {
       <div class="meta">בוצע ב-${formatDateHe(date)} ${formatTimeHe(date)}</div>
       ${vitalsHtml ? `<div class="vr-vitals-grid">${vitalsHtml}</div>` : ""}
       ${proceduresHtml ? `<div class="vr-procedures"><strong>פרוצדורות שבוצעו:</strong><ul>${proceduresHtml}</ul></div>` : ""}
-      <div class="vr-summary"><strong>סיכום:</strong> ${report.treatment_summary}</div>
-      ${report.patient_signature_data ? `<div class="vr-signature"><strong>חתימת מטופל:</strong><br><img src="${report.patient_signature_data}" alt="חתימת מטופל"></div>` : ""}
+      <div class="vr-summary"><strong>סיכום:</strong> ${escapeHtml(report.treatment_summary)}</div>
+      ${report.patient_signature_data && report.patient_signature_data.startsWith("data:image/png;base64,") ? `<div class="vr-signature"><strong>חתימת מטופל:</strong><br><img src="${report.patient_signature_data}" alt="חתימת מטופל"></div>` : ""}
     </div>
   `;
 }

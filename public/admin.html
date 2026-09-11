@@ -78,7 +78,7 @@
         <table class="admin-table" id="bookings-table">
           <thead>
             <tr>
-              <th>מטופל</th><th>טלפון</th><th>איש צוות</th><th>מטרה</th><th>מועד</th><th>סטטוס</th><th>פעולות</th>
+              <th>מטופל</th><th>טלפון</th><th>איש צוות</th><th>מטרה</th><th>מועד</th><th>סטטוס</th><th>רמת סיכון</th><th>פעולות</th>
             </tr>
           </thead>
           <tbody id="bookings-tbody"></tbody>
@@ -107,7 +107,7 @@
       <h2>מטופלים</h2>
       <div style="overflow-x:auto;">
         <table class="admin-table" id="patients-table">
-          <thead><tr><th>שם</th><th>טלפון</th><th>כתובת</th></tr></thead>
+          <thead><tr><th>שם</th><th>טלפון</th><th>כתובת</th><th>רקע רפואי</th><th>פעולות</th></tr></thead>
           <tbody id="patients-tbody"></tbody>
         </table>
       </div>
@@ -116,7 +116,7 @@
 </div>
 
 <!-- Staff edit/add modal -->
-<div id="staff-modal" class="modal-overlay" style="display:none;">
+<div id="staff-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="staff-modal-title">
   <div class="modal-card card">
     <h2 id="staff-modal-title">הוספת איש צוות</h2>
     <input type="hidden" id="staff-id">
@@ -169,7 +169,7 @@
 </div>
 
 <!-- Visit report modal -->
-<div id="visit-report-modal" class="modal-overlay" style="display:none;">
+<div id="visit-report-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="visit-report-modal-title">
   <div class="modal-card card" style="max-width:640px;">
     <h2 id="visit-report-modal-title">דוח ביקור בית</h2>
     <input type="hidden" id="vr-booking-id">
@@ -186,11 +186,10 @@
       <div class="field"><label for="vr-temp">חום גוף (°C)</label><input type="number" step="0.1" id="vr-temp" placeholder="36.6"></div>
       <div class="field"><label for="vr-o2">סטורציה (%)</label><input type="number" id="vr-o2" placeholder="98"></div>
     </div>
+    <div id="vr-risk-panel"></div>
     <div class="actions-row" style="justify-content:flex-start;">
-      <button type="button" class="btn btn-secondary btn-sm" id="vr-check-risk-btn">בדיקת רמת סיכון</button>
       <button type="button" class="btn btn-secondary btn-sm" id="vr-check-trend-btn">תחזית מגמת מדדים</button>
     </div>
-    <div id="vr-risk-result"></div>
     <div id="vr-trend-result"></div>
 
     <h3>פרוצדורות שבוצעו</h3>
@@ -211,6 +210,21 @@
     <div class="actions-row">
       <button class="btn btn-ghost" id="visit-report-modal-cancel">ביטול</button>
       <button class="btn btn-primary" id="visit-report-modal-save">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<!-- Patient background-conditions modal -->
+<div id="patient-conditions-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="patient-conditions-modal-title">
+  <div class="modal-card card">
+    <h2 id="patient-conditions-modal-title">רקע רפואי</h2>
+    <p id="patient-conditions-name" style="color:var(--text-muted); margin-top:-8px;"></p>
+    <input type="hidden" id="patient-conditions-id">
+    <div id="patient-conditions-list" class="field"></div>
+    <div class="error-msg" id="patient-conditions-modal-error" role="alert" aria-live="assertive"></div>
+    <div class="actions-row">
+      <button class="btn btn-ghost" id="patient-conditions-modal-cancel">ביטול</button>
+      <button class="btn btn-primary" id="patient-conditions-modal-save">שמירה</button>
     </div>
   </div>
 </div>
@@ -246,8 +260,14 @@
     setButtonLoading(btn, true, "מתחבר/ת...");
     const email = document.getElementById("admin-email").value.trim();
     const password = document.getElementById("admin-password").value;
-    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    setButtonLoading(btn, false);
+    let data, error;
+    try {
+      ({ data, error } = await supabaseClient.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
     if (error) {
       showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)} (${error.status || error.code || "?"})`);
       return;
@@ -328,13 +348,21 @@
   // ===== הזמנות =====
   async function loadBookings() {
     const tbody = document.getElementById("bookings-tbody");
-    tbody.innerHTML = `<tr><td colspan="7"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
-    const { data, error } = await supabaseClient
-      .from("bookings")
-      .select("*, patients(full_name, phone), medical_staff(full_name, role), visit_reports(*)")
-      .order("scheduled_at", { ascending: false });
+    tbody.innerHTML = `<tr><td colspan="8"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
+    let data, error, riskRows, riskError;
+    try {
+      ({ data, error } = await supabaseClient
+        .from("bookings")
+        .select("*, patients(full_name, phone), medical_staff(full_name, role), visit_reports(*)")
+        .order("scheduled_at", { ascending: false }));
+      ({ data: riskRows, error: riskError } = await supabaseClient.from("current_patient_risk").select("*"));
+    } catch (err) {
+      error = err;
+    }
+    if (riskError) console.error("current_patient_risk", riskError);
+    const riskByPatient = new Map((riskRows || []).map((r) => [r.patient_id, r]));
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="7">${friendlyErrorMessage(error)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8">${friendlyErrorMessage(error)}</td></tr>`;
       return;
     }
     tbody.innerHTML = "";
@@ -348,6 +376,7 @@
         <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
         <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>
         <td><span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span></td>
+        <td>${riskBadgeHtml(riskByPatient.get(b.patient_id))}</td>
         <td></td>
       `;
       const actionsTd = tr.lastElementChild;
@@ -374,13 +403,18 @@
       tbody.appendChild(tr);
     });
     if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">אין הזמנות</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty-state">אין הזמנות</td></tr>`;
     }
   }
 
   async function updateBookingStatus(id, status) {
     hideError(appError);
-    const { error } = await supabaseClient.from("bookings").update({ status }).eq("id", id);
+    let error;
+    try {
+      ({ error } = await supabaseClient.from("bookings").update({ status }).eq("id", id));
+    } catch (err) {
+      error = err;
+    }
     if (error) { showError(appError, friendlyErrorMessage(error)); return; }
     flashSuccess("הסטטוס עודכן");
     loadBookings();
@@ -390,7 +424,12 @@
   async function loadStaff() {
     const tbody = document.getElementById("staff-tbody");
     tbody.innerHTML = `<tr><td colspan="9"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
-    const { data, error } = await supabaseClient.from("medical_staff").select("*").order("id");
+    let data, error;
+    try {
+      ({ data, error } = await supabaseClient.from("medical_staff").select("*").order("id"));
+    } catch (err) {
+      error = err;
+    }
     if (error) {
       tbody.innerHTML = `<tr><td colspan="9">${friendlyErrorMessage(error)}</td></tr>`;
       return;
@@ -430,7 +469,12 @@
   async function deleteStaff(id, name) {
     if (!confirm(`למחוק את ${name}? פעולה זו תמחק גם את כל ההזמנות המשויכות אליו/ה.`)) return;
     hideError(appError);
-    const { error } = await supabaseClient.from("medical_staff").delete().eq("id", id);
+    let error;
+    try {
+      ({ error } = await supabaseClient.from("medical_staff").delete().eq("id", id));
+    } catch (err) {
+      error = err;
+    }
     if (error) { showError(appError, friendlyErrorMessage(error)); return; }
     flashSuccess("איש הצוות נמחק");
     loadStaff();
@@ -501,10 +545,16 @@
 
     const btn = document.getElementById("staff-modal-save");
     setButtonLoading(btn, true, "שומר...");
-    const { error } = id
-      ? await supabaseClient.from("medical_staff").update(payload).eq("id", id)
-      : await supabaseClient.from("medical_staff").insert(payload);
-    setButtonLoading(btn, false);
+    let error;
+    try {
+      ({ error } = id
+        ? await supabaseClient.from("medical_staff").update(payload).eq("id", id)
+        : await supabaseClient.from("medical_staff").insert(payload));
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
 
     if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
     staffModal.style.display = "none";
@@ -515,22 +565,87 @@
   // ===== מטופלים (תצוגה בלבד) =====
   async function loadPatients() {
     const tbody = document.getElementById("patients-tbody");
-    tbody.innerHTML = `<tr><td colspan="3"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
-    const { data, error } = await supabaseClient.from("patients").select("*").order("created_at", { ascending: false });
+    tbody.innerHTML = `<tr><td colspan="5"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
+    let data, error;
+    try {
+      ({ data, error } = await supabaseClient.from("patients").select("*").order("created_at", { ascending: false }));
+    } catch (err) {
+      error = err;
+    }
     if (error) {
-      tbody.innerHTML = `<tr><td colspan="3">${friendlyErrorMessage(error)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5">${friendlyErrorMessage(error)}</td></tr>`;
       return;
     }
     tbody.innerHTML = "";
     (data || []).forEach((p) => {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td>${p.full_name}</td><td>${p.phone || ""}</td><td>${p.address || ""}</td>`;
+      tr.innerHTML = `
+        <td>${p.full_name}</td>
+        <td>${p.phone || ""}</td>
+        <td>${p.address || ""}</td>
+        <td>${conditionsLabel(p.background_conditions)}</td>
+        <td></td>
+      `;
+      const actionsTd = tr.lastElementChild;
+      const editBtn = document.createElement("button");
+      editBtn.className = "btn btn-secondary btn-sm";
+      editBtn.textContent = "עריכת רקע רפואי";
+      editBtn.addEventListener("click", () => openPatientConditionsModal(p));
+      actionsTd.appendChild(editBtn);
       tbody.appendChild(tr);
     });
     if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="3" class="empty-state">אין מטופלים</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="5" class="empty-state">אין מטופלים</td></tr>`;
     }
   }
+
+  // ===== רקע רפואי (מטופלים) =====
+  const patientConditionsModal = document.getElementById("patient-conditions-modal");
+  const patientConditionsListEl = document.getElementById("patient-conditions-list");
+  CONDITION_META.forEach((c) => {
+    const row = document.createElement("label");
+    row.className = "procedure-row";
+    row.innerHTML = `<input type="checkbox" data-condition="${c.key}"><span>${c.label}</span>`;
+    patientConditionsListEl.appendChild(row);
+  });
+
+  function openPatientConditionsModal(patient) {
+    document.getElementById("patient-conditions-id").value = patient.id;
+    document.getElementById("patient-conditions-name").textContent = patient.full_name;
+    const selected = new Set(patient.background_conditions || []);
+    patientConditionsListEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.checked = selected.has(cb.dataset.condition);
+    });
+    hideError(document.getElementById("patient-conditions-modal-error"));
+    patientConditionsModal.style.display = "flex";
+  }
+
+  document.getElementById("patient-conditions-modal-cancel").addEventListener("click", () => {
+    patientConditionsModal.style.display = "none";
+  });
+
+  document.getElementById("patient-conditions-modal-save").addEventListener("click", async () => {
+    const modalError = document.getElementById("patient-conditions-modal-error");
+    hideError(modalError);
+    const patientId = document.getElementById("patient-conditions-id").value;
+    const conditions = [...patientConditionsListEl.querySelectorAll("input[type=checkbox]:checked")].map((cb) => cb.dataset.condition);
+
+    const btn = document.getElementById("patient-conditions-modal-save");
+    setButtonLoading(btn, true, "שומר...");
+    let error;
+    try {
+      ({ error } = await supabaseClient.from("patients").update({ background_conditions: conditions }).eq("id", patientId));
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+
+    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+    patientConditionsModal.style.display = "none";
+    flashSuccess("הרקע הרפואי נשמר");
+    loadPatients();
+  });
 
   // ===== תחזית קיבולת (שירות Python מקומי) =====
   const PREDICTIVE_SERVICE_URL = "http://localhost:8000";
@@ -657,9 +772,110 @@
     });
     vrLoadSignature(report?.patient_signature_data || null);
     hideError(document.getElementById("visit-report-modal-error"));
-    document.getElementById("vr-risk-result").innerHTML = "";
     document.getElementById("vr-trend-result").innerHTML = "";
     visitReportModal.style.display = "flex";
+    loadAndRenderRisk(booking.patient_id);
+  }
+
+  async function loadCurrentRiskForPatient(patientId) {
+    const { data, error } = await supabaseClient
+      .from("current_patient_risk")
+      .select("*")
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (error) { console.error("current_patient_risk", error); return null; }
+    return data;
+  }
+
+  function renderRiskPanel(currentRisk) {
+    const panel = document.getElementById("vr-risk-panel");
+    if (!currentRisk) {
+      panel.innerHTML = `
+        <div class="risk-badge risk-badge-muted">לא נבדק</div>
+        <p style="color:var(--text-muted); font-size:13px; margin:6px 0 0;">${RISK_DISCLAIMER}</p>
+      `;
+      return;
+    }
+    const trendMeta = currentRisk.trend ? TREND_META[currentRisk.trend] : null;
+    panel.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        ${riskBadgeHtml(currentRisk)}
+        ${trendMeta ? `<span>${trendMeta.arrow} ${trendMeta.label}</span>` : `<span style="color:var(--text-muted);">אין נתון קודם להשוואת מגמה</span>`}
+      </div>
+      <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">
+        נמדד ב-${formatDateHe(new Date(currentRisk.predicted_at))} ${formatTimeHe(new Date(currentRisk.predicted_at))} ·
+        בתוקף עד ${formatDateHe(new Date(currentRisk.expires_at))} ${formatTimeHe(new Date(currentRisk.expires_at))} ·
+        חלון חיזוי: ${currentRisk.prediction_horizon_hours} שעות
+      </p>
+      <p style="color:var(--text-muted); font-size:13px; margin:4px 0 0;">${RISK_DISCLAIMER}</p>
+    `;
+  }
+
+  async function loadAndRenderRisk(patientId) {
+    document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">טוען רמת סיכון...</p>`;
+    const currentRisk = await loadCurrentRiskForPatient(patientId);
+    renderRiskPanel(currentRisk);
+  }
+
+  async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
+    const { data: prevReports, error: prevError } = await supabaseClient
+      .from("visit_reports")
+      .select("systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
+      .eq("patient_id", patientId)
+      .neq("id", savedReportId)
+      .order("visit_date", { ascending: false })
+      .limit(1);
+    if (prevError) { console.error("previous visit_report lookup", prevError); }
+    const previous = prevReports && prevReports[0] ? prevReports[0] : null;
+
+    let assessment;
+    try {
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8 }),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      assessment = await res.json();
+    } catch (err) {
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      return;
+    }
+
+    // אין מדדים בכלל בדוח הזה — לא יוצרים רשומת סיכון מפוברקת ("no_data" אינו ערך תקף
+    // בעמודת risk_level, ובכוונה: היעדר מדדים לא אמור להצטייר כ"ירוק").
+    if (assessment.risk_level === "no_data") {
+      renderRiskPanel(null);
+      return;
+    }
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const predictedAt = new Date();
+    const expiresAt = new Date(predictedAt.getTime() + assessment.prediction_horizon_hours * 3600 * 1000);
+
+    const { error: insertError } = await supabaseClient.from("risk_predictions").insert({
+      patient_id: patientId,
+      visit_report_id: savedReportId,
+      predicted_at: predictedAt.toISOString(),
+      input_features: currentVitals,
+      risk_level: assessment.risk_level,
+      confidence: assessment.confidence,
+      prediction_horizon_hours: assessment.prediction_horizon_hours,
+      expires_at: expiresAt.toISOString(),
+      model_version: assessment.model_version,
+      trend: assessment.trend,
+      probability: assessment.probability,
+      created_by: session?.user?.id || null,
+    });
+    if (insertError) { console.error("risk_predictions insert", insertError); }
+
+    renderRiskPanel({
+      risk_level: assessment.risk_level,
+      trend: assessment.trend,
+      predicted_at: predictedAt.toISOString(),
+      expires_at: expiresAt.toISOString(),
+      prediction_horizon_hours: assessment.prediction_horizon_hours,
+    });
   }
 
   function collectVitalsFromForm() {
@@ -677,39 +893,11 @@
     };
   }
 
-  const RISK_BADGE_CLASS = { green: "risk-badge-green", yellow: "risk-badge-yellow", red: "risk-badge-red", no_data: "risk-badge-muted" };
-  const LEVEL_HE = { green: "ירוק", yellow: "צהוב", red: "אדום" };
-
   function predictiveServiceUnavailableMessage(err) {
     return /failed to fetch|network|load failed/i.test(err?.message || "")
       ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
       : friendlyErrorMessage(err);
   }
-
-  document.getElementById("vr-check-risk-btn").addEventListener("click", async () => {
-    const resultEl = document.getElementById("vr-risk-result");
-    const btn = document.getElementById("vr-check-risk-btn");
-    resultEl.innerHTML = "";
-    setButtonLoading(btn, true, "בודק...");
-    try {
-      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-level`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(collectVitalsFromForm()),
-      });
-      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
-      const data = await res.json();
-      const badgeClass = RISK_BADGE_CLASS[data.level] || "risk-badge-muted";
-      const flaggedHtml = data.flagged_vitals.length
-        ? `<ul style="margin:8px 0 0; padding-inline-start:20px;">${data.flagged_vitals.map((f) => `<li>${f.label}: ${f.value} (${LEVEL_HE[f.level] || f.level})</li>`).join("")}</ul>`
-        : "";
-      resultEl.innerHTML = `<div class="risk-badge ${badgeClass}">רמת סיכון: ${data.level_label}</div>${flaggedHtml}`;
-    } catch (err) {
-      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
-    } finally {
-      setButtonLoading(btn, false);
-    }
-  });
 
   document.getElementById("vr-check-trend-btn").addEventListener("click", async () => {
     const resultEl = document.getElementById("vr-trend-result");
@@ -769,36 +957,24 @@
     const modalError = document.getElementById("visit-report-modal-error");
     hideError(modalError);
 
-    const num = (id) => {
-      const v = document.getElementById(id).value;
-      return v === "" ? null : Number(v);
-    };
-    const systolic = num("vr-systolic");
-    const diastolic = num("vr-diastolic");
-    const sugar = num("vr-sugar");
-    const pulse = num("vr-pulse");
-    const temp = num("vr-temp");
-    const o2 = num("vr-o2");
+    const vitals = collectVitalsFromForm();
     const summary = document.getElementById("vr-summary").value.trim();
 
-    if (systolic !== null && (systolic < 50 || systolic > 250)) { showError(modalError, 'ל"ד סיסטולי תקין נע בין 50 ל-250'); return; }
-    if (diastolic !== null && (diastolic < 30 || diastolic > 150)) { showError(modalError, 'ל"ד דיאסטולי תקין נע בין 30 ל-150'); return; }
-    if (sugar !== null && (sugar < 20 || sugar > 600)) { showError(modalError, "רמת סוכר תקינה נעה בין 20 ל-600"); return; }
-    if (pulse !== null && (pulse < 30 || pulse > 220)) { showError(modalError, "דופק תקין נע בין 30 ל-220"); return; }
-    if (temp !== null && (temp < 30 || temp > 45)) { showError(modalError, "חום גוף תקין נע בין 30 ל-45"); return; }
-    if (o2 !== null && (o2 < 50 || o2 > 100)) { showError(modalError, "סטורציה נעה בין 50 ל-100"); return; }
+    // טווחי סבירות על קלט (לא זהים בכוונה לסף הסיכון הקליני ב-predictive-service/main.py:
+    // כאן בודקים "האם זה מדד אנושי אפשרי בכלל", שם בודקים "האם המדד הזה מדאיג" — ר' הערה שם).
+    if (vitals.systolic_bp !== null && (vitals.systolic_bp < 50 || vitals.systolic_bp > 250)) { showError(modalError, 'ל"ד סיסטולי תקין נע בין 50 ל-250'); return; }
+    if (vitals.diastolic_bp !== null && (vitals.diastolic_bp < 30 || vitals.diastolic_bp > 150)) { showError(modalError, 'ל"ד דיאסטולי תקין נע בין 30 ל-150'); return; }
+    if (vitals.blood_sugar !== null && (vitals.blood_sugar < 20 || vitals.blood_sugar > 600)) { showError(modalError, "רמת סוכר תקינה נעה בין 20 ל-600"); return; }
+    if (vitals.pulse !== null && (vitals.pulse < 30 || vitals.pulse > 220)) { showError(modalError, "דופק תקין נע בין 30 ל-220"); return; }
+    if (vitals.temperature !== null && (vitals.temperature < 30 || vitals.temperature > 45)) { showError(modalError, "חום גוף תקין נע בין 30 ל-45"); return; }
+    if (vitals.oxygen_saturation !== null && (vitals.oxygen_saturation < 50 || vitals.oxygen_saturation > 100)) { showError(modalError, "סטורציה נעה בין 50 ל-100"); return; }
     if (!summary) { showError(modalError, "חובה למלא סיכום טיפול"); return; }
 
     const payload = {
       booking_id: Number(document.getElementById("vr-booking-id").value),
       patient_id: visitReportModal.dataset.patientId,
       staff_id: Number(visitReportModal.dataset.staffId),
-      systolic_bp: systolic,
-      diastolic_bp: diastolic,
-      blood_sugar: sugar,
-      pulse,
-      temperature: temp,
-      oxygen_saturation: o2,
+      ...vitals,
       treatment_summary: summary,
       patient_signature_data: vrHasSignature ? vrCanvas.toDataURL("image/png") : null,
     };
@@ -808,13 +984,24 @@
 
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
-    const { error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" });
-    setButtonLoading(btn, false);
+    let error, savedReport;
+    try {
+      ({ data: savedReport, error } = await supabaseClient
+        .from("visit_reports")
+        .upsert(payload, { onConflict: "booking_id" })
+        .select("id")
+        .single());
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
 
     if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
     visitReportModal.style.display = "none";
     flashSuccess("דוח הביקור נשמר");
     loadBookings();
+    recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
   });
 
   // ===== אתחול =====

@@ -143,7 +143,10 @@
       dateListEl.innerHTML = '<div class="empty-state">אין ימים זמינים לאיש צוות זה.</div>';
     }
 
+    let loadSlotsToken = 0;
+
     async function loadSlots(date) {
+      const requestToken = ++loadSlotsToken;
       const slotsSection = document.getElementById("slots-section");
       const noSlots = document.getElementById("no-slots");
       const slotGrid = document.getElementById("slot-grid");
@@ -169,6 +172,9 @@
         error = err;
       }
 
+      // תאריך אחר כבר נבחר בזמן שהבקשה הזו הייתה באוויר — מתעלמים מהתוצאה המיושנת
+      if (requestToken !== loadSlotsToken) return;
+
       slotGrid.innerHTML = "";
 
       if (error) {
@@ -190,7 +196,7 @@
       const now = new Date();
       let anyEnabled = false;
 
-      for (let t = dayStart.getTime(); t < dayEnd.getTime(); t += durationMs) {
+      for (let t = dayStart.getTime(); t + durationMs <= dayEnd.getTime(); t += durationMs) {
         const slotDate = new Date(t);
         const isTaken = takenTimes.has(t);
         const isPast = slotDate < now;

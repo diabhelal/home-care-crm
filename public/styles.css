@@ -2,6 +2,8 @@
   --primary: #2f7d6e;
   --primary-dark: #235c51;
   --primary-light: #e6f1ee;
+  --accent: #d98c3f;
+  --accent-light: #fbead9;
   --bg: #f7f8f6;
   --surface: #ffffff;
   --text: #1f2a28;
@@ -9,10 +11,13 @@
   --border: #dfe6e3;
   --danger: #b3452f;
   --danger-light: #fbeae5;
-  --success: #2f7d6e;
   --radius: 16px;
   --radius-sm: 10px;
+  --radius-lg: 28px;
+  --shadow-sm: 0 2px 8px rgba(31, 42, 40, 0.06);
   --shadow: 0 4px 16px rgba(31, 42, 40, 0.08);
+  --shadow-lg: 0 14px 36px rgba(31, 42, 40, 0.14);
+  --transition: 0.18s ease;
   --font-body: "Inter", "Segoe UI", Arial, sans-serif;
   --font-head: "Manrope", "Segoe UI", Arial, sans-serif;
 }
@@ -91,6 +96,9 @@ a { color: var(--primary); }
   display: flex;
   align-items: center;
   justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 40;
 }
 .app-header .brand {
   display: flex;
@@ -198,17 +206,19 @@ main {
   border-radius: var(--radius-sm);
   border: none;
   cursor: pointer;
-  transition: background 0.15s, transform 0.05s;
+  transition: background var(--transition), transform 0.05s, box-shadow var(--transition);
 }
 .btn:active { transform: scale(0.98); }
-.btn-primary { background: var(--primary); color: #fff; width: 100%; }
-.btn-primary:hover { background: var(--primary-dark); }
+.btn-primary { background: var(--primary); color: #fff; width: 100%; box-shadow: var(--shadow-sm); }
+.btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow); }
 .btn-secondary { background: var(--primary-light); color: var(--primary-dark); }
 .btn-secondary:hover { background: #d8e9e4; }
 .btn-danger { background: var(--danger-light); color: var(--danger); }
 .btn-danger:hover { background: #f4d9d0; }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
+.btn-ghost:hover { border-color: var(--primary); color: var(--primary-dark); }
 .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn:disabled:hover { box-shadow: none; }
 
 .link-btn {
   background: none; border: none; color: var(--primary);
@@ -279,9 +289,9 @@ main {
   text-align: right;
   font: inherit;
   color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
-.staff-card:hover { border-color: var(--primary); box-shadow: var(--shadow); }
+.staff-card:hover { border-color: var(--primary); box-shadow: var(--shadow-lg); transform: translateY(-3px); }
 .staff-card.selected { border-color: var(--primary); background: var(--primary-light); }
 .staff-card .role-badge {
   display: inline-block;
@@ -309,7 +319,10 @@ main {
   font-size: 16px;
   font-weight: 600;
   font-family: var(--font-body);
+  transition: background var(--transition), border-color var(--transition), color var(--transition), transform 0.05s;
 }
+.chip:hover { border-color: var(--primary); }
+.chip:active { transform: scale(0.97); }
 .chip.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
 
 /* Date list */
@@ -331,7 +344,10 @@ main {
   text-align: center;
   min-width: 76px;
   font-family: var(--font-body);
+  transition: background var(--transition), border-color var(--transition), transform 0.05s;
 }
+.date-pill:hover { border-color: var(--primary); }
+.date-pill:active { transform: scale(0.97); }
 .date-pill .dow { font-size: 13px; color: var(--text-muted); }
 .date-pill .dom { font-size: 18px; font-weight: 700; }
 .date-pill.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
@@ -354,7 +370,10 @@ main {
   font-size: 16px;
   font-weight: 600;
   font-family: var(--font-body);
+  transition: background var(--transition), border-color var(--transition), transform 0.05s;
 }
+.slot-btn:not(:disabled):hover { border-color: var(--primary); }
+.slot-btn:not(:disabled):active { transform: scale(0.97); }
 .slot-btn.selected { background: var(--primary); border-color: var(--primary); color: #fff; }
 .slot-btn:disabled { opacity: 0.35; cursor: not-allowed; text-decoration: line-through; }
 
@@ -376,7 +395,9 @@ main {
   align-items: center;
   gap: 16px;
   flex-wrap: wrap;
+  transition: box-shadow var(--transition), border-color var(--transition);
 }
+.booking-item:hover { box-shadow: var(--shadow-sm); border-color: #cfdad6; }
 .booking-item .info .purpose { font-weight: 700; font-size: 18px; margin-bottom: 4px; }
 .booking-item .info .meta { color: var(--text-muted); font-size: 15px; }
 .status-badge {
@@ -413,6 +434,13 @@ main {
 
 /* Admin panel */
 section { margin-bottom: 48px; }
+#admin-app section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
 .section-header {
   display: flex;
   justify-content: space-between;
@@ -429,6 +457,7 @@ section { margin-bottom: 48px; }
   border-radius: var(--radius);
   overflow: hidden;
   min-width: 700px;
+  box-shadow: var(--shadow-sm);
 }
 .admin-table th, .admin-table td {
   padding: 12px 14px;
@@ -441,8 +470,13 @@ section { margin-bottom: 48px; }
   background: var(--primary-light);
   color: var(--primary-dark);
   font-weight: 700;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
-.admin-table tbody tr:hover { background: var(--bg); }
+.admin-table tbody tr:nth-child(even) { background: #fbfcfb; }
+.admin-table tbody tr:hover { background: var(--primary-light); }
+.admin-table tbody tr:last-child td { border-bottom: none; }
 
 .modal-overlay {
   position: fixed;
@@ -526,6 +560,19 @@ section { margin-bottom: 48px; }
 .risk-badge-red { background: var(--danger-light); color: var(--danger); }
 .risk-badge-muted { background: var(--border); color: var(--text-muted); }
 
+/* פאנל הסיכון: Navy/Gold כמסגרת ויזואלית ייעודית (לא צובעים מחדש את תגי הסיכון עצמם —
+   ירוק/צהוב/אדום נשארים כרמזור, זה חלק מהבהירות הקלינית ולא רק עיצוב) */
+#vr-risk-panel {
+  background: #0a192f;
+  border: 1px solid #d4af37;
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  color: #f8f9fa;
+}
+#vr-risk-panel p { color: #b8c4d9 !important; }
+#vr-risk-panel .risk-badge { margin-top: 0; }
+
 /* Landing page */
 .landing {
   max-width: 1100px;
@@ -534,10 +581,30 @@ section { margin-bottom: 48px; }
 
 .hero {
   text-align: center;
-  padding: 56px 16px 40px;
+  padding: 64px 32px 56px;
+  margin-top: 24px;
+  background: linear-gradient(135deg, var(--primary-light) 0%, #eef7f3 55%, var(--accent-light) 130%);
+  border-radius: var(--radius-lg);
+}
+.hero-icons {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.hero-icons span {
+  width: 48px;
+  height: 48px;
+  background: var(--surface);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: var(--shadow-sm);
 }
 .hero h1 {
-  font-size: 36px;
+  font-size: 38px;
   max-width: 720px;
   margin: 0 auto 16px;
   color: var(--primary-dark);
@@ -555,8 +622,8 @@ section { margin-bottom: 48px; }
   font-size: 18px;
 }
 
-.services-section, .why-us { margin-top: 56px; }
-.services-section h2, .why-us h2 {
+.services-section, .why-us, .how-it-works { margin-top: 56px; }
+.services-section h2, .why-us h2, .how-it-works h2 {
   text-align: center;
   font-size: 26px;
   margin-bottom: 28px;
@@ -571,14 +638,24 @@ section { margin-bottom: 48px; }
   text-align: right;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s, transform 0.1s;
+  transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
 .service-card:hover {
   border-color: var(--primary);
-  box-shadow: var(--shadow);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-3px);
 }
-.service-icon { font-size: 32px; margin-bottom: 10px; }
+.service-icon {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: var(--primary-light);
+  border-radius: 50%;
+  margin-bottom: 12px;
+}
 .service-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
 .service-desc { color: var(--text-muted); font-size: 15px; margin-bottom: 14px; }
 .service-link { color: var(--primary); font-weight: 700; font-size: 15px; }
@@ -589,13 +666,55 @@ section { margin-bottom: 48px; }
   gap: 20px;
 }
 .why-item { text-align: center; padding: 16px; }
-.why-icon { font-size: 30px; margin-bottom: 8px; }
+.why-icon {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  background: var(--accent-light);
+  border-radius: 50%;
+  margin: 0 auto 12px;
+}
 .why-title { font-weight: 700; font-size: 17px; margin-bottom: 6px; }
 .why-text { color: var(--text-muted); font-size: 15px; }
 
-.cta-bottom { text-align: center; margin-top: 56px; }
+.how-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+}
+.how-step { text-align: center; padding: 16px; }
+.how-step-num {
+  width: 40px;
+  height: 40px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-family: var(--font-head);
+  font-size: 17px;
+  margin: 0 auto 14px;
+}
+.how-step-title { font-weight: 700; font-size: 17px; margin-bottom: 6px; }
+.how-step-text { color: var(--text-muted); font-size: 15px; }
+
+.cta-bottom {
+  text-align: center;
+  margin-top: 56px;
+  padding: 40px 24px;
+  background: var(--primary-light);
+  border-radius: var(--radius-lg);
+}
+.cta-bottom h2 { margin-bottom: 8px; }
+.cta-bottom p { color: var(--text-muted); margin-bottom: 20px; }
 
 @media (max-width: 560px) {
+  .hero { padding: 40px 20px 32px; border-radius: var(--radius); }
   .hero h1 { font-size: 28px; }
   .hero-subtitle { font-size: 17px; }
   html, body { font-size: 16px; }
@@ -603,6 +722,7 @@ section { margin-bottom: 48px; }
   .card { padding: 22px; }
   .app-header { padding: 12px 14px; flex-wrap: wrap; gap: 10px; }
   .booking-item { padding: 16px; }
+  #admin-app section { padding: 16px; }
 }
 
 @media (max-width: 380px) {

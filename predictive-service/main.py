@@ -23,7 +23,7 @@ app.add_middleware(
 class CapacityForecastRequest(BaseModel):
     visits_this_month: int = Field(..., ge=0, description="כמות ביקורי בית שבוצעו בחודש הנוכחי")
     active_patients: int = Field(..., gt=0, description="כמות המטופלים הפעילים כרגע במערכת")
-    growth_rate: float = Field(..., description="אחוז צמיחה משוער לחודש הבא, לדוגמה 0.05 עבור 5%")
+    growth_rate: float = Field(..., gt=-1, description="אחוז צמיחה משוער לחודש הבא, לדוגמה 0.05 עבור 5%")
 
 
 class CapacityForecastResponse(BaseModel):
@@ -55,6 +55,12 @@ def predict_capacity(req: CapacityForecastRequest):
 # ===== רמת סיכון (Green/Yellow/Red) =====
 # עצי החלטה פשוטים (טווחים קליניים כלליים, לא אבחון רפואי) לכל מדד בנפרד.
 # רמת הסיכון הכוללת = הרמה החמורה ביותר מבין המדדים שנמדדו בפועל בביקור.
+#
+# הערה לגבי הטווחים: ה-Field bounds על VitalsInput (למטה) בודקים סבירות קלט בלבד
+# ("האם זה מדד אנושי אפשרי בכלל" — זהים בכוונה לטווחי ה-CHECK ב-DB ולבדיקת הקלט ב-admin.html),
+# בעוד שהפונקציות classify_* כאן בודקות משהו אחר — "האם המדד הזה מדאיג קלינית" — בתוך
+# הטווח הסביר. לכן ערך כמו סיסטולי 250 עובר את הבדיקה בקלט אך מסווג "red" — זו התנהגות
+# רצויה, לא חוסר עקביות. אין לשנות טווח אחד כדי "ליישר" אותו עם השני.
 
 def classify_systolic_bp(v: float) -> str:
     if v < 85 or v >= 160:
@@ -118,12 +124,12 @@ LEVEL_LABELS = {"green": "ירוק", "yellow": "צהוב", "red": "אדום", "n
 
 
 class VitalsInput(BaseModel):
-    systolic_bp: Optional[float] = None
-    diastolic_bp: Optional[float] = None
-    blood_sugar: Optional[float] = None
-    pulse: Optional[float] = None
-    temperature: Optional[float] = None
-    oxygen_saturation: Optional[float] = None
+    systolic_bp: Optional[float] = Field(None, ge=50, le=250)
+    diastolic_bp: Optional[float] = Field(None, ge=30, le=150)
+    blood_sugar: Optional[float] = Field(None, ge=20, le=600)
+    pulse: Optional[float] = Field(None, ge=30, le=220)
+    temperature: Optional[float] = Field(None, ge=30.0, le=45.0)
+    oxygen_saturation: Optional[float] = Field(None, ge=50, le=100)
 
 
 class FlaggedVital(BaseModel):
@@ -139,8 +145,8 @@ class RiskLevelResponse(BaseModel):
     flagged_vitals: list[FlaggedVital]
 
 
-@app.post("/predict/risk-level", response_model=RiskLevelResponse)
-def predict_risk_level(vitals: VitalsInput):
+def compute_risk(vitals: VitalsInput):
+    """מחזיר (worst_level_or_None, flagged_vitals) על סמך המדדים שסופקו בפועל."""
     worst = None
     flagged = []
     for key, (classify, label) in VITAL_CLASSIFIERS.items():
@@ -152,10 +158,67 @@ def predict_risk_level(vitals: VitalsInput):
             worst = level
         if level != "green":
             flagged.append(FlaggedVital(vital=key, label=label, value=value, level=level))
+    return worst, flagged
 
+
+@app.post("/predict/risk-level", response_model=RiskLevelResponse)
+def predict_risk_level(vitals: VitalsInput):
+    worst, flagged = compute_risk(vitals)
     if worst is None:
         return RiskLevelResponse(level="no_data", level_label=LEVEL_LABELS["no_data"], flagged_vitals=[])
     return RiskLevelResponse(level=worst, level_label=LEVEL_LABELS[worst], flagged_vitals=flagged)
+
+
+# ===== הערכת סיכון מודעת-זמן (Tier 1: rule/trend-based decision support) =====
+# משווה את הקריאה הנוכחית לקריאה הקודמת של אותו מטופל כדי לגזור מגמה, לצד רמת הסיכון
+# הרגילה. confidence = שלמות קלט (לא הסתברות). probability תמיד null — אין מודל ML
+# מאומן בפרויקט הזה; ר' הערה ב-migration ובתגובת ה-endpoint.
+
+class RiskAssessmentRequest(BaseModel):
+    current: VitalsInput
+    previous: Optional[VitalsInput] = None
+    prediction_horizon_hours: int = Field(8, gt=0)
+
+
+class RiskAssessmentResponse(BaseModel):
+    risk_level: str
+    level_label: str
+    flagged_vitals: list[FlaggedVital]
+    trend: Optional[str]
+    confidence: float
+    probability: Optional[float] = None
+    prediction_horizon_hours: int
+    model_version: str = "rule-based-v1"
+
+
+@app.post("/predict/risk-assessment", response_model=RiskAssessmentResponse)
+def predict_risk_assessment(req: RiskAssessmentRequest):
+    worst, flagged = compute_risk(req.current)
+    level = worst or "no_data"
+
+    trend = None
+    if req.previous is not None:
+        prev_worst, _ = compute_risk(req.previous)
+        if prev_worst is not None and worst is not None:
+            if LEVEL_RANK[worst] > LEVEL_RANK[prev_worst]:
+                trend = "worsening"
+            elif LEVEL_RANK[worst] < LEVEL_RANK[prev_worst]:
+                trend = "improving"
+            else:
+                trend = "stable"
+
+    provided = sum(1 for key in VITAL_CLASSIFIERS if getattr(req.current, key) is not None)
+    confidence = round(provided / len(VITAL_CLASSIFIERS), 3)
+
+    return RiskAssessmentResponse(
+        risk_level=level,
+        level_label=LEVEL_LABELS[level],
+        flagged_vitals=flagged,
+        trend=trend,
+        confidence=confidence,
+        probability=None,
+        prediction_horizon_hours=req.prediction_horizon_hours,
+    )
 
 
 # ===== מגמת מדדים (Linear Regression) =====
