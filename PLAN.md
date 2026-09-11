@@ -120,3 +120,4 @@ cd "/Users/helaldiab/Desktop/פיתוח AI/home-care-crm/public" && nohup python
   PLAN.md
   CLAUDE.md
 ```
+

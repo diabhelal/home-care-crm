@@ -27,6 +27,24 @@
       </div>
       <button type="submit" class="btn btn-primary" id="admin-login-btn">התחברות</button>
     </form>
+    <button type="button" class="link-btn" id="forgot-password-link">שכחתי סיסמה</button>
+  </div>
+</div>
+
+<div id="reset-password-screen" class="center-screen" style="display:none;">
+  <div class="card auth-card">
+    <div class="logo-big">🔑</div>
+    <h1>איפוס סיסמה</h1>
+    <p class="subtitle">בחירת סיסמה חדשה לחשבון המנהל</p>
+    <div class="error-msg" id="reset-password-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="reset-password-success" role="status" aria-live="polite"></div>
+    <form id="reset-password-form">
+      <div class="field">
+        <label for="new-password">סיסמה חדשה</label>
+        <input type="password" id="new-password" required autocomplete="new-password" minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary" id="reset-password-btn">שמירת סיסמה חדשה</button>
+    </form>
   </div>
 </div>
 
@@ -203,6 +221,7 @@
 <script>
   const loginScreen = document.getElementById("login-screen");
   const adminApp = document.getElementById("admin-app");
+  const resetPasswordScreen = document.getElementById("reset-password-screen");
   const loginError = document.getElementById("login-error");
   const appError = document.getElementById("app-error");
   const appSuccess = document.getElementById("app-success");
@@ -230,7 +249,7 @@
     const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
     setButtonLoading(btn, false);
     if (error) {
-      showError(loginError, "אימייל או סיסמה שגויים");
+      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)} (${error.status || error.code || "?"})`);
       return;
     }
     if (data.user?.app_metadata?.is_admin !== true) {
@@ -239,6 +258,60 @@
       return;
     }
     showAdminApp();
+  });
+
+  document.getElementById("forgot-password-link").addEventListener("click", async () => {
+    hideError(loginError);
+    const email = document.getElementById("admin-email").value.trim();
+    if (!email) {
+      showError(loginError, "נא להזין קודם את כתובת האימייל בשדה למעלה");
+      return;
+    }
+    const link = document.getElementById("forgot-password-link");
+    setButtonLoading(link, true, "שולח...");
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.href.split("#")[0],
+    });
+    setButtonLoading(link, false);
+    if (error) {
+      showError(loginError, friendlyErrorMessage(error));
+      return;
+    }
+    hideError(loginError);
+    alert(`אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`);
+  });
+
+  // תפוס אירוע התאוששות סיסמה: לחיצה על הקישור מהמייל מחזירה לכאן עם session זמני
+  supabaseClient.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") {
+      loginScreen.style.display = "none";
+      adminApp.style.display = "none";
+      resetPasswordScreen.style.display = "flex";
+    }
+  });
+
+  document.getElementById("reset-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("reset-password-error");
+    const successEl = document.getElementById("reset-password-success");
+    hideError(errEl);
+    successEl.classList.remove("show");
+    const newPassword = document.getElementById("new-password").value;
+    const btn = document.getElementById("reset-password-btn");
+    setButtonLoading(btn, true, "שומר...");
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    setButtonLoading(btn, false);
+    if (error) {
+      showError(errEl, friendlyErrorMessage(error));
+      return;
+    }
+    successEl.textContent = "הסיסמה עודכנה בהצלחה. ניתן כעת להתחבר.";
+    successEl.classList.add("show");
+    setTimeout(async () => {
+      await supabaseClient.auth.signOut();
+      resetPasswordScreen.style.display = "none";
+      loginScreen.style.display = "flex";
+    }, 2000);
   });
 
   document.getElementById("admin-logout-btn").addEventListener("click", async () => {
@@ -746,6 +819,9 @@
 
   // ===== אתחול =====
   (async () => {
+    // אם הגענו מקישור איפוס סיסמה (type=recovery ב-URL), onAuthStateChange כבר מציג
+    // את מסך "בחירת סיסמה חדשה" — לא ממשיכים לבדוק session/כניסה אוטומטית לאפליקציה.
+    if (window.location.hash.includes("type=recovery")) return;
     const admin = await isAdminSession();
     if (admin) {
       showAdminApp();
