@@ -189,10 +189,8 @@
     <div id="vr-risk-panel"></div>
     <div class="actions-row" style="justify-content:flex-start;">
       <button type="button" class="btn btn-secondary btn-sm" id="vr-check-trend-btn">תחזית מגמת מדדים</button>
-      <button type="button" class="btn btn-secondary btn-sm" id="vr-ai-explain-btn">הסבר AI</button>
     </div>
     <div id="vr-trend-result"></div>
-    <div id="vr-ai-explain-result"></div>
 
     <h3>פרוצדורות שבוצעו</h3>
     <div id="vr-procedures" class="field"></div>
@@ -786,7 +784,6 @@
     vrLoadSignature(report?.patient_signature_data || null);
     hideError(document.getElementById("visit-report-modal-error"));
     document.getElementById("vr-trend-result").innerHTML = "";
-    document.getElementById("vr-ai-explain-result").innerHTML = "";
     visitReportModal.style.display = "flex";
     loadAndRenderRisk(booking.patient_id);
   }
@@ -912,81 +909,6 @@
       ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
       : friendlyErrorMessage(err);
   }
-
-  // ===== הסבר AI (אופציונלי, backend-only — ר' predictive-service/ai_explain.py) =====
-  // שולח אך ורק פלט שכבר חושב (risk_level, flagged_vitals, trend) + הקשר מטופל מובנה.
-  // אף פעם לא שולח את כל תיק המטופל, ואף פעם לא מבקש מה-AI "לחזות" בעצמו.
-  document.getElementById("vr-ai-explain-btn").addEventListener("click", async () => {
-    const resultEl = document.getElementById("vr-ai-explain-result");
-    const btn = document.getElementById("vr-ai-explain-btn");
-    const patientId = visitReportModal.dataset.patientId;
-    resultEl.innerHTML = "";
-    setButtonLoading(btn, true, "מסביר...");
-    try {
-      const { data: predictions, error: predError } = await supabaseClient
-        .from("risk_predictions")
-        .select("*")
-        .eq("patient_id", patientId)
-        .gt("expires_at", new Date().toISOString())
-        .order("predicted_at", { ascending: false })
-        .limit(1);
-      if (predError) throw predError;
-      const current = predictions && predictions[0];
-      if (!current) {
-        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין הערכת סיכון עדכנית להסביר. שמירת הדוח מחשבת הערכה אוטומטית.</p>`;
-        return;
-      }
-
-      const { data: patient, error: patientError } = await supabaseClient
-        .from("patients")
-        .select("date_of_birth, background_conditions, smoking_status")
-        .eq("id", patientId)
-        .single();
-      if (patientError) throw patientError;
-
-      // משחזרים את רשימת המדדים החריגים (flagged_vitals) מתוך תמונת הקלט השמורה,
-      // כדי לא לשמור אותה כפול ב-DB — קריאה זולה לאנדפוינט הקיים /predict/risk-level.
-      let flaggedVitals = [];
-      try {
-        const rlRes = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-level`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(current.input_features || {}),
-        });
-        if (rlRes.ok) flaggedVitals = (await rlRes.json()).flagged_vitals || [];
-      } catch (_) { /* לא קריטי — ממשיכים בלי flagged_vitals אם השירות לא זמין */ }
-
-      const age = patient.date_of_birth
-        ? Math.floor((Date.now() - new Date(patient.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
-        : null;
-
-      const explainRes = await fetch(`${PREDICTIVE_SERVICE_URL}/explain`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          patient_context: {
-            age,
-            background_conditions: patient.background_conditions || [],
-            smoking_status: patient.smoking_status || null,
-          },
-          current_status: { risk_level: current.risk_level, flagged_vitals: flaggedVitals },
-          trend: current.trend ? { direction: current.trend } : null,
-        }),
-      });
-      if (!explainRes.ok) throw new Error(`שירות התחזית החזיר שגיאה (${explainRes.status})`);
-      const explainData = await explainRes.json();
-
-      if (!explainData.ai_available) {
-        resultEl.innerHTML = `<p style="color:var(--text-muted);">שכבת הסבר AI אינה מוגדרת בשירות המקומי (חסר ANTHROPIC_API_KEY ב-predictive-service/.env). שאר המערכת פועלת כרגיל בלעדיה.</p>`;
-        return;
-      }
-      resultEl.innerHTML = `<div class="ai-explain-box"><strong>הסבר AI</strong><p>${escapeHtml(explainData.explanation)}</p></div>`;
-    } catch (err) {
-      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
-    } finally {
-      setButtonLoading(btn, false);
-    }
-  });
 
   document.getElementById("vr-check-trend-btn").addEventListener("click", async () => {
     const resultEl = document.getElementById("vr-trend-result");
