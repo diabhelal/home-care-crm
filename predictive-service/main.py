@@ -5,9 +5,14 @@
 
 from typing import Optional
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+
+import ai_explain
+
+load_dotenv()  # טוען .env מקומי אם קיים; לא נכשל אם אין קובץ (המפתחות אז פשוט לא מוגדרים)
 
 app = FastAPI(title="home-care-crm predictive service")
 
@@ -269,3 +274,47 @@ def predict_vitals_trend(req: TrendForecastRequest):
         predicted_next_y=round(predicted_next_y, 2),
         direction=direction,
     )
+
+
+# ===== שכבת הסבר AI (backend-only, אופציונלית) =====
+# מקבלת אך ורק פלט שכבר חושב ע"י הכללים למעלה — אף פעם לא מקור להסתברות/אבחנה/חיזוי עצמאי.
+# אם אין ANTHROPIC_API_KEY מוגדר ב-.env, מחזירה ai_available=False בלי לזרוק שגיאה —
+# שאר המערכת ממשיכה לעבוד רגיל בלי השכבה הזו. ר' ai_explain.py.
+
+class PatientContext(BaseModel):
+    age: Optional[int] = None
+    background_conditions: list[str] = []
+    smoking_status: Optional[str] = None
+
+
+class CurrentStatusInput(BaseModel):
+    risk_level: str
+    flagged_vitals: list[FlaggedVital] = []
+
+
+class TrendInput(BaseModel):
+    direction: Optional[str] = None  # improving | stable | worsening | None
+
+
+class ExplainRequest(BaseModel):
+    patient_context: PatientContext
+    current_status: CurrentStatusInput
+    trend: Optional[TrendInput] = None
+
+
+class ExplainResponse(BaseModel):
+    explanation: str
+    ai_available: bool
+
+
+@app.post("/explain", response_model=ExplainResponse)
+def explain(req: ExplainRequest):
+    provider = ai_explain.get_provider()
+    if provider is None:
+        return ExplainResponse(explanation="", ai_available=False)
+    try:
+        text = provider.explain(req.model_dump())
+    except Exception:
+        # קריאה חיצונית שנכשלה לא אמורה להפיל את הבקשה — מתדרדרים בחזרה ל"אין AI זמין"
+        return ExplainResponse(explanation="", ai_available=False)
+    return ExplainResponse(explanation=text, ai_available=True)

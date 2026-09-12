@@ -60,6 +60,12 @@ function conditionsLabel(conditions) {
   return conditions.map((c) => CONDITION_META.find((m) => m.key === c)?.label || c).join(", ");
 }
 
+const SMOKING_STATUS_HE = { never: "אף פעם לא עישן/ה", former: "עישן/ה בעבר", current: "מעשן/ת כיום" };
+
+function smokingStatusLabel(status) {
+  return status ? (SMOKING_STATUS_HE[status] || status) : null;
+}
+
 const PROCEDURE_META = [
   { key: "performed_blood_draw", label: "בדיקת דם / איסוף דגימות" },
   { key: "performed_injection", label: "מתן זריקה" },
