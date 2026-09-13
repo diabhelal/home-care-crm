@@ -811,11 +811,15 @@
       return;
     }
     const trendMeta = currentRisk.trend ? TREND_META[currentRisk.trend] : null;
+    const statusClass = `caregiver-status-${currentRisk.risk_level in CAREGIVER_STATUS_BY_LEVEL ? currentRisk.risk_level : "no_data"}`;
     panel.innerHTML = `
       <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
         ${riskBadgeHtml(currentRisk)}
         ${trendMeta ? `<span>${trendMeta.arrow} ${trendMeta.label}</span>` : `<span style="color:var(--text-muted);">אין נתון קודם להשוואת מגמה</span>`}
       </div>
+      <p class="${statusClass}" style="font-weight:600; margin:8px 0 0;">
+        ${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}
+      </p>
       <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">
         נמדד ב-${formatDateHe(new Date(currentRisk.predicted_at))} ${formatTimeHe(new Date(currentRisk.predicted_at))} ·
         בתוקף עד ${formatDateHe(new Date(currentRisk.expires_at))} ${formatTimeHe(new Date(currentRisk.expires_at))} ·
@@ -922,7 +926,12 @@
     const concernClass = { high: "warning-banner-high", moderate: "warning-banner-moderate", low: "warning-banner-low" }[data.short_term_concern] || "warning-banner-low";
     const concernIcon = { high: "🚨", moderate: "⚠️", low: "✅" }[data.short_term_concern] || "";
 
+    const statusClass = `caregiver-status-${data.current_risk.level in CAREGIVER_STATUS_BY_LEVEL ? data.current_risk.level : "no_data"}`;
+
     let html = `
+      <p class="${statusClass}" style="font-weight:700; font-size:16px; margin:0 0 10px;">
+        ${escapeHtml(data.status_message)}
+      </p>
       <div class="warning-banner ${concernClass}">
         ${concernIcon} ${escapeHtml(data.explanation)}<br>
         <span style="font-weight:400;">הערכה חוזרת מומלצת בתוך ${data.reassessment_recommended_in_hours} שעות · חלון תוקף: ${data.risk_window_hours} שעות</span>

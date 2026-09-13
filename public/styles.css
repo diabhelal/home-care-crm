@@ -560,6 +560,11 @@ section { margin-bottom: 48px; }
 .risk-badge-red { background: var(--danger-light); color: var(--danger); }
 .risk-badge-muted { background: var(--border); color: var(--text-muted); }
 
+.caregiver-status-red { color: var(--danger); }
+.caregiver-status-yellow { color: #97650f; }
+.caregiver-status-green { color: #1f7a3f; }
+.caregiver-status-no_data { color: var(--text-muted); }
+
 /* פאנל הסיכון: Navy/Gold כמסגרת ויזואלית ייעודית (לא צובעים מחדש את תגי הסיכון עצמם —
    ירוק/צהוב/אדום נשארים כרמזור, זה חלק מהבהירות הקלינית ולא רק עיצוב) */
 #vr-risk-panel {

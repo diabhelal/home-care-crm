@@ -127,6 +127,27 @@ VITAL_CLASSIFIERS = {
 LEVEL_RANK = {"green": 0, "yellow": 1, "red": 2}
 LEVEL_LABELS = {"green": "ירוק", "yellow": "צהוב", "red": "אדום", "no_data": "אין נתונים"}
 
+# משפט תמציתי בעברית פשוטה למטפל/ת — ניסוח קריא של level+trend שכבר חושבו, לא מסקנה
+# רפואית חדשה ולא הסתברות. תואם את RISK_DISCLAIMER הקיים בפרונט (עדיין כלי תמיכה בהחלטה בלבד).
+CAREGIVER_STATUS_BY_LEVEL = {
+    "red": "המטופל/ת במצב מסוכן",
+    "yellow": "סכנה ממוצעת — יש לעקוב מקרוב",
+    "green": "מצב תקין",
+    "no_data": "אין מספיק נתונים להערכה",
+}
+CAREGIVER_TREND_SUFFIX = {
+    "worsening": " (המצב מחמיר)",
+    "improving": " (המצב משתפר)",
+    "stable": " (מצב יציב)",
+}
+
+
+def caregiver_status_message(level: str, trend: Optional[str]) -> str:
+    base = CAREGIVER_STATUS_BY_LEVEL.get(level, CAREGIVER_STATUS_BY_LEVEL["no_data"])
+    if trend and level != "no_data":
+        base += CAREGIVER_TREND_SUFFIX.get(trend, "")
+    return base
+
 
 class VitalsInput(BaseModel):
     systolic_bp: Optional[float] = Field(None, ge=50, le=250)
@@ -190,6 +211,7 @@ class RiskAssessmentResponse(BaseModel):
     level_label: str
     flagged_vitals: list[FlaggedVital]
     trend: Optional[str]
+    status_message: str
     confidence: float
     probability: Optional[float] = None
     prediction_horizon_hours: int
@@ -220,6 +242,7 @@ def predict_risk_assessment(req: RiskAssessmentRequest):
         level_label=LEVEL_LABELS[level],
         flagged_vitals=flagged,
         trend=trend,
+        status_message=caregiver_status_message(level, trend),
         confidence=confidence,
         probability=None,
         prediction_horizon_hours=req.prediction_horizon_hours,
@@ -548,6 +571,7 @@ class TriggerEventResponse(BaseModel):
 class MedicalWarningResponse(BaseModel):
     current_risk: RiskLevelResponse
     trend: Optional[str] = None
+    status_message: str
     baseline_analysis: list[BaselineAnalysisResponse]
     detected_anomalies: list[AnomalyResponse]
     trigger_events: list[TriggerEventResponse]
@@ -683,6 +707,7 @@ def predict_medical_warning(req: MedicalWarningRequest):
     return MedicalWarningResponse(
         current_risk=current_risk,
         trend=trend,
+        status_message=caregiver_status_message(current_risk.level, trend),
         baseline_analysis=baseline_list,
         detected_anomalies=anomalies_list,
         trigger_events=trigger_list,

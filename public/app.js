@@ -89,6 +89,28 @@ const TREND_META = {
 };
 const RISK_DISCLAIMER = "כלי תמיכה בקבלת החלטות בלבד — אינו קביעת מצב חירום או אבחון רפואי.";
 
+// משפט תמציתי בעברית פשוטה למטפל/ת, נגזר אך ורק מרמת הסיכון והמגמה שכבר חושבו —
+// לא נתון חדש, רק ניסוח קריא של מה שכבר קיים ב-risk_level/trend.
+const CAREGIVER_STATUS_BY_LEVEL = {
+  red: "המטופל/ת במצב מסוכן",
+  yellow: "סכנה ממוצעת — יש לעקוב מקרוב",
+  green: "מצב תקין",
+  no_data: "אין מספיק נתונים להערכה",
+};
+const CAREGIVER_TREND_SUFFIX = {
+  worsening: " (המצב מחמיר)",
+  improving: " (המצב משתפר)",
+  stable: " (מצב יציב)",
+};
+
+function caregiverStatusMessage(level, trend) {
+  const base = CAREGIVER_STATUS_BY_LEVEL[level] || CAREGIVER_STATUS_BY_LEVEL.no_data;
+  if (trend && level !== "no_data") {
+    return base + (CAREGIVER_TREND_SUFFIX[trend] || "");
+  }
+  return base;
+}
+
 // תג רמת סיכון קטן לשימוש בטבלאות (למשל עמודת "רמת סיכון" בטבלת ההזמנות)
 function riskBadgeHtml(currentRisk) {
   if (!currentRisk) {
