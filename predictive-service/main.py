@@ -3,7 +3,7 @@
 הפרונט (admin.html) קורא ל-endpoints האלה דרך fetch, ומציג את התוצאה בדשבורד הניהול.
 """
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -720,3 +720,99 @@ def predict_medical_warning(req: MedicalWarningRequest):
         contributing_factors=contributing_factors,
         explanation=explanation,
     )
+
+
+# ============================================================================
+# 7. Patient Medical Record — server-side business logic (בכוונה ב-Python, לא ב-JS
+#    בצד הלקוח): כללי יצירת התראות, וחישוב תאריכי ביקור מתוכננים לתוכנית שירות
+#    תקופתית. שני האנדפוינטים חסרי-מצב (stateless) כמו כל שאר השירות — לא נוגעים
+#    ב-DB; ה-JS בצד הלקוח קורא להם ואז כותב/קורא מ-Supabase בעצמו.
+# ============================================================================
+
+
+class AlertEvaluationRequest(BaseModel):
+    risk_level: str
+    trend: Optional[str] = None
+    trigger_events: list[TriggerEventResponse] = []
+    status_message: Optional[str] = None
+
+
+class AlertEvaluationResponse(BaseModel):
+    alert_type: Optional[str] = None
+    severity: Optional[str] = None
+    message: Optional[str] = None
+
+
+@app.post("/alerts/evaluate", response_model=AlertEvaluationResponse)
+def evaluate_alert(req: AlertEvaluationRequest):
+    """קובע האם מצב נוכחי מצדיק התראה חדשה, ואיזו. לא כותב כלום ל-DB —
+    הקורא (admin.html) מחליט אם ליצור שורת alerts, כולל דה-דופ מול התראות פתוחות קיימות."""
+    if req.risk_level == "red":
+        return AlertEvaluationResponse(
+            alert_type="new_red",
+            severity="high",
+            message=req.status_message or caregiver_status_message("red", req.trend),
+        )
+
+    high_triggers = [t for t in req.trigger_events if t.severity == "high"]
+    if high_triggers:
+        top = max(high_triggers, key=lambda t: t.decay_factor)
+        return AlertEvaluationResponse(
+            alert_type="vital_anomaly",
+            severity="high",
+            message=f"{top.vital}: {top.reason}",
+        )
+
+    if req.trend == "worsening":
+        return AlertEvaluationResponse(
+            alert_type="worsening_trend",
+            severity="medium",
+            message=req.status_message or caregiver_status_message(req.risk_level, req.trend),
+        )
+
+    return AlertEvaluationResponse()
+
+
+class ServicePlanGenerateRequest(BaseModel):
+    start_date: date
+    end_date: Optional[date] = None
+    frequency: str
+    preferred_weekdays: list[int] = Field(default_factory=list, description="0=ראשון..6=שבת, כמו medical_staff.available_weekdays")
+    preferred_time: Optional[time] = None
+    planned_visit_count: Optional[int] = Field(None, gt=0)
+
+
+class ServicePlanGenerateResponse(BaseModel):
+    planned_dates: list[datetime]
+
+
+def _weekday_sunday_zero(d: date) -> int:
+    """Python: date.weekday() הוא שני=0..ראשון=6. ממירים לאותה מוסכמה כמו getDay()
+    ב-JS (ראשון=0..שבת=6), התואמת ל-medical_staff.available_weekdays הקיים."""
+    return (d.weekday() + 1) % 7
+
+
+_MAX_GENERATE_DAYS = 366  # תקרת בטיחות — קלט שגוי (למשל preferred_weekdays ריק בלי match) לא ילולאה לנצח
+
+
+@app.post("/plan/generate-visits", response_model=ServicePlanGenerateResponse)
+def generate_service_plan_visits(req: ServicePlanGenerateRequest):
+    """מחשב את רשימת התאריכים המתוכננים לתוכנית שירות תקופתית, לפי תדירות/ימים מועדפים/
+    תאריך התחלה-סיום/מספר ביקורים. פונקציה טהורה — אידמפוטנטית מבחינת הקורא: קריאה חוזרת
+    עם אותם פרמטרים מחזירה בדיוק אותם תאריכים, וה-unique constraint על service_plan_visits
+    מבטיח שהכנסה חוזרת ל-DB לא יוצרת כפילויות."""
+    weekdays = set(req.preferred_weekdays) if req.preferred_weekdays else {_weekday_sunday_zero(req.start_date)}
+    hour, minute = (req.preferred_time.hour, req.preferred_time.minute) if req.preferred_time else (10, 0)
+
+    planned: list[datetime] = []
+    current = req.start_date
+    for _ in range(_MAX_GENERATE_DAYS):
+        if req.end_date and current > req.end_date:
+            break
+        if req.planned_visit_count and len(planned) >= req.planned_visit_count:
+            break
+        if _weekday_sunday_zero(current) in weekdays:
+            planned.append(datetime(current.year, current.month, current.day, hour, minute))
+        current += timedelta(days=1)
+
+    return ServicePlanGenerateResponse(planned_dates=planned)

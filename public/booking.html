@@ -43,28 +43,35 @@
     </div>
     <div id="no-slots" class="empty-state" style="display:none;">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
 
-    <h2>הפרטים שלך</h2>
-    <p style="color:var(--text-muted); margin-top:-8px; margin-bottom:16px;">נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה.</p>
-    <div class="field">
-      <label for="patient-name">שם מלא</label>
-      <input type="text" id="patient-name" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
-    </div>
-    <div class="field">
-      <label for="patient-phone">טלפון</label>
-      <input type="tel" id="patient-phone" required autocomplete="tel" placeholder="050-1234567">
-    </div>
-    <div class="field">
-      <label for="patient-address">כתובת לביקור</label>
-      <input type="text" id="patient-address" required autocomplete="street-address" placeholder="רחוב, מספר בית ועיר">
-    </div>
-    <div class="field">
-      <label for="notes">הערות (אופציונלי)</label>
-      <input type="text" id="notes" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
-    </div>
+    <div id="patient-details-section" style="display:none;">
+      <h2>עוד רגע וסיימנו — הפרטים שלך</h2>
+      <p style="color:var(--text-muted); margin-top:-8px; margin-bottom:16px;">נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה. שדות עם * הם חובה.</p>
+      <div class="field">
+        <label for="patient-name">שם מלא *</label>
+        <input type="text" id="patient-name" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
+      </div>
+      <div class="field">
+        <label for="patient-national-id">תעודת זהות *</label>
+        <input type="text" id="patient-national-id" required inputmode="numeric" autocomplete="off" placeholder="9 ספרות" maxlength="9">
+        <p style="color:var(--text-muted); font-size:13px; margin:4px 0 0;">משמשת לזיהוי מדויק שלך בתיק הרפואי שלך במערכת — לא נשתף עם צד שלישי.</p>
+      </div>
+      <div class="field">
+        <label for="patient-phone">טלפון *</label>
+        <input type="tel" id="patient-phone" required autocomplete="tel" placeholder="050-1234567">
+      </div>
+      <div class="field">
+        <label for="patient-address">כתובת לביקור *</label>
+        <input type="text" id="patient-address" required autocomplete="street-address" placeholder="רחוב, מספר בית ועיר">
+      </div>
+      <div class="field">
+        <label for="notes">הערות (אופציונלי)</label>
+        <input type="text" id="notes" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
+      </div>
 
-    <p class="trust-strip">🔒 צוות מוסמך ומנוסה · הפרטים שלך משמשים רק לתיאום הביקור ואינם נמסרים לגורם שלישי</p>
-    <div class="actions-row">
-      <button class="btn btn-primary" id="confirm-btn" disabled>אישור הזמנה</button>
+      <p class="trust-strip">🔒 צוות מוסמך ומנוסה · הפרטים שלך משמשים רק לתיאום הביקור ואינם נמסרים לגורם שלישי</p>
+      <div class="actions-row">
+        <button class="btn btn-primary" id="confirm-btn" disabled>אישור הזמנה</button>
+      </div>
     </div>
   </main>
 </div>
@@ -88,6 +95,7 @@
     const successBox = document.getElementById("success-box");
     const confirmBtn = document.getElementById("confirm-btn");
     const nameInput = document.getElementById("patient-name");
+    const nationalIdInput = document.getElementById("patient-national-id");
     const phoneInput = document.getElementById("patient-phone");
     const addressInput = document.getElementById("patient-address");
 
@@ -227,11 +235,22 @@
       }
     }
 
+    let detailsRevealed = false;
+    const patientDetailsSection = document.getElementById("patient-details-section");
+
     function updateConfirmState() {
       confirmBtn.disabled = !(selectedPurpose && selectedDate && selectedSlot);
+      // חשיפה הדרגתית: טופס הפרטים האישיים מוצג רק אחרי שנבחרו מטרה/תאריך/שעה —
+      // כדי שהמסך לא יציג עשרה שדות בבת אחת לפני שיש בכלל מה לאשר.
+      if (selectedPurpose && selectedDate && selectedSlot && !detailsRevealed) {
+        detailsRevealed = true;
+        patientDetailsSection.style.display = "block";
+        patientDetailsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        nameInput.focus();
+      }
     }
 
-    [nameInput, phoneInput, addressInput].forEach((input) => {
+    [nameInput, nationalIdInput, phoneInput, addressInput].forEach((input) => {
       input.addEventListener("input", () => hideError(errorBox));
     });
 
@@ -243,10 +262,15 @@
       successBox.classList.remove("show");
 
       const fullName = nameInput.value.trim();
+      const nationalId = nationalIdInput.value.trim();
       const phone = phoneInput.value.trim();
       const address = addressInput.value.trim();
-      if (!fullName || !phone || !address) {
-        showError(errorBox, "נא למלא שם מלא, טלפון וכתובת לביקור.");
+      if (!fullName || !nationalId || !phone || !address) {
+        showError(errorBox, "נא למלא שם מלא, תעודת זהות, טלפון וכתובת לביקור.");
+        return;
+      }
+      if (!/^\d{5,9}$/.test(nationalId)) {
+        showError(errorBox, "תעודת זהות צריכה להכיל בין 5 ל-9 ספרות.");
         return;
       }
 
@@ -256,7 +280,7 @@
 
       let error;
       try {
-        ({ error } = await savePatientDetails(user, { full_name: fullName, phone, address }));
+        ({ error } = await savePatientDetails(user, { full_name: fullName, national_id: nationalId, phone, address }));
         if (!error) {
           ({ error } = await supabaseClient.from("bookings").insert({
             patient_id: user.id,

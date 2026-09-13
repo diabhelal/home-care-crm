@@ -173,12 +173,15 @@ async function ensureGuestSession() {
 
 // יוצר/מעדכן את שורת המטופל עם הפרטים שהוזנו בשלב אישור ההזמנה (upsert)
 async function savePatientDetails(user, details) {
-  return supabaseClient.from("patients").upsert({
+  const payload = {
     id: user.id,
     full_name: details.full_name,
     phone: details.phone,
     address: details.address,
-  });
+  };
+  // national_id רק אם סופק בפועל — לא דורסים ערך קיים בעריכה חוזרת של אותו guest session
+  if (details.national_id) payload.national_id = details.national_id;
+  return supabaseClient.from("patients").upsert(payload);
 }
 
 function wireReset(buttonId = "reset-btn") {
@@ -218,6 +221,97 @@ function setButtonLoading(btn, isLoading, loadingText) {
 // מציג שורת טעינה (ספינר + טקסט) בתוך קונטיינר, לשימוש בזמן טעינת רשימות
 function showLoadingRow(container, text) {
   container.innerHTML = `<div class="loading-row" role="status"><span class="spinner spinner-dark" aria-hidden="true"></span><span>${text}</span></div>`;
+}
+
+// ===== תיק מטופל: תוויות משותפות =====
+const SEVERITY_LABELS = { mild: "קלה", moderate: "בינונית", severe: "חמורה" };
+const NOTE_TYPE_LABELS = { nursing: "הערת אחות/אח", medical: "הערה רפואית", follow_up: "מעקב", general: "כללי" };
+const ROUTE_LABELS = { oral: "פומי", iv: "תוך-ורידי", im: "תוך-שרירי", sc: "תת-עורי", inhaled: "שאיפה", topical: "מקומי", other: "אחר" };
+const SERVICE_PLAN_STATUS_LABELS = {
+  requested: "התבקש", pending_approval: "ממתין לאישור", active: "פעיל",
+  paused: "מושהה", completed: "הושלם", cancelled: "בוטל",
+};
+const ALERT_TYPE_LABELS = {
+  new_red: "התראת סיכון אדום", worsening_trend: "מגמת החמרה", vital_anomaly: "חריגה במדד", repeated_abnormal: "חריגות חוזרות",
+};
+const SEVERITY_ORDER = { high: 3, medium: 2, low: 1 };
+const RISK_LEVEL_ORDER = { red: 3, yellow: 2, green: 1, no_data: 0 };
+
+function calcAge(dateOfBirth) {
+  if (!dateOfBirth) return null;
+  const dob = new Date(dateOfBirth);
+  const diffMs = Date.now() - dob.getTime();
+  return Math.floor(diffMs / (365.25 * 24 * 3600 * 1000));
+}
+
+// ===== מצב לקוח בזיכרון בלבד לתיק המטופל הפתוח =====
+// לא ב-localStorage בכוונה: מידע קליני לא אמור לשבת באחסון דפדפן קבוע. המטרה היחידה
+// כאן היא למנוע קריאת רשת חוזרת ל-Supabase כשעוברים בין הלשוניות של אותו תיק פתוח —
+// המידע עצמו כבר נשלף פעם אחת בלגיטימיות, רק לא נשלף שוב על כל החלפת לשונית.
+// מתאפס לגמרי במעבר למטופל אחר, ומבוטל (invalidate) לשדה ספציפי אחרי כל כתיבה עליו.
+window.currentPatientState = null;
+
+function prResetState(patientId) {
+  window.currentPatientState = {
+    patientId,
+    patient: null, allergies: null, medicalHistory: null, currentRisk: null,
+    bookings: null, visitReports: null, medications: null, servicePlans: null,
+    servicePlanVisits: null, clinicalNotes: null, documents: null, alerts: null,
+    tasks: null, auditLog: null,
+  };
+}
+
+function prInvalidate(...keys) {
+  if (!window.currentPatientState) return;
+  keys.forEach((k) => { window.currentPatientState[k] = null; });
+}
+
+// ===== נגישות מודלים: focus-trap + Escape לסגירה + החזרת פוקוס =====
+// גנרי לכל .modal-overlay עם role="dialog" — לא תלוי בתוכן ספציפי של מודל.
+function setupModalAccessibility(modalEl) {
+  let lastFocused = null;
+  const getFocusable = () => Array.from(modalEl.querySelectorAll(
+    'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])'
+  )).filter((el) => el.offsetParent !== null);
+
+  const observer = new MutationObserver(() => {
+    const isOpen = modalEl.style.display !== "none" && modalEl.style.display !== "";
+    if (isOpen && !modalEl.dataset.a11yOpen) {
+      modalEl.dataset.a11yOpen = "1";
+      lastFocused = document.activeElement;
+      const focusable = getFocusable();
+      if (focusable[0]) focusable[0].focus();
+    } else if (!isOpen && modalEl.dataset.a11yOpen) {
+      delete modalEl.dataset.a11yOpen;
+      if (lastFocused && document.body.contains(lastFocused)) lastFocused.focus();
+    }
+  });
+  observer.observe(modalEl, { attributes: true, attributeFilter: ["style"] });
+
+  modalEl.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      modalEl.style.display = "none";
+      return;
+    }
+    if (e.key !== "Tab") return;
+    const focusable = getFocusable();
+    if (!focusable.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+}
+
+function setupAllModalsAccessibility() {
+  document.querySelectorAll('.modal-overlay[role="dialog"]').forEach(setupModalAccessibility);
+}
+
+async function prCached(key, fetchFn) {
+  const state = window.currentPatientState;
+  if (state[key] !== null) return state[key];
+  state[key] = await fetchFn();
+  return state[key];
 }
 
 // הופך שגיאות רשת (למשל אין חיבור לאינטרנט) להודעה ברורה בעברית

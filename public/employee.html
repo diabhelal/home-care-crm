@@ -1,0 +1,993 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — כניסת צוות רפואי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="login-screen" class="center-screen">
+  <div class="card auth-card">
+    <div class="logo-big">🩺</div>
+    <h1>כניסת צוות רפואי</h1>
+    <p class="subtitle">אח/ות, רופא/ה, מטפל/ת — בית חם</p>
+    <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
+    <form id="staff-login-form">
+      <div class="field">
+        <label for="staff-login-email">אימייל</label>
+        <input type="email" id="staff-login-email" required autocomplete="email" autofocus>
+      </div>
+      <div class="field">
+        <label for="staff-login-password">סיסמה</label>
+        <input type="password" id="staff-login-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" id="staff-login-btn">התחברות</button>
+    </form>
+    <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">פרטי התחברות מונפקים על ידי מנהל/ת המערכת.</p>
+  </div>
+</div>
+
+<div id="staff-app" class="page" style="display:none;">
+  <header class="app-header">
+    <div class="brand"><span class="logo">🩺</span> <span id="staff-app-title">צוות רפואי</span></div>
+    <nav>
+      <button class="btn btn-ghost" id="staff-logout-btn">התנתקות</button>
+    </nav>
+  </header>
+  <main style="max-width:1100px;">
+    <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
+
+    <section id="my-bookings-section">
+      <h2>הביקורים שלי</h2>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="my-bookings-table">
+          <thead><tr><th>מטופל</th><th>טלפון</th><th>מטרה</th><th>מועד</th><th>סטטוס</th><th>רמת סיכון</th><th>פעולות</th></tr></thead>
+          <tbody id="my-bookings-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="patient-record-section">
+      <h2>המטופלים שלי</h2>
+      <div class="field" style="max-width:420px;">
+        <label for="patient-search-input">חיפוש (שם / ת.ז. / טלפון)</label>
+        <input type="text" id="patient-search-input" placeholder="לדוגמה: ישראל ישראלי" autocomplete="off">
+      </div>
+      <div id="patient-search-results"></div>
+
+      <div id="pr-record" style="display:none; margin-top:20px;">
+        <div id="pr-allergy-banner" style="display:none;"></div>
+        <div id="pr-header" class="pr-header-card"></div>
+        <div class="pr-tabs" id="pr-tabs"></div>
+        <div id="pr-tab-content" class="pr-tab-content"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Visit report modal (perform + document a visit) -->
+<div id="visit-report-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="visit-report-modal-title">
+  <div class="modal-card card" style="max-width:640px;">
+    <h2 id="visit-report-modal-title">דוח ביקור בית</h2>
+    <input type="hidden" id="vr-booking-id">
+    <div class="field">
+      <div id="vr-context" style="color:var(--text-muted); font-size:15px;"></div>
+    </div>
+
+    <h3>מדדים רפואיים</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+      <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" id="vr-systolic" placeholder="120"></div>
+      <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" id="vr-diastolic" placeholder="80"></div>
+      <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" id="vr-sugar" placeholder="100"></div>
+      <div class="field"><label for="vr-pulse">דופק (BPM)</label><input type="number" id="vr-pulse" placeholder="72"></div>
+      <div class="field"><label for="vr-temp">חום גוף (°C)</label><input type="number" step="0.1" id="vr-temp" placeholder="36.6"></div>
+      <div class="field"><label for="vr-o2">סטורציה (%)</label><input type="number" id="vr-o2" placeholder="98"></div>
+    </div>
+    <div id="vr-risk-panel"></div>
+
+    <h3>פרוצדורות שבוצעו</h3>
+    <div id="vr-procedures" class="field"></div>
+
+    <div class="field">
+      <label for="vr-summary">סיכום טיפול והנחיות המשך</label>
+      <textarea id="vr-summary" rows="4" placeholder="פרוט מהלך הביקור, מצב הפצע, או דגשים מיוחדים למשפחה..."></textarea>
+    </div>
+
+    <div class="field">
+      <label>חתימת מטופל</label>
+      <canvas id="vr-signature-canvas" class="signature-canvas" width="500" height="150"></canvas>
+      <button type="button" class="btn btn-ghost btn-sm" id="vr-signature-clear" style="margin-top:8px;">ניקוי חתימה</button>
+    </div>
+
+    <div class="field">
+      <label><input type="checkbox" id="vr-mark-completed" checked style="width:auto; display:inline-block;"> לסמן את הביקור כהושלם עם השמירה</label>
+    </div>
+
+    <div class="error-msg" id="visit-report-modal-error" role="alert" aria-live="assertive"></div>
+    <div class="actions-row">
+      <button class="btn btn-ghost" id="visit-report-modal-cancel">ביטול</button>
+      <button class="btn btn-primary" id="visit-report-modal-save">שמירה</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  const PREDICTIVE_SERVICE_URL = "http://localhost:8000";
+  const loginScreen = document.getElementById("login-screen");
+  const staffApp = document.getElementById("staff-app");
+  const loginError = document.getElementById("login-error");
+  const appError = document.getElementById("app-error");
+  const appSuccess = document.getElementById("app-success");
+  let myStaffRow = null;
+
+  function flashSuccess(msg) {
+    appSuccess.textContent = msg;
+    appSuccess.classList.add("show");
+    setTimeout(() => appSuccess.classList.remove("show"), 2500);
+  }
+  function flashError(msg) {
+    appError.textContent = msg;
+    appError.classList.add("show");
+    setTimeout(() => appError.classList.remove("show"), 4000);
+  }
+
+  // הרשאה: לא is_admin — קיום שורת medical_staff עם auth_user_id = המשתמש המחובר.
+  // נסמך על ה-RLS policy staff_select_self שנוספה במיוחד לשם כך.
+  async function resolveStaffSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return null;
+    const { data, error } = await supabaseClient
+      .from("medical_staff")
+      .select("id, full_name, role")
+      .eq("auth_user_id", session.user.id)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data;
+  }
+
+  document.getElementById("staff-login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideError(loginError);
+    const btn = document.getElementById("staff-login-btn");
+    setButtonLoading(btn, true, "מתחבר/ת...");
+    const email = document.getElementById("staff-login-email").value.trim();
+    const password = document.getElementById("staff-login-password").value;
+    let error;
+    try {
+      ({ error } = await supabaseClient.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+    if (error) {
+      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)}`);
+      return;
+    }
+    const staff = await resolveStaffSession();
+    if (!staff) {
+      showError(loginError, "למשתמש זה אין הרשאת צוות רפואי במערכת");
+      await supabaseClient.auth.signOut();
+      return;
+    }
+    myStaffRow = staff;
+    showStaffApp();
+  });
+
+  document.getElementById("staff-logout-btn").addEventListener("click", async () => {
+    await supabaseClient.auth.signOut();
+    window.location.reload();
+  });
+
+  async function showStaffApp() {
+    loginScreen.style.display = "none";
+    staffApp.style.display = "flex";
+    document.getElementById("staff-app-title").textContent = `${myStaffRow.full_name} · ${ROLE_LABELS[myStaffRow.role] || myStaffRow.role}`;
+    await loadMyBookings();
+  }
+
+  // ===== הביקורים שלי =====
+  // RLS (staff_select_assigned_bookings) כבר מגביל את זה אוטומטית לביקורים שלי —
+  // אין צורך לסנן staff_id= בצד לקוח, השרת פשוט לא יחזיר שורות שאינן שלי.
+  async function loadMyBookings() {
+    const tbody = document.getElementById("my-bookings-tbody");
+    showLoadingRow(tbody, "טוען...");
+    const { data, error } = await supabaseClient
+      .from("bookings")
+      .select("*, patients(id, full_name, phone)")
+      .order("scheduled_at", { ascending: false });
+    if (error) {
+      tbody.innerHTML = `<tr><td colspan="7">${friendlyErrorMessage(error)}</td></tr>`;
+      return;
+    }
+    const { data: risks } = await supabaseClient.from("current_patient_risk").select("*");
+    const riskByPatient = new Map((risks || []).map((r) => [r.patient_id, r]));
+
+    tbody.innerHTML = "";
+    (data || []).forEach((b) => {
+      const date = new Date(b.scheduled_at);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${escapeHtml(b.patients?.full_name || "—")}</td>
+        <td>${escapeHtml(b.patients?.phone || "")}</td>
+        <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
+        <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>
+        <td><span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span></td>
+        <td>${riskBadgeHtml(riskByPatient.get(b.patient_id))}</td>
+        <td></td>
+      `;
+      const actionsTd = tr.lastElementChild;
+      const reportBtn = document.createElement("button");
+      reportBtn.className = "btn btn-secondary btn-sm";
+      reportBtn.textContent = "עריכת תיק / ביצוע ביקור";
+      reportBtn.addEventListener("click", () => openVisitReportModal(b, null));
+      actionsTd.appendChild(reportBtn);
+      const openRecordBtn = document.createElement("button");
+      openRecordBtn.className = "btn btn-primary btn-sm";
+      openRecordBtn.textContent = "פתיחת תיק מטופל";
+      openRecordBtn.addEventListener("click", () => openPatientRecord(b.patient_id));
+      actionsTd.appendChild(openRecordBtn);
+      tbody.appendChild(tr);
+    });
+    if (!data || data.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">אין ביקורים משויכים אליך</td></tr>`;
+    }
+  }
+
+  // ===== דוח ביקור (זהה במבנה לזה שבפאנל הניהול, מותאם לצוות) =====
+  const vrProceduresEl = document.getElementById("vr-procedures");
+  PROCEDURE_META.forEach((p) => {
+    const label = document.createElement("label");
+    label.style.display = "block";
+    label.innerHTML = `<input type="checkbox" data-proc="${p.key}" style="width:auto; display:inline-block;"> ${p.label}`;
+    vrProceduresEl.appendChild(label);
+  });
+
+  const visitReportModal = document.getElementById("visit-report-modal");
+  const vrCanvas = document.getElementById("vr-signature-canvas");
+  const vrCtx = vrCanvas.getContext("2d");
+  let vrDrawing = false;
+  let vrHasSignature = false;
+
+  function vrCanvasPoint(e) {
+    const rect = vrCanvas.getBoundingClientRect();
+    const scaleX = vrCanvas.width / rect.width;
+    const scaleY = vrCanvas.height / rect.height;
+    const point = e.touches ? e.touches[0] : e;
+    return { x: (point.clientX - rect.left) * scaleX, y: (point.clientY - rect.top) * scaleY };
+  }
+  function vrClearCanvas() {
+    vrCtx.clearRect(0, 0, vrCanvas.width, vrCanvas.height);
+    vrHasSignature = false;
+  }
+  ["mousedown", "touchstart"].forEach((evt) => vrCanvas.addEventListener(evt, (e) => {
+    e.preventDefault();
+    vrDrawing = true;
+    const { x, y } = vrCanvasPoint(e);
+    vrCtx.beginPath();
+    vrCtx.moveTo(x, y);
+  }));
+  ["mousemove", "touchmove"].forEach((evt) => vrCanvas.addEventListener(evt, (e) => {
+    if (!vrDrawing) return;
+    e.preventDefault();
+    const { x, y } = vrCanvasPoint(e);
+    vrCtx.lineTo(x, y);
+    vrCtx.stroke();
+    vrHasSignature = true;
+  }));
+  ["mouseup", "mouseleave", "touchend"].forEach((evt) => vrCanvas.addEventListener(evt, () => { vrDrawing = false; }));
+  document.getElementById("vr-signature-clear").addEventListener("click", vrClearCanvas);
+
+  function vrLoadSignature(dataUrl) {
+    vrClearCanvas();
+    if (!dataUrl) return;
+    const img = new Image();
+    img.onload = () => vrCtx.drawImage(img, 0, 0, vrCanvas.width, vrCanvas.height);
+    img.src = dataUrl;
+    vrHasSignature = true;
+  }
+
+  function openVisitReportModal(booking, report) {
+    document.getElementById("visit-report-modal-title").textContent = report ? "עריכת דוח ביקור" : "הוספת דוח ביקור";
+    document.getElementById("vr-booking-id").value = booking.id;
+    visitReportModal.dataset.patientId = booking.patient_id;
+    visitReportModal.dataset.staffId = myStaffRow.id;
+    const date = new Date(booking.scheduled_at);
+    document.getElementById("vr-context").textContent =
+      `${booking.patients?.full_name || "—"} · ${formatDateHe(date)} ${formatTimeHe(date)}`;
+    document.getElementById("vr-systolic").value = report?.systolic_bp ?? "";
+    document.getElementById("vr-diastolic").value = report?.diastolic_bp ?? "";
+    document.getElementById("vr-sugar").value = report?.blood_sugar ?? "";
+    document.getElementById("vr-pulse").value = report?.pulse ?? "";
+    document.getElementById("vr-temp").value = report?.temperature ?? "";
+    document.getElementById("vr-o2").value = report?.oxygen_saturation ?? "";
+    document.getElementById("vr-summary").value = report?.treatment_summary ?? "";
+    vrProceduresEl.querySelectorAll("input[type=checkbox]").forEach((cb) => {
+      cb.checked = report ? !!report[cb.dataset.proc] : false;
+    });
+    vrLoadSignature(report?.patient_signature_data || null);
+    document.getElementById("vr-mark-completed").checked = booking.status !== "completed";
+    hideError(document.getElementById("visit-report-modal-error"));
+    visitReportModal.style.display = "flex";
+    loadAndRenderRisk(booking.patient_id);
+  }
+
+  async function loadCurrentRiskForPatient(patientId) {
+    const { data, error } = await supabaseClient
+      .from("current_patient_risk")
+      .select("*")
+      .eq("patient_id", patientId)
+      .maybeSingle();
+    if (error) { console.error("current_patient_risk", error); return null; }
+    return data;
+  }
+
+  function renderRiskPanel(currentRisk) {
+    const panel = document.getElementById("vr-risk-panel");
+    if (!currentRisk) {
+      panel.innerHTML = `<div class="risk-badge risk-badge-muted">לא נבדק</div><p style="color:var(--text-muted); font-size:13px; margin:6px 0 0;">${RISK_DISCLAIMER}</p>`;
+      return;
+    }
+    const trendMeta = currentRisk.trend ? TREND_META[currentRisk.trend] : null;
+    const statusClass = `caregiver-status-${currentRisk.risk_level in CAREGIVER_STATUS_BY_LEVEL ? currentRisk.risk_level : "no_data"}`;
+    panel.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        ${riskBadgeHtml(currentRisk)}
+        ${trendMeta ? `<span>${trendMeta.arrow} ${trendMeta.label}</span>` : `<span style="color:var(--text-muted);">אין נתון קודם להשוואת מגמה</span>`}
+      </div>
+      <p class="${statusClass}" style="font-weight:600; margin:8px 0 0;">${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}</p>
+      <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">${RISK_DISCLAIMER}</p>
+    `;
+  }
+
+  async function loadAndRenderRisk(patientId) {
+    document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">טוען רמת סיכון...</p>`;
+    renderRiskPanel(await loadCurrentRiskForPatient(patientId));
+  }
+
+  function collectVitalsFromForm() {
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v === "" ? null : Number(v);
+    };
+    return {
+      systolic_bp: num("vr-systolic"), diastolic_bp: num("vr-diastolic"), blood_sugar: num("vr-sugar"),
+      pulse: num("vr-pulse"), temperature: num("vr-temp"), oxygen_saturation: num("vr-o2"),
+    };
+  }
+
+  function predictiveServiceUnavailableMessage(err) {
+    return /failed to fetch|network|load failed/i.test(err?.message || "")
+      ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
+      : friendlyErrorMessage(err);
+  }
+
+  async function maybeCreateAlert(patientId, riskLevel, trend, statusMessage, riskPredictionId) {
+    let evaluation;
+    try {
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/alerts/evaluate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ risk_level: riskLevel, trend, status_message: statusMessage, trigger_events: [] }),
+      });
+      if (!res.ok) return;
+      evaluation = await res.json();
+    } catch (err) { return; }
+    if (!evaluation.alert_type) return;
+    const { data: existing } = await supabaseClient.from("alerts").select("id").eq("patient_id", patientId).eq("alert_type", evaluation.alert_type).eq("status", "open").limit(1);
+    if (existing && existing.length) return;
+    await supabaseClient.from("alerts").insert({
+      patient_id: patientId, risk_prediction_id: riskPredictionId,
+      alert_type: evaluation.alert_type, severity: evaluation.severity, message: evaluation.message,
+    });
+    prInvalidate("alerts");
+  }
+
+  async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
+    const { data: prevReports } = await supabaseClient
+      .from("visit_reports")
+      .select("systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
+      .eq("patient_id", patientId).neq("id", savedReportId)
+      .order("visit_date", { ascending: false }).limit(1);
+    const previous = prevReports && prevReports[0] ? prevReports[0] : null;
+
+    let assessment;
+    try {
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8 }),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      assessment = await res.json();
+    } catch (err) {
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      return;
+    }
+    if (assessment.risk_level === "no_data") { renderRiskPanel(null); return; }
+
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const predictedAt = new Date();
+    const expiresAt = new Date(predictedAt.getTime() + assessment.prediction_horizon_hours * 3600 * 1000);
+    const { data: insertedRisk, error: insertError } = await supabaseClient.from("risk_predictions").insert({
+      patient_id: patientId, visit_report_id: savedReportId, predicted_at: predictedAt.toISOString(),
+      input_features: currentVitals, risk_level: assessment.risk_level, confidence: assessment.confidence,
+      prediction_horizon_hours: assessment.prediction_horizon_hours, expires_at: expiresAt.toISOString(),
+      model_version: assessment.model_version, trend: assessment.trend, probability: assessment.probability,
+      created_by: session?.user?.id || null,
+    }).select("id").single();
+    if (insertError) console.error("risk_predictions insert", insertError);
+    else maybeCreateAlert(patientId, assessment.risk_level, assessment.trend, assessment.status_message, insertedRisk?.id);
+
+    renderRiskPanel({ risk_level: assessment.risk_level, trend: assessment.trend, predicted_at: predictedAt.toISOString(), expires_at: expiresAt.toISOString(), prediction_horizon_hours: assessment.prediction_horizon_hours });
+  }
+
+  function refreshOpenPatientRecordIfMatching(patientId) {
+    if (!window.currentPatientState || window.currentPatientState.patientId !== patientId) return;
+    prInvalidate("visitReports", "bookings", "currentRisk", "alerts", "tasks", "medications");
+    const activeBtn = document.querySelector(".pr-tab-btn.active");
+    if (activeBtn) prSwitchTab(activeBtn.dataset.tab);
+  }
+
+  document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
+    visitReportModal.style.display = "none";
+  });
+
+  document.getElementById("visit-report-modal-save").addEventListener("click", async () => {
+    const modalError = document.getElementById("visit-report-modal-error");
+    hideError(modalError);
+    const vitals = collectVitalsFromForm();
+    const summary = document.getElementById("vr-summary").value.trim();
+
+    if (vitals.systolic_bp !== null && (vitals.systolic_bp < 50 || vitals.systolic_bp > 250)) { showError(modalError, 'ל"ד סיסטולי תקין נע בין 50 ל-250'); return; }
+    if (vitals.diastolic_bp !== null && (vitals.diastolic_bp < 30 || vitals.diastolic_bp > 150)) { showError(modalError, 'ל"ד דיאסטולי תקין נע בין 30 ל-150'); return; }
+    if (vitals.blood_sugar !== null && (vitals.blood_sugar < 20 || vitals.blood_sugar > 600)) { showError(modalError, "רמת סוכר תקינה נעה בין 20 ל-600"); return; }
+    if (vitals.pulse !== null && (vitals.pulse < 30 || vitals.pulse > 220)) { showError(modalError, "דופק תקין נע בין 30 ל-220"); return; }
+    if (vitals.temperature !== null && (vitals.temperature < 30 || vitals.temperature > 45)) { showError(modalError, "חום גוף תקין נע בין 30 ל-45"); return; }
+    if (vitals.oxygen_saturation !== null && (vitals.oxygen_saturation < 50 || vitals.oxygen_saturation > 100)) { showError(modalError, "סטורציה נעה בין 50 ל-100"); return; }
+    if (!summary) { showError(modalError, "חובה למלא סיכום טיפול"); return; }
+
+    const payload = {
+      booking_id: Number(document.getElementById("vr-booking-id").value),
+      patient_id: visitReportModal.dataset.patientId,
+      staff_id: Number(visitReportModal.dataset.staffId),
+      ...vitals,
+      treatment_summary: summary,
+      patient_signature_data: vrHasSignature ? vrCanvas.toDataURL("image/png") : null,
+    };
+    PROCEDURE_META.forEach((p) => {
+      payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
+    });
+
+    const btn = document.getElementById("visit-report-modal-save");
+    setButtonLoading(btn, true, "שומר...");
+    let error, savedReport;
+    try {
+      ({ data: savedReport, error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" }).select("id").single());
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+
+    const markCompleted = document.getElementById("vr-mark-completed").checked;
+    let statusError = null;
+    if (markCompleted) {
+      ({ error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id));
+      if (statusError) console.error("bookings status update", statusError);
+    }
+
+    visitReportModal.style.display = "none";
+    flashSuccess(markCompleted && !statusError ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
+    loadMyBookings();
+    await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
+    refreshOpenPatientRecordIfMatching(payload.patient_id);
+  });
+
+  // ===== חיפוש מטופלים שלי =====
+  let prSearchTimer = null;
+  document.getElementById("patient-search-input").addEventListener("input", () => {
+    clearTimeout(prSearchTimer);
+    prSearchTimer = setTimeout(prRunSearch, 300);
+  });
+
+  async function prRunSearch() {
+    const raw = document.getElementById("patient-search-input").value.trim();
+    const resultsEl = document.getElementById("patient-search-results");
+    if (!raw) { resultsEl.innerHTML = ""; return; }
+    const q = raw.replace(/[,()]/g, "");
+    showLoadingRow(resultsEl, "מחפש...");
+    // RLS (staff_select_assigned_patients) כבר מגביל את התוצאות למטופלים המשויכים אליי.
+    const { data, error } = await supabaseClient
+      .from("patients")
+      .select("id, full_name, phone, national_id")
+      .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
+      .limit(10);
+    if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
+    if (!data || data.length === 0) { resultsEl.innerHTML = `<p style="color:var(--text-muted);">לא נמצאו מטופלים משויכים אליך בחיפוש זה.</p>`; return; }
+    resultsEl.innerHTML = "";
+    data.forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "pr-search-result";
+      row.innerHTML = `<span>${escapeHtml(p.full_name)}</span><span style="color:var(--text-muted); font-size:13px;">${escapeHtml(p.phone || "")}${p.national_id ? " · " + escapeHtml(p.national_id) : ""}</span>`;
+      row.addEventListener("click", () => openPatientRecord(p.id));
+      resultsEl.appendChild(row);
+    });
+  }
+
+  // ===== תיק מטופל (Overview / Visits / Vitals / History (view) / Meds / Notes / Alerts / Appointments) =====
+  async function openPatientRecord(patientId) {
+    prResetState(patientId);
+    document.getElementById("patient-search-results").innerHTML = "";
+    document.getElementById("patient-search-input").value = "";
+    document.getElementById("pr-record").style.display = "block";
+    document.getElementById("pr-header").innerHTML = `<p style="color:var(--text-muted);">טוען תיק...</p>`;
+    document.getElementById("pr-allergy-banner").style.display = "none";
+    try {
+      await prRenderHeader();
+    } catch (err) {
+      document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+      return;
+    }
+    prRenderTabsNav();
+    prSwitchTab("overview");
+    document.getElementById("pr-record").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  async function prFetchPatient() {
+    const { data, error } = await supabaseClient.from("patients").select("*").eq("id", window.currentPatientState.patientId).single();
+    if (error) throw error;
+    return data;
+  }
+  async function prFetchAllergies() {
+    const { data, error } = await supabaseClient.from("patient_allergies").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+    if (error) { console.error("patient_allergies", error); return []; }
+    return data || [];
+  }
+  async function prFetchMedicalHistory() {
+    const { data, error } = await supabaseClient.from("patient_medical_history").select("*").eq("patient_id", window.currentPatientState.patientId).maybeSingle();
+    if (error) { console.error("patient_medical_history", error); return null; }
+    return data;
+  }
+  async function prFetchBookings() {
+    const { data, error } = await supabaseClient.from("bookings").select("*, medical_staff(full_name, role)").eq("patient_id", window.currentPatientState.patientId).order("scheduled_at", { ascending: false });
+    if (error) { console.error("bookings", error); return []; }
+    return data || [];
+  }
+  async function prFetchVisitReports() {
+    const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
+    if (error) { console.error("visit_reports", error); return []; }
+    return data || [];
+  }
+  async function prFetchMedications() {
+    const { data, error } = await supabaseClient.from("medication_events").select("*").eq("patient_id", window.currentPatientState.patientId).order("administered_at", { ascending: false });
+    if (error) { console.error("medication_events", error); return []; }
+    return data || [];
+  }
+  async function prFetchClinicalNotes() {
+    const { data, error } = await supabaseClient.from("clinical_notes").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+    if (error) { console.error("clinical_notes", error); return []; }
+    return data || [];
+  }
+  async function prFetchAlerts() {
+    const { data, error } = await supabaseClient.from("alerts").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+    if (error) { console.error("alerts", error); return []; }
+    return data || [];
+  }
+  async function prFetchTasks() {
+    const { data, error } = await supabaseClient.from("tasks").select("*").eq("patient_id", window.currentPatientState.patientId).order("due_at", { ascending: true });
+    if (error) { console.error("tasks", error); return []; }
+    return data || [];
+  }
+
+  async function prRenderHeader() {
+    const patient = await prCached("patient", prFetchPatient);
+    const allergies = await prCached("allergies", prFetchAllergies);
+    const banner = document.getElementById("pr-allergy-banner");
+    if (allergies.length) {
+      banner.style.display = "block";
+      banner.className = "pr-allergy-banner";
+      banner.innerHTML = "⚠️ רגישויות: " + allergies.map((a) => `${escapeHtml(a.substance)}${a.severity ? " (" + SEVERITY_LABELS[a.severity] + ")" : ""}`).join(", ");
+    } else {
+      banner.style.display = "none";
+    }
+    const age = calcAge(patient.date_of_birth);
+    const fields = [
+      ["שם מלא", patient.full_name], ["ת.ז.", patient.national_id || "—"],
+      ["גיל", age !== null ? age : "—"], ["טלפון", patient.phone || "—"],
+      ["כתובת", patient.address || "—"],
+      ["איש קשר לחירום", patient.emergency_contact_name ? `${patient.emergency_contact_name}${patient.emergency_contact_phone ? " · " + patient.emergency_contact_phone : ""}` : "—"],
+      ["רקע רפואי", conditionsLabel(patient.background_conditions) || "—"], ["עישון", smokingStatusLabel(patient.smoking_status) || "—"],
+    ];
+    document.getElementById("pr-header").innerHTML = `
+      <div class="pr-header-grid">
+        ${fields.map(([label, value]) => `<div class="pr-header-field"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(String(value))}</div></div>`).join("")}
+      </div>
+    `;
+  }
+
+  const PR_TABS = [
+    { key: "overview", label: "סקירה", render: prRenderOverviewTab },
+    { key: "visits", label: "ביקורים", render: prRenderVisitsTab },
+    { key: "vitals", label: "מדדים", render: prRenderVitalsTab },
+    { key: "history", label: "היסטוריה רפואית", render: prRenderHistoryTab },
+    { key: "meds", label: "תרופות וטיפולים", render: prRenderMedsTab },
+    { key: "notes", label: "הערות קליניות", render: prRenderNotesTab },
+    { key: "alerts", label: "התראות ומשימות", render: prRenderAlertsTab },
+    { key: "appointments", label: "תורים", render: prRenderAppointmentsTab },
+  ];
+
+  function prRenderTabsNav() {
+    const nav = document.getElementById("pr-tabs");
+    nav.innerHTML = "";
+    PR_TABS.forEach((t) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "pr-tab-btn";
+      btn.textContent = t.label;
+      btn.dataset.tab = t.key;
+      btn.addEventListener("click", () => prSwitchTab(t.key));
+      nav.appendChild(btn);
+    });
+  }
+
+  async function prSwitchTab(key) {
+    document.querySelectorAll(".pr-tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === key));
+    const content = document.getElementById("pr-tab-content");
+    content.innerHTML = `<p style="color:var(--text-muted);">טוען...</p>`;
+    const tab = PR_TABS.find((t) => t.key === key);
+    try {
+      await tab.render(content);
+    } catch (err) {
+      content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+    }
+  }
+
+  async function prRenderOverviewTab(content) {
+    const state = window.currentPatientState;
+    const [currentRisk, bookings, alerts, tasks, visits] = await Promise.all([
+      prCached("currentRisk", () => loadCurrentRiskForPatient(state.patientId)),
+      prCached("bookings", prFetchBookings), prCached("alerts", prFetchAlerts),
+      prCached("tasks", prFetchTasks), prCached("visitReports", prFetchVisitReports),
+    ]);
+    const now = new Date();
+    const upcoming = bookings.filter((b) => b.status === "scheduled" && new Date(b.scheduled_at) >= now).sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at));
+    const past = bookings.filter((b) => new Date(b.scheduled_at) < now).sort((a, b) => new Date(b.scheduled_at) - new Date(a.scheduled_at));
+    const openAlerts = alerts.filter((a) => a.status === "open");
+    const openTasks = tasks.filter((t) => t.status === "pending").sort((a, b) => new Date(a.due_at) - new Date(b.due_at));
+    const latestVisit = visits[0];
+    const riskStatusClass = currentRisk ? `caregiver-status-${currentRisk.risk_level in CAREGIVER_STATUS_BY_LEVEL ? currentRisk.risk_level : "no_data"}` : "";
+    const riskCardTone = currentRisk?.risk_level === "red" ? "border: 1.5px solid var(--danger);" : "";
+
+    let html = `<div class="pr-card"><h3 style="margin-top:0;">מדדים אחרונים</h3>`;
+    if (latestVisit) {
+      const vitalsSummary = VITALS_META.filter((m) => latestVisit[m.key] != null);
+      html += `<div style="color:var(--text-muted); font-size:12px; margin-bottom:6px;">${formatDateHe(new Date(latestVisit.visit_date))} ${formatTimeHe(new Date(latestVisit.visit_date))}</div>`;
+      html += vitalsSummary.length
+        ? `<div style="display:flex; flex-wrap:wrap; gap:14px;">${vitalsSummary.map((v) => `<div><div style="font-size:12px; color:var(--text-muted);">${v.label}</div><div style="font-weight:700;">${latestVisit[v.key]}${v.unit}</div></div>`).join("")}</div>`
+        : `<span style="color:var(--text-muted);">לא נמדדו מדדים בביקור האחרון</span>`;
+    } else {
+      html += `<span style="color:var(--text-muted);">אין עדיין מדידות</span>`;
+    }
+    html += `</div>`;
+
+    html += `
+      <div class="pr-card" style="${riskCardTone}">
+        <h3 style="margin-top:0;">רמת סיכון נוכחית</h3>
+        ${currentRisk
+          ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">${riskBadgeHtml(currentRisk)}<strong class="${riskStatusClass}" style="font-size:15px;">${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}</strong></div>`
+          : `<span style="color:var(--text-muted);">אין הערכת סיכון עדכנית</span>`}
+        <p style="color:var(--text-muted); font-size:12px; margin:8px 0 0;">${RISK_DISCLAIMER}</p>
+      </div>
+    `;
+
+    html += `<div class="pr-card"><h3 style="margin-top:0;">פעולות נדרשות</h3>`;
+    if (!openAlerts.length && !openTasks.length) {
+      html += `<span style="color:var(--text-muted);">אין פעולות פתוחות כרגע</span>`;
+    } else {
+      openAlerts.forEach((a) => { html += `<div style="margin-bottom:4px;"><span class="pr-badge pr-badge-${a.severity}">${ALERT_TYPE_LABELS[a.alert_type] || a.alert_type}</span> ${escapeHtml(a.message)}</div>`; });
+      openTasks.slice(0, 5).forEach((t) => {
+        const overdue = new Date(t.due_at) < now;
+        html += `<div style="margin-bottom:4px;">${overdue ? "⏰ באיחור — " : "🕓 "}${escapeHtml(t.title)} (${formatDateHe(new Date(t.due_at))} ${formatTimeHe(new Date(t.due_at))})</div>`;
+      });
+    }
+    html += `<button class="btn btn-ghost btn-sm" id="pr-overview-go-alerts" style="margin-top:6px;">מעבר להתראות ומשימות</button></div>`;
+
+    html += `
+      <div class="pr-card">
+        <div style="display:flex; gap:24px; flex-wrap:wrap;">
+          <div><div style="font-size:12px; color:var(--text-muted);">ביקור אחרון</div><div style="font-weight:600;">${past[0] ? formatDateHe(new Date(past[0].scheduled_at)) + " " + formatTimeHe(new Date(past[0].scheduled_at)) : "—"}</div></div>
+          <div><div style="font-size:12px; color:var(--text-muted);">ביקור הבא</div><div style="font-weight:600;">${upcoming[0] ? formatDateHe(new Date(upcoming[0].scheduled_at)) + " " + formatTimeHe(new Date(upcoming[0].scheduled_at)) : "—"}</div></div>
+        </div>
+      </div>
+    `;
+
+    content.innerHTML = html;
+    document.getElementById("pr-overview-go-alerts")?.addEventListener("click", () => prSwitchTab("alerts"));
+  }
+
+  async function prRenderVisitsTab(content) {
+    const [visits, bookings] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("bookings", prFetchBookings)]);
+    if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין ביקורים מתועדים</div>`; return; }
+    content.innerHTML = visits.map((v) => {
+      const booking = bookings.find((b) => b.id === v.booking_id);
+      const vitalsSummary = VITALS_META.filter((m) => v[m.key] != null).map((m) => `${m.label}: ${v[m.key]}${m.unit}`).join(" · ");
+      const procs = PROCEDURE_META.filter((p) => v[p.key]).map((p) => p.label).join(", ");
+      return `
+        <div class="pr-card">
+          <div class="section-header"><strong>${formatDateHe(new Date(v.visit_date))} ${formatTimeHe(new Date(v.visit_date))}</strong></div>
+          ${vitalsSummary ? `<div style="font-size:13px; margin-top:4px;">${vitalsSummary}</div>` : ""}
+          ${procs ? `<div style="font-size:13px; color:var(--text-muted); margin-top:2px;">פעולות: ${escapeHtml(procs)}</div>` : ""}
+          ${v.treatment_summary ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(v.treatment_summary)}</div>` : ""}
+          <button class="btn btn-secondary btn-sm pr-visit-open" data-visit-id="${v.id}" style="margin-top:8px;">פתיחת הדוח המלא</button>
+        </div>
+      `;
+    }).join("");
+    content.querySelectorAll(".pr-visit-open").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const v = visits.find((r) => r.id === Number(btn.dataset.visitId));
+        const booking = bookings.find((b) => b.id === v.booking_id);
+        if (booking) openVisitReportModal(booking, v);
+      });
+    });
+  }
+
+  function prVitalChartSvg(points) {
+    if (points.length < 2) return `<p style="color:var(--text-muted);">אין מספיק נתונים לגרף.</p>`;
+    const width = 560, height = 160, pad = 24;
+    const values = points.map((p) => p.value);
+    const min = Math.min(...values), max = Math.max(...values);
+    const range = max - min || 1;
+    const stepX = (width - pad * 2) / (points.length - 1);
+    const xy = (p, i) => [pad + i * stepX, height - pad - ((p.value - min) / range) * (height - pad * 2)];
+    const coords = points.map((p, i) => xy(p, i).map((n) => n.toFixed(1)).join(",")).join(" ");
+    const circles = points.map((p, i) => { const [x, y] = xy(p, i); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#2f7d6e" />`; }).join("");
+    return `<svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:${height}px;"><polyline points="${coords}" fill="none" stroke="#2f7d6e" stroke-width="2" />${circles}<text x="2" y="14" font-size="11" fill="#5b6a67">${max}</text><text x="2" y="${height - 6}" font-size="11" fill="#5b6a67">${min}</text></svg>`;
+  }
+
+  async function prRenderVitalsTab(content) {
+    const visits = await prCached("visitReports", prFetchVisitReports);
+    if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין מדידות למטופל זה</div>`; return; }
+    const latest = visits[0];
+    const latestHtml = VITALS_META.filter((v) => latest[v.key] != null).map((v) => `<div>${v.label}: <strong>${latest[v.key]}${v.unit}</strong></div>`).join("");
+    const vitalsWithData = VITALS_META.filter((v) => visits.some((r) => r[v.key] != null));
+    content.innerHTML = `
+      <div class="pr-card"><h3>מדידה אחרונה (${formatDateHe(new Date(latest.visit_date))} ${formatTimeHe(new Date(latest.visit_date))})</h3>${latestHtml}</div>
+      <div class="pr-card">
+        <div class="field" style="max-width:260px;"><label for="pr-vitals-select">בחירת מדד לגרף</label>
+          <select id="pr-vitals-select">${vitalsWithData.map((v) => `<option value="${v.key}">${v.label}</option>`).join("")}</select>
+        </div>
+        <div id="pr-vitals-chart"></div>
+      </div>
+    `;
+    const renderChartFor = (key) => {
+      const points = visits.filter((r) => r[key] != null).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date)).map((r) => ({ value: r[key] }));
+      document.getElementById("pr-vitals-chart").innerHTML = prVitalChartSvg(points);
+    };
+    const selectEl = document.getElementById("pr-vitals-select");
+    if (vitalsWithData.length) {
+      renderChartFor(vitalsWithData[0].key);
+      selectEl.addEventListener("change", () => renderChartFor(selectEl.value));
+    }
+  }
+
+  async function prRenderHistoryTab(content) {
+    const [h, allergies] = await Promise.all([prCached("medicalHistory", prFetchMedicalHistory), prCached("allergies", prFetchAllergies)]);
+    const val = (arr) => (arr || []).join(", ") || "—";
+    content.innerHTML = `
+      <div class="pr-card">
+        <h3>אנמנזה</h3>
+        <div>ניתוחים קודמים: ${escapeHtml(val(h?.previous_surgeries))}</div>
+        <div>אשפוזים קודמים: ${escapeHtml(val(h?.previous_hospitalizations))}</div>
+        <div>תרופות קבועות: ${escapeHtml(val(h?.current_medications))}</div>
+        <div>היסטוריה משפחתית: ${escapeHtml(h?.family_history || "—")}</div>
+        <div>מצב תפקודי: ${escapeHtml(h?.functional_status || "—")}</div>
+        <div>ניידות: ${escapeHtml(h?.mobility || "—")}</div>
+        <div>הערות תזונה: ${escapeHtml(h?.nutrition_notes || "—")}</div>
+        <div>הערות נוספות: ${escapeHtml(h?.additional_notes || "—")}</div>
+      </div>
+      <div class="pr-card">
+        <h3>רגישויות ואלרגיות</h3>
+        ${allergies.length ? allergies.map((a) => `<div style="margin-bottom:6px;"><strong>${escapeHtml(a.substance)}</strong> ${a.severity ? `<span class="pr-badge pr-badge-${a.severity === "severe" ? "high" : a.severity === "moderate" ? "medium" : "low"}">${SEVERITY_LABELS[a.severity]}</span>` : ""}${a.reaction ? `<div style="color:var(--text-muted); font-size:13px;">תגובה: ${escapeHtml(a.reaction)}</div>` : ""}</div>`).join("") : `<p style="color:var(--text-muted);">לא דווחו רגישויות.</p>`}
+      </div>
+    `;
+  }
+
+  async function prRenderMedsTab(content) {
+    const meds = await prCached("medications", prFetchMedications);
+    content.innerHTML = `
+      <div class="pr-card">
+        <h3>תיעוד מתן</h3>
+        <div class="field"><label for="pr-med-name">שם התרופה/טיפול</label><input type="text" id="pr-med-name"></div>
+        <div class="field"><label for="pr-med-dose">מינון</label><input type="text" id="pr-med-dose"></div>
+        <div class="field"><label for="pr-med-route">נתיב מתן</label>
+          <select id="pr-med-route"><option value="">—</option>${Object.entries(ROUTE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label for="pr-med-notes">הערות</label><input type="text" id="pr-med-notes"></div>
+        <div class="error-msg" id="pr-med-error" role="alert" aria-live="assertive"></div>
+        <button class="btn btn-primary btn-sm" id="pr-med-add">תיעוד מתן</button>
+      </div>
+      ${meds.length ? `<table class="admin-table"><thead><tr><th>תאריך</th><th>תרופה</th><th>מינון</th><th>נתיב</th><th>הערות</th></tr></thead><tbody>
+        ${meds.map((m) => `<tr><td>${formatDateHe(new Date(m.administered_at))} ${formatTimeHe(new Date(m.administered_at))}</td><td>${escapeHtml(m.medication_name)}</td><td>${escapeHtml(m.dose || "—")}</td><td>${ROUTE_LABELS[m.route] || "—"}</td><td>${escapeHtml(m.notes || "—")}</td></tr>`).join("")}
+      </tbody></table>` : `<div class="empty-state">לא תועדו טיפולים/תרופות</div>`}
+    `;
+    document.getElementById("pr-med-add").addEventListener("click", async () => {
+      const errEl = document.getElementById("pr-med-error");
+      hideError(errEl);
+      const name = document.getElementById("pr-med-name").value.trim();
+      if (!name) { showError(errEl, "יש להזין שם תרופה/טיפול"); return; }
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const btn = document.getElementById("pr-med-add");
+      setButtonLoading(btn, true, "שומר...");
+      const { error } = await supabaseClient.from("medication_events").insert({
+        patient_id: window.currentPatientState.patientId, medication_name: name,
+        dose: document.getElementById("pr-med-dose").value || null,
+        route: document.getElementById("pr-med-route").value || null,
+        notes: document.getElementById("pr-med-notes").value || null,
+        created_by: session?.user?.id || null,
+      });
+      setButtonLoading(btn, false);
+      if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+      prInvalidate("medications");
+      flashSuccess("התיעוד נשמר");
+      prSwitchTab("meds");
+    });
+  }
+
+  async function prRenderNotesTab(content) {
+    const notes = await prCached("clinicalNotes", prFetchClinicalNotes);
+    content.innerHTML = `
+      <div class="pr-card">
+        <h3>הוספת הערה</h3>
+        <div class="field"><label for="pr-note-type">סוג הערה</label>
+          <select id="pr-note-type">${Object.entries(NOTE_TYPE_LABELS).map(([k, v]) => `<option value="${k}">${v}</option>`).join("")}</select>
+        </div>
+        <div class="field"><label for="pr-note-content">תוכן</label><textarea id="pr-note-content" rows="3"></textarea></div>
+        <div class="error-msg" id="pr-note-error" role="alert" aria-live="assertive"></div>
+        <button class="btn btn-primary btn-sm" id="pr-note-add">הוספת הערה</button>
+        <p style="color:var(--text-muted); font-size:12px; margin-top:6px;">הערות קליניות אינן ניתנות לעריכה או מחיקה — תיקון נעשה ע"י הערה חדשה.</p>
+      </div>
+      ${notes.length ? notes.map((n) => `
+        <div class="pr-card">
+          <div class="section-header"><strong>${NOTE_TYPE_LABELS[n.note_type] || n.note_type}</strong><span style="color:var(--text-muted); font-size:12px;">${formatDateHe(new Date(n.created_at))} ${formatTimeHe(new Date(n.created_at))}</span></div>
+          <p style="margin:6px 0 0;">${escapeHtml(n.content)}</p>
+        </div>`).join("") : `<div class="empty-state">אין הערות קליניות</div>`}
+    `;
+    document.getElementById("pr-note-add").addEventListener("click", async () => {
+      const errEl = document.getElementById("pr-note-error");
+      hideError(errEl);
+      const contentText = document.getElementById("pr-note-content").value.trim();
+      if (!contentText) { showError(errEl, "יש להזין תוכן להערה"); return; }
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const btn = document.getElementById("pr-note-add");
+      setButtonLoading(btn, true, "שומר...");
+      const { error } = await supabaseClient.from("clinical_notes").insert({
+        patient_id: window.currentPatientState.patientId, author_id: session?.user?.id || null,
+        author_role: myStaffRow.role, note_type: document.getElementById("pr-note-type").value, content: contentText,
+      });
+      setButtonLoading(btn, false);
+      if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+      prInvalidate("clinicalNotes");
+      flashSuccess("ההערה נשמרה");
+      prSwitchTab("notes");
+    });
+  }
+
+  async function prRenderAppointmentsTab(content) {
+    const bookings = await prCached("bookings", prFetchBookings);
+    if (!bookings.length) { content.innerHTML = `<div class="empty-state">אין תורים</div>`; return; }
+    content.innerHTML = `<table class="admin-table"><thead><tr><th>תאריך</th><th>איש צוות</th><th>מטרה</th><th>סטטוס</th></tr></thead><tbody>
+      ${bookings.map((b) => `<tr><td>${formatDateHe(new Date(b.scheduled_at))} ${formatTimeHe(new Date(b.scheduled_at))}</td><td>${escapeHtml(b.medical_staff?.full_name || "—")}</td><td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td><td>${STATUS_LABELS[b.status] || b.status}</td></tr>`).join("")}
+    </tbody></table>`;
+  }
+
+  async function prAckAlert(alertId) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged", acknowledged_by: session?.user?.id || null, acknowledged_at: new Date().toISOString() }).eq("id", alertId);
+    if (error) { flashError(friendlyErrorMessage(error)); return; }
+    prInvalidate("alerts"); flashSuccess("ההתראה סומנה כטופלה"); prSwitchTab("alerts");
+  }
+  async function prResolveAlert(alertId) {
+    const { error } = await supabaseClient.from("alerts").update({ status: "resolved" }).eq("id", alertId);
+    if (error) { flashError(friendlyErrorMessage(error)); return; }
+    prInvalidate("alerts"); flashSuccess("ההתראה נסגרה"); prSwitchTab("alerts");
+  }
+  async function prCreateTask(alertId) {
+    const titleEl = alertId ? document.querySelector(`.pr-task-title[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-title");
+    const dueEl = alertId ? document.querySelector(`.pr-task-due[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-due");
+    const title = titleEl.value.trim();
+    const due = dueEl.value;
+    if (!title || !due) { flashError("יש להזין כותרת ותאריך/שעה למשימה"); return; }
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { error } = await supabaseClient.from("tasks").insert({
+      patient_id: window.currentPatientState.patientId, alert_id: alertId, title,
+      due_at: new Date(due).toISOString(), created_by: session?.user?.id || null,
+    });
+    if (error) { flashError(friendlyErrorMessage(error)); return; }
+    prInvalidate("tasks"); flashSuccess("משימת המעקב נוצרה"); prSwitchTab("alerts");
+  }
+  async function prCompleteTask(taskId) {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const { error } = await supabaseClient.from("tasks").update({ status: "completed", completed_by: session?.user?.id || null, completed_at: new Date().toISOString() }).eq("id", taskId);
+    if (error) { flashError(friendlyErrorMessage(error)); return; }
+    prInvalidate("tasks"); flashSuccess("המשימה הושלמה"); prSwitchTab("alerts");
+  }
+
+  async function prRenderAlertsTab(content) {
+    const [alerts, tasks] = await Promise.all([prCached("alerts", prFetchAlerts), prCached("tasks", prFetchTasks)]);
+    const tasksByAlert = new Map();
+    tasks.forEach((t) => {
+      const key = t.alert_id || "none";
+      if (!tasksByAlert.has(key)) tasksByAlert.set(key, []);
+      tasksByAlert.get(key).push(t);
+    });
+    const alertsHtml = alerts.length ? alerts.map((a) => {
+      const linkedTasks = tasksByAlert.get(a.id) || [];
+      return `
+      <div class="pr-card">
+        <div class="section-header"><strong>${ALERT_TYPE_LABELS[a.alert_type] || a.alert_type}</strong><span class="pr-badge pr-badge-${a.severity}">${a.severity === "high" ? "גבוהה" : a.severity === "medium" ? "בינונית" : "נמוכה"}</span></div>
+        <p style="margin:6px 0;">${escapeHtml(a.message)}</p>
+        <div style="color:var(--text-muted); font-size:12px;">נוצר: ${formatDateHe(new Date(a.created_at))} ${formatTimeHe(new Date(a.created_at))} · <span class="pr-badge pr-badge-${a.status}">${a.status === "open" ? "פתוח" : a.status === "acknowledged" ? "טופל" : "נסגר"}</span></div>
+        ${a.status !== "resolved" ? `<div class="actions-row" style="justify-content:flex-start; margin-top:8px; flex-wrap:wrap;">
+          ${a.status === "open" ? `<button class="btn btn-secondary btn-sm pr-alert-ack" data-alert-id="${a.id}">אישור קבלה</button>` : ""}
+          <button class="btn btn-ghost btn-sm pr-alert-resolve" data-alert-id="${a.id}">סגירה</button>
+        </div>` : ""}
+        ${linkedTasks.length ? `<div style="margin-top:8px; font-size:13px;">${linkedTasks.map((t) => `<div>${t.status === "completed" ? "✅" : new Date(t.due_at) < new Date() ? "⏰ באיחור —" : "🕓"} ${escapeHtml(t.title)} (${formatDateHe(new Date(t.due_at))} ${formatTimeHe(new Date(t.due_at))})</div>`).join("")}</div>` : ""}
+        <div class="field" style="margin-top:8px;">
+          <input type="text" class="pr-task-title" data-alert-id="${a.id}" placeholder="משימת מעקב">
+          <input type="datetime-local" class="pr-task-due" data-alert-id="${a.id}" style="margin-top:4px; max-width:220px;">
+          <button class="btn btn-secondary btn-sm pr-task-create" data-alert-id="${a.id}" style="margin-top:4px;">יצירת משימת מעקב</button>
+        </div>
+      </div>`;
+    }).join("") : `<div class="empty-state">אין התראות</div>`;
+
+    const generalTasks = tasksByAlert.get("none") || [];
+    const nowTs = new Date();
+    const overdue = generalTasks.filter((t) => t.status === "pending" && new Date(t.due_at) < nowTs);
+    const upcoming = generalTasks.filter((t) => t.status === "pending" && new Date(t.due_at) >= nowTs);
+    const completed = generalTasks.filter((t) => t.status === "completed");
+    const taskRow = (t, overdueFlag) => `<div class="pr-card" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>${overdueFlag ? "⏰ " : ""}${escapeHtml(t.title)} — ${formatDateHe(new Date(t.due_at))} ${formatTimeHe(new Date(t.due_at))}</span>
+      ${t.status === "pending" ? `<button class="btn btn-secondary btn-sm pr-task-complete" data-task-id="${t.id}">השלמה</button>` : `<span class="pr-badge pr-badge-resolved">הושלם</span>`}
+    </div>`;
+
+    content.innerHTML = `
+      <h3>התראות</h3>${alertsHtml}
+      <h3 style="margin-top:20px;">משימות מעקב כלליות</h3>
+      <div class="field" style="max-width:420px;">
+        <input type="text" id="pr-general-task-title" placeholder="משימה חדשה">
+        <input type="datetime-local" id="pr-general-task-due" style="margin-top:4px;">
+        <button class="btn btn-secondary btn-sm" id="pr-general-task-create" style="margin-top:4px;">הוספה</button>
+      </div>
+      ${overdue.length ? `<h4>באיחור</h4>${overdue.map((t) => taskRow(t, true)).join("")}` : ""}
+      ${upcoming.length ? `<h4>ממתינות</h4>${upcoming.map((t) => taskRow(t, false)).join("")}` : ""}
+      ${completed.length ? `<h4>הושלמו</h4>${completed.map((t) => taskRow(t, false)).join("")}` : ""}
+      ${!overdue.length && !upcoming.length && !completed.length ? `<div class="empty-state">אין משימות מעקב</div>` : ""}
+    `;
+    content.querySelectorAll(".pr-alert-ack").forEach((btn) => btn.addEventListener("click", () => prAckAlert(Number(btn.dataset.alertId))));
+    content.querySelectorAll(".pr-alert-resolve").forEach((btn) => btn.addEventListener("click", () => prResolveAlert(Number(btn.dataset.alertId))));
+    content.querySelectorAll(".pr-task-create").forEach((btn) => btn.addEventListener("click", () => prCreateTask(Number(btn.dataset.alertId))));
+    content.querySelectorAll(".pr-task-complete").forEach((btn) => btn.addEventListener("click", () => prCompleteTask(Number(btn.dataset.taskId))));
+    const generalBtn = document.getElementById("pr-general-task-create");
+    if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null));
+  }
+
+  // ===== אתחול =====
+  setupAllModalsAccessibility();
+  (async () => {
+    const staff = await resolveStaffSession();
+    if (staff) {
+      myStaffRow = staff;
+      showStaffApp();
+    }
+  })();
+</script>
+</body>
+</html>
