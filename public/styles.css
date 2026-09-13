@@ -573,6 +573,27 @@ section { margin-bottom: 48px; }
 #vr-risk-panel p { color: #b8c4d9 !important; }
 #vr-risk-panel .risk-badge { margin-top: 0; }
 
+/* אבחון מקיף: Baseline / חריגות עם דעיכה / Time-Series / ML */
+.warning-banner {
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+  font-weight: 600;
+  line-height: 1.6;
+}
+.warning-banner-high { background: var(--danger-light); color: var(--danger); border: 1.5px solid var(--danger); }
+.warning-banner-moderate { background: #fdf1d6; color: #97650f; border: 1.5px solid #d9a53f; }
+.warning-banner-low { background: var(--primary-light); color: var(--primary-dark); border: 1.5px solid var(--primary); }
+
+.comprehensive-section { margin-top: 16px; }
+.comprehensive-section h4 { margin: 0 0 8px; font-size: 15px; color: var(--primary-dark); }
+.comprehensive-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 8px; }
+.comprehensive-table th, .comprehensive-table td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border); }
+.comprehensive-table th { color: var(--text-muted); font-weight: 600; }
+.model-unavailable-note { color: var(--text-muted); font-size: 13px; margin: 2px 0; }
+.trigger-row { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
+.trigger-row .decay { color: var(--text-muted); font-size: 12px; }
+
 /* Landing page */
 .landing {
   max-width: 1100px;

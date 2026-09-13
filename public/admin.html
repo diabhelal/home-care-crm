@@ -189,8 +189,10 @@
     <div id="vr-risk-panel"></div>
     <div class="actions-row" style="justify-content:flex-start;">
       <button type="button" class="btn btn-secondary btn-sm" id="vr-check-trend-btn">תחזית מגמת מדדים</button>
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-comprehensive-btn">אבחון מקיף (Baseline / חריגות / ML)</button>
     </div>
     <div id="vr-trend-result"></div>
+    <div id="vr-comprehensive-result"></div>
 
     <h3>פרוצדורות שבוצעו</h3>
     <div id="vr-procedures" class="field"></div>
@@ -784,6 +786,7 @@
     vrLoadSignature(report?.patient_signature_data || null);
     hideError(document.getElementById("visit-report-modal-error"));
     document.getElementById("vr-trend-result").innerHTML = "";
+    document.getElementById("vr-comprehensive-result").innerHTML = "";
     visitReportModal.style.display = "flex";
     loadAndRenderRisk(booking.patient_id);
   }
@@ -909,6 +912,131 @@
       ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
       : friendlyErrorMessage(err);
   }
+
+  // ===== אבחון מקיף: Baseline / Anomaly detection (עם דעיכה בזמן) / Time-Series / ML =====
+  // הכל מקומי, בתוך predictive-service — בלי API בתשלום, בלי LLM. כל מודל מונחה-פיקוח
+  // (Logistic Regression / Decision Tree / Random Forest / KNN) מוצג כ"לא זמין" בגלוי
+  // אם אין לו קובץ מודל מאומן — לעולם לא מוצגת הסתברות מומצאת.
+  function renderComprehensiveResult(data) {
+    const resultEl = document.getElementById("vr-comprehensive-result");
+    const concernClass = { high: "warning-banner-high", moderate: "warning-banner-moderate", low: "warning-banner-low" }[data.short_term_concern] || "warning-banner-low";
+    const concernIcon = { high: "🚨", moderate: "⚠️", low: "✅" }[data.short_term_concern] || "";
+
+    let html = `
+      <div class="warning-banner ${concernClass}">
+        ${concernIcon} ${escapeHtml(data.explanation)}<br>
+        <span style="font-weight:400;">הערכה חוזרת מומלצת בתוך ${data.reassessment_recommended_in_hours} שעות · חלון תוקף: ${data.risk_window_hours} שעות</span>
+      </div>
+    `;
+
+    if (data.trigger_events.length) {
+      html += `<div class="comprehensive-section"><h4>אירועי טריגר פעילים (עם דעיכה בזמן)</h4>`;
+      data.trigger_events.forEach((t) => {
+        html += `<div class="trigger-row">${t.vital}: ${escapeHtml(t.reason)} (${t.current_value}, בסיס ${t.baseline ?? "—"})
+          <div class="decay">לפני ${t.hours_since_trigger} שעות · חלון דעיכה ${t.decay_window_hours} שעות · משקל נוכחי ${Math.round(t.decay_factor * 100)}%</div></div>`;
+      });
+      html += `</div>`;
+    }
+
+    if (data.baseline_analysis.length) {
+      html += `<div class="comprehensive-section"><h4>בסיס אישי (Baseline)</h4><table class="comprehensive-table">
+        <thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>`;
+      data.baseline_analysis.forEach((b) => {
+        const flags = [b.sudden_change && "שינוי חד", b.worsening_trend && "מגמת החמרה", b.persistent_abnormal && "חריגה מתמשכת"].filter(Boolean).join(", ") || "—";
+        html += `<tr><td>${b.vital}</td><td>${b.baseline ?? "—"}</td><td>${b.latest_value ?? "—"}</td><td>${b.deviation ?? "—"}</td><td>${flags}</td></tr>`;
+      });
+      html += `</tbody></table></div>`;
+    }
+
+    html += `<div class="comprehensive-section"><h4>תחזית מספרית (רגרסיה ליניארית, timestamp אמיתי)</h4><table class="comprehensive-table">
+      <thead><tr><th>מדד</th><th>חיזוי</th><th>מגמה</th><th>מס' מדידות</th></tr></thead><tbody>`;
+    data.numeric_forecasts.forEach((f) => {
+      html += `<tr><td>${f.vital}</td><td>${f.model_available ? f.predicted_value : "—"}</td><td>${f.model_available ? f.direction : "אין מספיק נתונים"}</td><td>${f.number_of_measurements}</td></tr>`;
+    });
+    html += `</tbody></table></div>`;
+
+    html += `<div class="comprehensive-section"><h4>חיזוי סדרה עתית (ARIMA)</h4>`;
+    data.timeseries_forecasts.forEach((ts) => {
+      html += ts.model_available
+        ? `<p>${ts.vital}: ${ts.predicted_value} (רווח בר-סמך: ${ts.confidence_interval?.join(" – ")})</p>`
+        : `<p class="model-unavailable-note">${ts.vital}: לא זמין — ${escapeHtml(ts.reason || "")}</p>`;
+    });
+    html += `</div>`;
+
+    const targetsShown = new Set();
+    html += `<div class="comprehensive-section"><h4>מודלי חיזוי אירוע עתידי (Logistic Regression / Decision Tree / Random Forest / KNN)</h4>`;
+    data.future_event_models.forEach((m) => {
+      if (targetsShown.has(m.target)) return;
+      targetsShown.add(m.target);
+      html += m.model_available
+        ? `<p>${m.label_he}: ${Math.round(m.probability * 100)}% (מודל מאומן, ${m.algorithm})</p>`
+        : `<p class="model-unavailable-note">${m.label_he}: לא זמין — המודל לא אומן על דאטה עם תוצאה קלינית מתועדת.</p>`;
+    });
+    html += `</div>`;
+
+    resultEl.innerHTML = html;
+  }
+
+  document.getElementById("vr-comprehensive-btn").addEventListener("click", async () => {
+    const resultEl = document.getElementById("vr-comprehensive-result");
+    const btn = document.getElementById("vr-comprehensive-btn");
+    const patientId = visitReportModal.dataset.patientId;
+    resultEl.innerHTML = "";
+    setButtonLoading(btn, true, "מחשב...");
+    try {
+      const { data: patient, error: patientError } = await supabaseClient
+        .from("patients")
+        .select("date_of_birth, background_conditions, smoking_status")
+        .eq("id", patientId)
+        .single();
+      if (patientError) throw patientError;
+
+      const { data: reports, error: reportsError } = await supabaseClient
+        .from("visit_reports")
+        .select("visit_date, systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
+        .eq("patient_id", patientId)
+        .order("visit_date", { ascending: true });
+      if (reportsError) throw reportsError;
+
+      if (!reports || reports.length === 0) {
+        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין היסטוריית מדידות למטופל זה עדיין.</p>`;
+        return;
+      }
+
+      const age = patient.date_of_birth
+        ? Math.floor((Date.now() - new Date(patient.date_of_birth).getTime()) / (365.25 * 24 * 3600 * 1000))
+        : null;
+
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/medical-warning`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patient_context: {
+            age,
+            background_conditions: patient.background_conditions || [],
+            smoking_status: patient.smoking_status || null,
+          },
+          history: reports.map((r) => ({
+            measured_at: r.visit_date,
+            systolic_bp: r.systolic_bp,
+            diastolic_bp: r.diastolic_bp,
+            blood_sugar: r.blood_sugar,
+            pulse: r.pulse,
+            temperature: r.temperature,
+            oxygen_saturation: r.oxygen_saturation,
+          })),
+          horizon: "8h",
+        }),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      const data = await res.json();
+      renderComprehensiveResult(data);
+    } catch (err) {
+      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+  });
 
   document.getElementById("vr-check-trend-btn").addEventListener("click", async () => {
     const resultEl = document.getElementById("vr-trend-result");
