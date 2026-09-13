@@ -835,6 +835,64 @@
     renderRiskPanel(currentRisk);
   }
 
+  // תצוגה מקדימה חיה: בזמן הזנת המדדים בטופס (עוד לפני שמירה), אם ערך חורג — מראים מיד
+  // רמת סיכון + משפט למטפל. לא נשמר ל-DB (זה קורה רק ב-recalculateRiskAfterSave אחרי שמירה
+  // בפועל) — זו קריאה ישירה ל-predictive-service על הערכים שבטופס כרגע, בלי persist.
+  function renderLiveRiskPreview(assessment) {
+    const panel = document.getElementById("vr-risk-panel");
+    const statusClass = `caregiver-status-${assessment.risk_level in CAREGIVER_STATUS_BY_LEVEL ? assessment.risk_level : "no_data"}`;
+    panel.innerHTML = `
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        ${riskBadgeHtml({ risk_level: assessment.risk_level })}
+        <span style="color:var(--text-muted); font-size:13px;">תצוגה מקדימה — טרם נשמר</span>
+      </div>
+      <p class="${statusClass}" style="font-weight:600; margin:8px 0 0;">
+        ${escapeHtml(assessment.status_message)}
+      </p>
+      <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">${RISK_DISCLAIMER}</p>
+    `;
+  }
+
+  let liveRiskPreviewTimer = null;
+
+  function scheduleLiveRiskPreview() {
+    if (liveRiskPreviewTimer) clearTimeout(liveRiskPreviewTimer);
+    liveRiskPreviewTimer = setTimeout(runLiveRiskPreview, 400);
+  }
+
+  async function runLiveRiskPreview() {
+    const patientId = visitReportModal.dataset.patientId;
+    if (!patientId) return;
+    const vitals = collectVitalsFromForm();
+    const anyProvided = Object.values(vitals).some((v) => v !== null);
+    if (!anyProvided) {
+      loadAndRenderRisk(patientId);
+      return;
+    }
+    let assessment;
+    try {
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ current: vitals, prediction_horizon_hours: 8 }),
+      });
+      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
+      assessment = await res.json();
+    } catch (err) {
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      return;
+    }
+    if (assessment.risk_level === "no_data") {
+      loadAndRenderRisk(patientId);
+      return;
+    }
+    renderLiveRiskPreview(assessment);
+  }
+
+  ["vr-systolic", "vr-diastolic", "vr-sugar", "vr-pulse", "vr-temp", "vr-o2"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", scheduleLiveRiskPreview);
+  });
+
   async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
     const { data: prevReports, error: prevError } = await supabaseClient
       .from("visit_reports")
