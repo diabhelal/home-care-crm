@@ -68,7 +68,7 @@ def predict_capacity(req: CapacityForecastRequest):
 # רצויה, לא חוסר עקביות. אין לשנות טווח אחד כדי "ליישר" אותו עם השני.
 
 def classify_systolic_bp(v: float) -> str:
-    if v < 85 or v >= 160:
+    if v < 85 or v > 180:
         return "red"
     if v < 90 or v >= 140:
         return "yellow"
@@ -86,7 +86,7 @@ def classify_diastolic_bp(v: float) -> str:
 def classify_blood_sugar(v: float) -> str:
     if v < 54 or v > 250:
         return "red"
-    if v < 70 or v > 180:
+    if v < 70 or v > 140:
         return "yellow"
     return "green"
 
