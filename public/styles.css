@@ -75,7 +75,7 @@ html, body {
   direction: rtl;
 }
 
-h1, h2, h3 { font-family: var(--font-head); margin: 0 0 8px; }
+h1, h2, h3 { font-family: var(--font-head); margin: 0 0 8px; line-height: 1.15; }
 h1 { font-size: 28px; }
 h2 { font-size: 22px; }
 h3 { font-size: 18px; }
@@ -381,6 +381,13 @@ main {
   text-align: center;
   color: var(--text-muted);
   padding: 40px 16px;
+  font-size: 15px;
+}
+.empty-state::before {
+  content: "🗒️";
+  display: block;
+  font-size: 28px;
+  margin-bottom: 8px;
 }
 
 /* Booking list */
@@ -432,11 +439,22 @@ main {
 
 .actions-row { display: flex; gap: 12px; justify-content: flex-end; margin-top: 8px; }
 
+.trust-strip {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  background: var(--primary-light);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin: 20px 0 0;
+}
+
 /* Admin panel */
 section { margin-bottom: 48px; }
 #admin-app section {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-top: 3px solid var(--primary-light);
   border-radius: var(--radius);
   padding: 24px;
   box-shadow: var(--shadow-sm);
@@ -565,17 +583,18 @@ section { margin-bottom: 48px; }
 .caregiver-status-green { color: #1f7a3f; }
 .caregiver-status-no_data { color: var(--text-muted); }
 
-/* פאנל הסיכון: Navy/Gold כמסגרת ויזואלית ייעודית (לא צובעים מחדש את תגי הסיכון עצמם —
-   ירוק/צהוב/אדום נשארים כרמזור, זה חלק מהבהירות הקלינית ולא רק עיצוב) */
+/* פאנל הסיכון: כרטיס בהיר עם הדגשה בצבע ה-accent של המותג, בהתאמה לשאר המערכת
+   (לא צובעים מחדש את תגי הסיכון עצמם — ירוק/צהוב/אדום נשארים כרמזור, זה חלק
+   מהבהירות הקלינית ולא רק עיצוב) */
 #vr-risk-panel {
-  background: #0a192f;
-  border: 1px solid #d4af37;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
   margin-bottom: 16px;
-  color: #f8f9fa;
+  box-shadow: var(--shadow-sm);
 }
-#vr-risk-panel p { color: #b8c4d9 !important; }
 #vr-risk-panel .risk-badge { margin-top: 0; }
 
 /* אבחון מקיף: Baseline / חריגות עם דעיכה / Time-Series / ML */
@@ -609,7 +628,7 @@ section { margin-bottom: 48px; }
   text-align: center;
   padding: 64px 32px 56px;
   margin-top: 24px;
-  background: linear-gradient(135deg, var(--primary-light) 0%, #eef7f3 55%, var(--accent-light) 130%);
+  background: linear-gradient(135deg, var(--primary-light) 0%, #eef7f3 55%, var(--accent-light) 100%);
   border-radius: var(--radius-lg);
 }
 .hero-icons {
