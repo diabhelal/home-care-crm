@@ -3,6 +3,7 @@
   --primary-dark: #235c51;
   --primary-light: #e6f1ee;
   --accent: #d98c3f;
+  --accent-dark: #97622c;
   --accent-light: #fbead9;
   --bg: #f7f8f6;
   --surface: #ffffff;
@@ -64,6 +65,7 @@
   font-size: 16px;
 }
 
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
 html, body {
   margin: 0;
   padding: 0;
@@ -75,10 +77,10 @@ html, body {
   direction: rtl;
 }
 
-h1, h2, h3 { font-family: var(--font-head); margin: 0 0 8px; line-height: 1.15; }
-h1 { font-size: 28px; }
-h2 { font-size: 22px; }
-h3 { font-size: 18px; }
+h1, h2, h3 { font-family: var(--font-head); margin: 0 0 8px; line-height: 1.15; letter-spacing: -0.01em; }
+h1 { font-size: 28px; font-weight: 800; }
+h2 { font-size: 22px; font-weight: 700; }
+h3 { font-size: 18px; font-weight: 700; }
 
 a { color: var(--primary); }
 
@@ -92,6 +94,7 @@ a { color: var(--primary); }
 .app-header {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
+  box-shadow: 0 1px 2px rgba(31, 42, 40, 0.04);
   padding: 16px 24px;
   display: flex;
   align-items: center;
@@ -118,11 +121,16 @@ a { color: var(--primary); }
 }
 .app-header nav {
   display: flex;
-  gap: 12px;
+  gap: 4px;
   align-items: center;
+  flex-wrap: wrap;
 }
 .app-header nav a, .app-header nav button {
   font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 10px;
 }
 
 main {
@@ -178,6 +186,7 @@ main {
 }
 .field input, .field select, .field textarea {
   width: 100%;
+  min-height: 44px;
   padding: 14px 16px;
   font-size: 17px;
   border: 1.5px solid var(--border);
@@ -185,6 +194,20 @@ main {
   font-family: var(--font-body);
   background: var(--surface);
   color: var(--text);
+}
+/* יעד מגע קליני: 44x44px לפחות לכל שדה/תיבת-סימון עם התווית שלה — קריטי בשטח
+   (אחות עם כפפות, מסך קטן, ביקור ממהר) כדי למנוע לחיצה שגויה בטופס מדדים/חתימה. */
+.field input[type="checkbox"], .field input[type="radio"],
+input[type="checkbox"], input[type="radio"] {
+  width: 20px;
+  height: 20px;
+}
+label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  cursor: pointer;
 }
 .field textarea { resize: vertical; }
 .field input:focus, .field select:focus, .field textarea:focus {
@@ -419,8 +442,11 @@ main {
 
 .section-title {
   margin: 32px 0 14px;
+  padding-inline-start: 12px;
+  border-inline-start: 3px solid var(--accent);
   font-size: 20px;
-  color: var(--text-muted);
+  font-weight: 700;
+  color: var(--text);
 }
 .section-title:first-child { margin-top: 0; }
 
@@ -466,7 +492,7 @@ section { margin-bottom: 48px; }
   flex-wrap: wrap;
   gap: 12px;
 }
-.btn-sm { min-height: 36px; padding: 8px 14px; font-size: 14px; margin-inline-start: 6px; }
+.btn-sm { min-height: 44px; padding: 10px 14px; font-size: 14px; margin-inline-start: 6px; }
 
 .admin-table {
   width: 100%;
@@ -574,12 +600,12 @@ section { margin-bottom: 48px; }
   margin-top: 10px;
 }
 .risk-badge-green { background: #e2f3e8; color: #1f7a3f; }
-.risk-badge-yellow { background: #fdf1d6; color: #97650f; }
+.risk-badge-yellow { background: #fdf1d6; color: #8f5f0e; }
 .risk-badge-red { background: var(--danger-light); color: var(--danger); }
 .risk-badge-muted { background: var(--border); color: var(--text-muted); }
 
 .caregiver-status-red { color: var(--danger); }
-.caregiver-status-yellow { color: #97650f; }
+.caregiver-status-yellow { color: #8f5f0e; }
 .caregiver-status-green { color: #1f7a3f; }
 .caregiver-status-no_data { color: var(--text-muted); }
 
@@ -606,7 +632,7 @@ section { margin-bottom: 48px; }
   line-height: 1.6;
 }
 .warning-banner-high { background: var(--danger-light); color: var(--danger); border: 1.5px solid var(--danger); }
-.warning-banner-moderate { background: #fdf1d6; color: #97650f; border: 1.5px solid #d9a53f; }
+.warning-banner-moderate { background: #fdf1d6; color: #8f5f0e; border: 1.5px solid #d9a53f; }
 .warning-banner-low { background: var(--primary-light); color: var(--primary-dark); border: 1.5px solid var(--primary); }
 
 .comprehensive-section { margin-top: 16px; }
@@ -617,6 +643,24 @@ section { margin-bottom: 48px; }
 .model-unavailable-note { color: var(--text-muted); font-size: 13px; margin: 2px 0; }
 .trigger-row { padding: 6px 0; border-bottom: 1px dashed var(--border); font-size: 14px; }
 .trigger-row .decay { color: var(--text-muted); font-size: 12px; }
+
+.site-footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+.site-footer-brand .brand { font-size: 17px; margin-bottom: 4px; }
+.site-footer-brand p { color: var(--text-muted); font-size: 14px; margin: 0; }
+.site-footer-links { display: flex; flex-wrap: wrap; gap: 8px 20px; }
+.site-footer-links a { color: var(--text-muted); font-size: 14px; }
+.site-footer-links a:hover { color: var(--primary-dark); }
 
 /* Landing page */
 .landing {
@@ -648,6 +692,19 @@ section { margin-bottom: 48px; }
   font-size: 22px;
   box-shadow: var(--shadow-sm);
 }
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface);
+  color: var(--primary-dark);
+  font-weight: 700;
+  font-size: 14px;
+  padding: 6px 16px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: 16px;
+}
 .hero h1 {
   font-size: 38px;
   max-width: 720px;
@@ -666,9 +723,22 @@ section { margin-bottom: 48px; }
   padding: 16px 40px;
   font-size: 18px;
 }
+.hero-trust {
+  margin: 18px 0 0;
+  font-size: 14px;
+  color: var(--primary-dark);
+  font-weight: 600;
+}
 
-.services-section, .why-us, .how-it-works { margin-top: 56px; }
-.services-section h2, .why-us h2, .how-it-works h2 {
+.services-section, .why-us-band, .how-it-works { margin-top: 56px; }
+/* רצועה עם רקע צבעוני, בתוך רוחב התוכן (כמו .cta-bottom) — יוצרת קצב חזותי בגלילה
+   בלי לשבור את מבנה ה-container (יציב יותר מ-full-bleed אמיתי ב-RTL). */
+.why-us-band {
+  background: var(--primary-light);
+  border-radius: var(--radius-lg);
+  padding: 40px 24px;
+}
+.services-section h2, .why-us-band h2, .how-it-works h2 {
   text-align: center;
   font-size: 26px;
   margin-bottom: 28px;
@@ -734,7 +804,7 @@ section { margin-bottom: 48px; }
 .how-step-num {
   width: 40px;
   height: 40px;
-  background: var(--accent);
+  background: var(--accent-dark);
   color: #fff;
   border-radius: 50%;
   display: flex;
@@ -757,6 +827,20 @@ section { margin-bottom: 48px; }
 }
 .cta-bottom h2 { margin-bottom: 8px; }
 .cta-bottom p { color: var(--text-muted); margin-bottom: 20px; }
+
+.contact-section {
+  margin-top: 56px;
+  padding: 32px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  max-width: 480px;
+  margin-inline-start: auto;
+  margin-inline-end: auto;
+  text-align: start;
+}
+.contact-section h2 { text-align: center; }
+.contact-section > p:first-of-type { text-align: center; margin-bottom: 20px; }
 
 @media (max-width: 560px) {
   .hero { padding: 40px 20px 32px; border-radius: var(--radius); }
@@ -786,6 +870,7 @@ section { margin-bottom: 48px; }
 .pr-header-card {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-inline-start: 4px solid var(--primary);
   border-radius: var(--radius);
   padding: 20px 24px;
   box-shadow: var(--shadow-sm);
@@ -879,8 +964,8 @@ section { margin-bottom: 48px; }
   font-weight: 700;
 }
 .pr-badge-high { background: var(--danger-light); color: var(--danger); }
-.pr-badge-medium { background: #fdf1d6; color: #97650f; }
-.pr-badge-low { background: var(--border); color: var(--text-muted); }
+.pr-badge-medium { background: #fdf1d6; color: #8f5f0e; }
+.pr-badge-low { background: var(--border); color: #4d5a57; } /* --text-muted על רקע --border נותן רק 4.47:1, מתחת ל-WCAG AA */
 .pr-badge-open { background: var(--danger-light); color: var(--danger); }
-.pr-badge-acknowledged { background: #fdf1d6; color: #97650f; }
+.pr-badge-acknowledged { background: #fdf1d6; color: #8f5f0e; }
 .pr-badge-resolved { background: #e2f3e8; color: #1f7a3f; }

@@ -7,40 +7,36 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f7d6e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
 <body>
-
-<div id="login-screen" class="center-screen">
-  <div class="card auth-card">
-    <div class="logo-big">🩺</div>
-    <h1>כניסת צוות רפואי</h1>
-    <p class="subtitle">אח/ות, רופא/ה, מטפל/ת — בית חם</p>
-    <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
-    <form id="staff-login-form">
-      <div class="field">
-        <label for="staff-login-email">אימייל</label>
-        <input type="email" id="staff-login-email" required autocomplete="email" autofocus>
-      </div>
-      <div class="field">
-        <label for="staff-login-password">סיסמה</label>
-        <input type="password" id="staff-login-password" required autocomplete="current-password">
-      </div>
-      <button type="submit" class="btn btn-primary" id="staff-login-btn">התחברות</button>
-    </form>
-    <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">פרטי התחברות מונפקים על ידי מנהל/ת המערכת.</p>
-  </div>
-</div>
 
 <div id="staff-app" class="page" style="display:none;">
   <header class="app-header">
     <div class="brand"><span class="logo">🩺</span> <span id="staff-app-title">צוות רפואי</span></div>
     <nav>
+      <button class="btn btn-ghost" id="staff-change-password-btn">שינוי סיסמה</button>
       <button class="btn btn-ghost" id="staff-logout-btn">התנתקות</button>
     </nav>
   </header>
   <main style="max-width:1100px;">
     <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
+
+    <div id="change-password-box" class="card" style="display:none; padding:16px; margin-bottom:16px; max-width:360px;">
+      <div class="field">
+        <label for="staff-new-password">סיסמה חדשה</label>
+        <input type="password" id="staff-new-password" autocomplete="new-password" minlength="6">
+      </div>
+      <div class="error-msg" id="change-password-error" role="alert" aria-live="assertive"></div>
+      <div class="actions-row" style="justify-content:flex-start;">
+        <button class="btn btn-ghost btn-sm" id="change-password-cancel">ביטול</button>
+        <button class="btn btn-primary btn-sm" id="change-password-save">שמירה</button>
+      </div>
+    </div>
 
     <section id="my-bookings-section">
       <h2>הביקורים שלי</h2>
@@ -121,9 +117,7 @@
 <script src="app.js"></script>
 <script>
   const PREDICTIVE_SERVICE_URL = "http://localhost:8000";
-  const loginScreen = document.getElementById("login-screen");
   const staffApp = document.getElementById("staff-app");
-  const loginError = document.getElementById("login-error");
   const appError = document.getElementById("app-error");
   const appSuccess = document.getElementById("app-success");
   let myStaffRow = null;
@@ -139,56 +133,52 @@
     setTimeout(() => appError.classList.remove("show"), 4000);
   }
 
-  // הרשאה: לא is_admin — קיום שורת medical_staff עם auth_user_id = המשתמש המחובר.
-  // נסמך על ה-RLS policy staff_select_self שנוספה במיוחד לשם כך.
-  async function resolveStaffSession() {
+  // הרשאה: לא is_admin — קיום שורת medical_staff פעילה עם auth_user_id = המשתמש
+  // המחובר. נבדק כאן שוב בצד לקוח (לא רק ב-employee-login.html) כדי שרענון ישיר של
+  // employee.html, או session ישן שנשאר פתוח אחרי שהמנהל השבית את החשבון, לא ייתן
+  // גישה — ה-RLS עצמו (current_staff_id עם is_active) כבר חוסם את הנתונים בכל מקרה,
+  // זו רק שכבת הגנה נוספת שמונעת אפילו הצגת מסך ריק/שגוי.
+  async function resolveActiveStaffSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return null;
     const { data, error } = await supabaseClient
       .from("medical_staff")
-      .select("id, full_name, role")
+      .select("id, full_name, role, is_active")
       .eq("auth_user_id", session.user.id)
       .maybeSingle();
-    if (error || !data) return null;
+    if (error || !data || !data.is_active) return null;
     return data;
   }
 
-  document.getElementById("staff-login-form").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    hideError(loginError);
-    const btn = document.getElementById("staff-login-btn");
-    setButtonLoading(btn, true, "מתחבר/ת...");
-    const email = document.getElementById("staff-login-email").value.trim();
-    const password = document.getElementById("staff-login-password").value;
-    let error;
-    try {
-      ({ error } = await supabaseClient.auth.signInWithPassword({ email, password }));
-    } catch (err) {
-      error = err;
-    } finally {
-      setButtonLoading(btn, false);
-    }
-    if (error) {
-      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)}`);
-      return;
-    }
-    const staff = await resolveStaffSession();
-    if (!staff) {
-      showError(loginError, "למשתמש זה אין הרשאת צוות רפואי במערכת");
-      await supabaseClient.auth.signOut();
-      return;
-    }
-    myStaffRow = staff;
-    showStaffApp();
-  });
-
   document.getElementById("staff-logout-btn").addEventListener("click", async () => {
     await supabaseClient.auth.signOut();
-    window.location.reload();
+    window.location.href = "employee-login.html";
+  });
+
+  document.getElementById("staff-change-password-btn").addEventListener("click", () => {
+    const box = document.getElementById("change-password-box");
+    box.style.display = box.style.display === "none" ? "block" : "none";
+    hideError(document.getElementById("change-password-error"));
+    document.getElementById("staff-new-password").value = "";
+  });
+  document.getElementById("change-password-cancel").addEventListener("click", () => {
+    document.getElementById("change-password-box").style.display = "none";
+  });
+  document.getElementById("change-password-save").addEventListener("click", async () => {
+    const errEl = document.getElementById("change-password-error");
+    hideError(errEl);
+    const newPassword = document.getElementById("staff-new-password").value;
+    if (!newPassword || newPassword.length < 6) { showError(errEl, "הסיסמה חייבת להכיל לפחות 6 תווים"); return; }
+    const btn = document.getElementById("change-password-save");
+    setButtonLoading(btn, true, "שומר...");
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    setButtonLoading(btn, false);
+    if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+    document.getElementById("change-password-box").style.display = "none";
+    flashSuccess("הסיסמה עודכנה בהצלחה");
   });
 
   async function showStaffApp() {
-    loginScreen.style.display = "none";
     staffApp.style.display = "flex";
     document.getElementById("staff-app-title").textContent = `${myStaffRow.full_name} · ${ROLE_LABELS[myStaffRow.role] || myStaffRow.role}`;
     await loadMyBookings();
@@ -465,6 +455,7 @@
       payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
     });
 
+    const markCompleted = document.getElementById("vr-mark-completed").checked;
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
     let error, savedReport;
@@ -475,9 +466,18 @@
     } finally {
       setButtonLoading(btn, false);
     }
-    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+    if (error) {
+      if (isNetworkError(error)) {
+        queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+        visitReportModal.style.display = "none";
+        flashSuccess("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
+        loadMyBookings();
+        return;
+      }
+      showError(modalError, friendlyErrorMessage(error));
+      return;
+    }
 
-    const markCompleted = document.getElementById("vr-mark-completed").checked;
     let statusError = null;
     if (markCompleted) {
       ({ error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id));
@@ -979,13 +979,20 @@
     if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null));
   }
 
-  // ===== אתחול =====
+  // ===== אתחול: הגנה על העמוד — לא מחובר/ת או לא איש-צוות פעיל => redirect להתחברות =====
   setupAllModalsAccessibility();
+  window.onOfflineQueueFlushed = (count) => flashSuccess(`${count} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`);
   (async () => {
-    const staff = await resolveStaffSession();
-    if (staff) {
-      myStaffRow = staff;
-      showStaffApp();
+    const staff = await resolveActiveStaffSession();
+    if (!staff) {
+      window.location.href = "employee-login.html";
+      return;
+    }
+    myStaffRow = staff;
+    await showStaffApp();
+    if (navigator.onLine) {
+      const { synced } = await flushOfflineQueue();
+      if (synced > 0) { flashSuccess(`${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`); loadMyBookings(); }
     }
   })();
 </script>

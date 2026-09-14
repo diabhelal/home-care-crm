@@ -7,12 +7,19 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f7d6e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
 <body>
 <div class="page">
   <header class="app-header">
     <div class="brand"><span class="logo">🏠</span> בית חם</div>
     <nav>
+      <a href="#services">השירותים שלנו</a>
+      <a href="#how-it-works">איך זה עובד</a>
+      <a href="#contact">יצירת קשר</a>
       <a href="my-bookings.html">ההזמנות שלי</a>
     </nav>
   </header>
@@ -22,17 +29,19 @@
       <div class="hero-icons">
         <span>💉</span><span>🩺</span><span>🏃</span><span>🤝</span>
       </div>
+      <div class="hero-eyebrow">🏠 טיפול רפואי עד הבית</div>
       <h1>טיפול רפואי מקצועי, ישירות לביתך</h1>
       <p class="hero-subtitle">אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.</p>
       <a href="staff.html" class="btn btn-primary hero-cta">הזמנת ביקור עכשיו</a>
+      <p class="hero-trust" id="hero-trust" style="display:none;"></p>
     </section>
 
-    <section class="services-section">
+    <section class="services-section" id="services">
       <h2>השירותים שלנו</h2>
       <div class="grid" id="services-grid"></div>
     </section>
 
-    <section class="how-it-works">
+    <section class="how-it-works" id="how-it-works">
       <h2>איך זה עובד</h2>
       <div class="how-grid">
         <div class="how-step">
@@ -53,7 +62,7 @@
       </div>
     </section>
 
-    <section class="why-us">
+    <section class="why-us-band">
       <h2>למה בית חם?</h2>
       <div class="why-grid">
         <div class="why-item">
@@ -79,11 +88,42 @@
       <p>קביעת ביקור בית לוקחת פחות מדקה — בלי הרשמה, בלי סיסמה.</p>
       <a href="staff.html" class="btn btn-primary hero-cta">בואו נתחיל</a>
     </section>
+
+    <section class="contact-section" id="contact">
+      <h2>יצירת קשר</h2>
+      <p style="color:var(--text-muted);">שאלה לפני שקובעים ביקור? לפניות שאינן דחופות — למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.</p>
+      <div class="field">
+        <label for="contact-name">שם מלא</label>
+        <input type="text" id="contact-name" required autocomplete="name">
+      </div>
+      <div class="field">
+        <label for="contact-phone">טלפון (אופציונלי, לחזרה אליך)</label>
+        <input type="tel" id="contact-phone" autocomplete="tel">
+      </div>
+      <div class="field">
+        <label for="contact-subject">נושא</label>
+        <input type="text" id="contact-subject" placeholder="אופציונלי">
+      </div>
+      <div class="field">
+        <label for="contact-body">הודעה</label>
+        <textarea id="contact-body" rows="3" required></textarea>
+      </div>
+      <div class="error-msg" id="contact-error" role="alert" aria-live="assertive"></div>
+      <div class="success-msg" id="contact-success" role="status" aria-live="polite"></div>
+      <button class="btn btn-secondary" id="contact-submit">שליחת פנייה</button>
+    </section>
   </main>
-  <footer style="text-align:center; padding:24px; color:var(--text-muted); font-size:14px;">
-    <a href="employee.html" style="color:var(--text-muted);">כניסת צוות רפואי</a>
-    &nbsp;·&nbsp;
-    <a href="admin.html" style="color:var(--text-muted);">כניסת מנהל</a>
+  <footer class="site-footer">
+    <div class="site-footer-brand">
+      <span class="brand"><span class="logo">🏠</span> בית חם</span>
+      <p>טיפול רפואי מקצועי, ישירות לביתך.</p>
+    </div>
+    <nav class="site-footer-links">
+      <a href="#services">השירותים שלנו</a>
+      <a href="my-bookings.html">ההזמנות שלי</a>
+      <a href="employee-login.html">כניסת צוות רפואי</a>
+      <a href="admin.html">כניסת מנהל</a>
+    </nav>
   </footer>
 </div>
 
@@ -124,7 +164,55 @@
       `;
       grid.appendChild(card);
     });
+
+    // מספר אמיתי, לא מומצא: כמות אנשי הצוות הפעילים שכבר נשלפה למעלה (medical_staff_select_active
+    // כבר מסננת ל-is_active=true בצד השרת) — לא "500+ מטופלים מרוצים" שאין לנו דרך לדעת.
+    if (staff.length > 0) {
+      const trustEl = document.getElementById("hero-trust");
+      trustEl.textContent = staff.length === 1
+        ? "✅ איש צוות מוסמך אחד זמין כרגע"
+        : `✅ ${staff.length} אנשי צוות מוסמכים זמינים כרגע`;
+      trustEl.style.display = "block";
+    }
   })();
+
+  // ===== יצירת קשר מדף הבית — לפני שיש בכלל הזמנה/תור =====
+  // מטופל שרק פונה (עוד לא הזמין) אין לו שורת patients קיימת — יוצרים אחת מינימלית
+  // (שם בלבד, כמו שדה חובה יחיד) לפני ההכנסה ל-patient_contacts, כדי לא להפר את
+  // ה-foreign key. זה אותו דפוס בדיוק כמו savePatientDetails בשלב אישור הזמנה.
+  document.getElementById("contact-submit").addEventListener("click", async () => {
+    const errEl = document.getElementById("contact-error");
+    hideError(errEl);
+    const fullName = document.getElementById("contact-name").value.trim();
+    const body = document.getElementById("contact-body").value.trim();
+    if (!fullName || !body) { showError(errEl, "יש להזין שם מלא והודעה"); return; }
+
+    const btn = document.getElementById("contact-submit");
+    setButtonLoading(btn, true, "שולח...");
+    const user = await ensureGuestSession();
+    if (!user) { setButtonLoading(btn, false); showError(errEl, "שגיאה ביצירת חיבור. נסה/י שוב."); return; }
+
+    const phone = document.getElementById("contact-phone").value.trim();
+    let error;
+    ({ error } = await savePatientDetails(user, { full_name: fullName, phone: phone || null }));
+    if (!error) {
+      ({ error } = await supabaseClient.from("patient_contacts").insert({
+        patient_id: user.id,
+        is_from_patient: true,
+        subject: document.getElementById("contact-subject").value || null,
+        body,
+      }));
+    }
+    setButtonLoading(btn, false);
+    if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+
+    document.getElementById("contact-subject").value = "";
+    document.getElementById("contact-body").value = "";
+    const successEl = document.getElementById("contact-success");
+    successEl.textContent = "הפנייה נשלחה, נחזור אליך בהקדם.";
+    successEl.classList.add("show");
+    setTimeout(() => successEl.classList.remove("show"), 3000);
+  });
 </script>
 </body>
 </html>

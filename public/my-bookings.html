@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f7d6e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
 <body>
 <div class="page">
@@ -31,43 +35,35 @@
     <div id="past-list"></div>
     <div id="past-empty" class="empty-state" style="display:none;">אין היסטוריית ביקורים.</div>
 
-    <div class="section-title">בקשת שירות תקופתי</div>
-    <p style="color:var(--text-muted); margin-top:-8px;">לדוגמה: ביקור אחות פעמיים בשבוע למשך חודש. הבקשה תיבדק ותאושר על ידי הצוות שלנו.</p>
+    <div class="section-title">בקשת שירות</div>
+    <p style="color:var(--text-muted); margin-top:-8px;">ביקור חד פעמי נקבע ישירות מתוך הזמנים הפנויים בפועל. שירות תקופתי (למשל פעמיים בשבוע למשך חודש) הוא בקשה שנבדקת ומאושרת על ידי הצוות שלנו.</p>
     <div class="field">
       <label for="mb-plan-type">סוג השירות המבוקש</label>
       <input type="text" id="mb-plan-type" placeholder="לדוגמה: ביקור אחות">
     </div>
     <div class="field">
+      <label for="mb-plan-frequency">תדירות</label>
+      <select id="mb-plan-frequency">
+        <option value="single">חד פעמי</option>
+        <option value="weekly">שבועי</option>
+        <option value="twice_weekly">פעמיים בשבוע</option>
+        <option value="daily">יומי</option>
+        <option value="custom">אחר</option>
+      </select>
+    </div>
+    <div class="field" id="mb-plan-start-field">
       <label for="mb-plan-start">תאריך התחלה מבוקש</label>
       <input type="date" id="mb-plan-start">
     </div>
-    <div class="field">
-      <label for="mb-plan-frequency">תדירות מבוקשת</label>
-      <select id="mb-plan-frequency"><option value="weekly">שבועי</option><option value="twice_weekly">פעמיים בשבוע</option><option value="daily">יומי</option><option value="custom">אחר</option></select>
-    </div>
-    <div class="field">
+    <div class="field" id="mb-plan-notes-field">
       <label for="mb-plan-notes">פרטים נוספים</label>
       <input type="text" id="mb-plan-notes" placeholder="אופציונלי">
     </div>
     <div class="error-msg" id="mb-plan-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="mb-plan-success" role="status" aria-live="polite"></div>
     <button class="btn btn-primary" id="mb-plan-submit">שליחת בקשה</button>
+    <a href="staff.html" class="btn btn-primary" id="mb-plan-onetime-link" style="display:none;">מעבר לקביעת תור</a>
     <div id="mb-plan-list" style="margin-top:16px;"></div>
-
-    <div class="section-title">יצירת קשר</div>
-    <p style="color:var(--text-muted); margin-top:-8px;">לפניות שאינן דחופות. למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.</p>
-    <div class="field">
-      <label for="mb-contact-subject">נושא</label>
-      <input type="text" id="mb-contact-subject" placeholder="אופציונלי">
-    </div>
-    <div class="field">
-      <label for="mb-contact-body">הודעה</label>
-      <textarea id="mb-contact-body" rows="3"></textarea>
-    </div>
-    <div class="error-msg" id="mb-contact-error" role="alert" aria-live="assertive"></div>
-    <div class="success-msg" id="mb-contact-success" role="status" aria-live="polite"></div>
-    <button class="btn btn-secondary" id="mb-contact-submit">שליחת פנייה</button>
-    <div id="mb-contact-list" style="margin-top:16px;"></div>
   </main>
 </div>
 
@@ -183,7 +179,7 @@
       });
     }
 
-    // ===== בקשת שירות תקופתי =====
+    // ===== בקשת שירות: חד פעמי (מפנה לזרימת ההזמנה הרגילה) או תקופתי (בקשה) =====
     async function loadServicePlanRequests() {
       const { data, error } = await supabaseClient.from("service_plans").select("*").eq("patient_id", user.id).order("created_at", { ascending: false });
       const listEl = document.getElementById("mb-plan-list");
@@ -195,6 +191,17 @@
         </div></div>
       `).join("") : `<p style="color:var(--text-muted); font-size:14px;">אין בקשות שירות קודמות.</p>`;
     }
+
+    const frequencySelect = document.getElementById("mb-plan-frequency");
+    function updatePlanFormForFrequency() {
+      const isSingle = frequencySelect.value === "single";
+      document.getElementById("mb-plan-start-field").style.display = isSingle ? "none" : "block";
+      document.getElementById("mb-plan-notes-field").style.display = isSingle ? "none" : "block";
+      document.getElementById("mb-plan-submit").style.display = isSingle ? "none" : "inline-flex";
+      document.getElementById("mb-plan-onetime-link").style.display = isSingle ? "inline-flex" : "none";
+    }
+    frequencySelect.addEventListener("change", updatePlanFormForFrequency);
+    updatePlanFormForFrequency();
 
     document.getElementById("mb-plan-submit").addEventListener("click", async () => {
       const errEl = document.getElementById("mb-plan-error");
@@ -208,7 +215,7 @@
         patient_id: user.id,
         service_type: serviceType,
         start_date: startDate,
-        frequency: document.getElementById("mb-plan-frequency").value,
+        frequency: frequencySelect.value,
         notes: document.getElementById("mb-plan-notes").value || null,
         status: "requested",
       });
@@ -224,47 +231,8 @@
       loadServicePlanRequests();
     });
 
-    // ===== יצירת קשר =====
-    async function loadContactHistory() {
-      const { data, error } = await supabaseClient.from("patient_contacts").select("*").eq("patient_id", user.id).order("created_at", { ascending: false });
-      const listEl = document.getElementById("mb-contact-list");
-      if (error) { listEl.innerHTML = ""; return; }
-      listEl.innerHTML = (data && data.length) ? data.map((c) => `
-        <div class="booking-item"><div class="info">
-          <div class="purpose">${escapeHtml(c.subject || "פנייה")}</div>
-          <div class="meta">${formatDateHe(new Date(c.created_at))} ${formatTimeHe(new Date(c.created_at))}</div>
-          <div class="meta">${escapeHtml(c.body)}</div>
-        </div></div>
-      `).join("") : `<p style="color:var(--text-muted); font-size:14px;">אין פניות קודמות.</p>`;
-    }
-
-    document.getElementById("mb-contact-submit").addEventListener("click", async () => {
-      const errEl = document.getElementById("mb-contact-error");
-      hideError(errEl);
-      const body = document.getElementById("mb-contact-body").value.trim();
-      if (!body) { showError(errEl, "יש להזין הודעה"); return; }
-      const btn = document.getElementById("mb-contact-submit");
-      setButtonLoading(btn, true, "שולח...");
-      const { error } = await supabaseClient.from("patient_contacts").insert({
-        patient_id: user.id,
-        is_from_patient: true,
-        subject: document.getElementById("mb-contact-subject").value || null,
-        body,
-      });
-      setButtonLoading(btn, false);
-      if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
-      document.getElementById("mb-contact-subject").value = "";
-      document.getElementById("mb-contact-body").value = "";
-      const successEl = document.getElementById("mb-contact-success");
-      successEl.textContent = "הפנייה נשלחה, נחזור אליך בהקדם.";
-      successEl.classList.add("show");
-      setTimeout(() => successEl.classList.remove("show"), 3000);
-      loadContactHistory();
-    });
-
     loadBookings();
     loadServicePlanRequests();
-    loadContactHistory();
   })();
 </script>
 </body>

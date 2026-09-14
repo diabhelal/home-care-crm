@@ -1,0 +1,19 @@
+{
+  "name": "בית חם — טיפול רפואי עד הבית",
+  "short_name": "בית חם",
+  "description": "הזמנת ביקורי בית רפואיים, תיק מטופל דיגיטלי וניהול צוות סיעודי",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "he",
+  "background_color": "#f7f8f6",
+  "theme_color": "#2f7d6e",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

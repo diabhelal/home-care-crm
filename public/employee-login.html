@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>בית חם — כניסת צוות רפואי</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f7d6e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+</head>
+<body>
+
+<div id="login-screen" class="center-screen">
+  <div class="card auth-card">
+    <div class="logo-big">🩺</div>
+    <h1>כניסת צוות רפואי</h1>
+    <p class="subtitle">אח/ות, רופא/ה, מטפל/ת — בית חם</p>
+    <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
+    <form id="staff-login-form">
+      <div class="field">
+        <label for="staff-login-email">אימייל</label>
+        <input type="email" id="staff-login-email" required autocomplete="email" autofocus>
+      </div>
+      <div class="field">
+        <label for="staff-login-password">סיסמה</label>
+        <input type="password" id="staff-login-password" required autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-primary" id="staff-login-btn">התחברות</button>
+    </form>
+    <button type="button" class="link-btn" id="forgot-password-link">שכחתי סיסמה</button>
+    <p style="color:var(--text-muted); font-size:13px; margin-top:16px;">פרטי התחברות מונפקים על ידי מנהל/ת המערכת.</p>
+  </div>
+</div>
+
+<div id="reset-password-screen" class="center-screen" style="display:none;">
+  <div class="card auth-card">
+    <div class="logo-big">🔑</div>
+    <h1 id="reset-password-title">הגדרת סיסמה</h1>
+    <p class="subtitle" id="reset-password-subtitle">בחירת סיסמה לחשבון הצוות שלך</p>
+    <div class="error-msg" id="reset-password-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="reset-password-success" role="status" aria-live="polite"></div>
+    <form id="reset-password-form">
+      <div class="field">
+        <label for="new-password">סיסמה חדשה</label>
+        <input type="password" id="new-password" required autocomplete="new-password" minlength="6">
+      </div>
+      <button type="submit" class="btn btn-primary" id="reset-password-btn">שמירת סיסמה</button>
+    </form>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+  const loginScreen = document.getElementById("login-screen");
+  const resetPasswordScreen = document.getElementById("reset-password-screen");
+  const loginError = document.getElementById("login-error");
+
+  // מאמת שהמשתמש המחובר הוא אכן איש/אשת צוות פעיל/ה — נסמך על RLS (staff_select_self,
+  // עם is_active כבר מובנה בתוך current_staff_id() מ-2026-09-14) ולא רק על דגל בצד לקוח.
+  async function resolveActiveStaffSession() {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return { status: "no_session" };
+    const { data, error } = await supabaseClient
+      .from("medical_staff")
+      .select("id, full_name, role, is_active")
+      .eq("auth_user_id", session.user.id)
+      .maybeSingle();
+    if (error) return { status: "error", error };
+    if (!data) return { status: "no_staff_record" };
+    if (!data.is_active) return { status: "inactive" };
+    return { status: "ok", staff: data };
+  }
+
+  document.getElementById("staff-login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    hideError(loginError);
+    const btn = document.getElementById("staff-login-btn");
+    setButtonLoading(btn, true, "מתחבר/ת...");
+    const email = document.getElementById("staff-login-email").value.trim();
+    const password = document.getElementById("staff-login-password").value;
+    let error;
+    try {
+      ({ error } = await supabaseClient.auth.signInWithPassword({ email, password }));
+    } catch (err) {
+      error = err;
+    } finally {
+      setButtonLoading(btn, false);
+    }
+    if (error) {
+      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)}`);
+      return;
+    }
+
+    const result = await resolveActiveStaffSession();
+    if (result.status === "no_staff_record") {
+      await supabaseClient.auth.signOut();
+      showError(loginError, "לא נמצא חשבון צוות רפואי המקושר למשתמש זה. יש לפנות למנהל/ת המערכת.");
+      return;
+    }
+    if (result.status === "inactive") {
+      await supabaseClient.auth.signOut();
+      showError(loginError, "חשבון זה אינו פעיל כרגע. יש לפנות למנהל/ת המערכת.");
+      return;
+    }
+    if (result.status !== "ok") {
+      await supabaseClient.auth.signOut();
+      showError(loginError, "שגיאה באימות חשבון הצוות. נסה/י שוב.");
+      return;
+    }
+    window.location.href = "employee.html";
+  });
+
+  document.getElementById("forgot-password-link").addEventListener("click", async () => {
+    hideError(loginError);
+    const email = document.getElementById("staff-login-email").value.trim();
+    if (!email) {
+      showError(loginError, "נא להזין קודם את כתובת האימייל בשדה למעלה");
+      return;
+    }
+    const link = document.getElementById("forgot-password-link");
+    setButtonLoading(link, true, "שולח...");
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.href.split("#")[0],
+    });
+    setButtonLoading(link, false);
+    if (error) {
+      showError(loginError, friendlyErrorMessage(error));
+      return;
+    }
+    hideError(loginError);
+    alert(`אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`);
+  });
+
+  // אותו hash type (type=recovery) משמש גם לאיפוס סיסמה וגם לקבלת הזמנה ראשונית —
+  // באחד כמו בשני, המשתמש צריך פשוט לבחור סיסמה כדי להמשיך.
+  supabaseClient.auth.onAuthStateChange((event) => {
+    if (event === "PASSWORD_RECOVERY") {
+      loginScreen.style.display = "none";
+      resetPasswordScreen.style.display = "flex";
+    }
+  });
+
+  document.getElementById("reset-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("reset-password-error");
+    const successEl = document.getElementById("reset-password-success");
+    hideError(errEl);
+    successEl.classList.remove("show");
+    const newPassword = document.getElementById("new-password").value;
+    const btn = document.getElementById("reset-password-btn");
+    setButtonLoading(btn, true, "שומר...");
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    setButtonLoading(btn, false);
+    if (error) {
+      showError(errEl, friendlyErrorMessage(error));
+      return;
+    }
+
+    const result = await resolveActiveStaffSession();
+    if (result.status !== "ok") {
+      await supabaseClient.auth.signOut();
+      successEl.textContent = "הסיסמה נשמרה, אך לא נמצא חשבון צוות פעיל המקושר אליה. יש לפנות למנהל/ת המערכת.";
+      successEl.classList.add("show");
+      return;
+    }
+    successEl.textContent = "הסיסמה נשמרה בהצלחה. מעביר אותך למערכת...";
+    successEl.classList.add("show");
+    setTimeout(() => { window.location.href = "employee.html"; }, 1200);
+  });
+
+  // ===== אתחול =====
+  (async () => {
+    if (window.location.hash.includes("type=recovery")) return;
+    const result = await resolveActiveStaffSession();
+    if (result.status === "ok") {
+      window.location.href = "employee.html";
+    }
+  })();
+</script>
+</body>
+</html>

@@ -7,6 +7,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2f7d6e">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
 <body>
 
@@ -157,6 +161,14 @@
     <div class="field">
       <label for="staff-spec">התמחות</label>
       <input type="text" id="staff-spec">
+    </div>
+    <div class="field">
+      <label for="staff-national-id">תעודת זהות</label>
+      <input type="text" id="staff-national-id" inputmode="numeric" autocomplete="off" maxlength="9">
+    </div>
+    <div class="field">
+      <label for="staff-email">אימייל (משמש לכניסת הצוות למערכת)</label>
+      <input type="email" id="staff-email" autocomplete="off">
     </div>
     <div class="field">
       <label for="staff-phone">טלפון</label>
@@ -517,9 +529,21 @@
         <td>${s.work_start_time?.slice(0,5)}–${s.work_end_time?.slice(0,5)}</td>
         <td>${s.slot_duration_minutes} ד'</td>
         <td>${s.is_active ? "כן" : "לא"}</td>
-        <td>${s.auth_user_id ? '<span class="pr-badge pr-badge-resolved">יש כניסה</span>' : '<span class="pr-badge pr-badge-low">אין כניסה</span>'}</td>
+        <td></td>
         <td></td>
       `;
+      const loginTd = tr.children[8];
+      if (s.auth_user_id) {
+        loginTd.innerHTML = '<span class="pr-badge pr-badge-resolved">מחובר/ת</span>';
+      } else if (s.email) {
+        const createLoginBtn = document.createElement("button");
+        createLoginBtn.className = "btn btn-secondary btn-sm";
+        createLoginBtn.textContent = "יצירת כניסה";
+        createLoginBtn.addEventListener("click", () => createStaffLogin(s, createLoginBtn));
+        loginTd.appendChild(createLoginBtn);
+      } else {
+        loginTd.innerHTML = '<span style="color:var(--text-muted); font-size:12px;">יש להוסיף אימייל</span>';
+      }
       const actionsTd = tr.lastElementChild;
       const editBtn = document.createElement("button");
       editBtn.className = "btn btn-secondary btn-sm";
@@ -536,6 +560,43 @@
     if (!data || data.length === 0) {
       tbody.innerHTML = `<tr><td colspan="10" class="empty-state">אין אנשי צוות</td></tr>`;
     }
+  }
+
+  const STAFF_LOGIN_ERROR_HE = {
+    admin_only: "פעולה זו מיועדת למנהלי מערכת בלבד",
+    staff_not_found: "איש הצוות לא נמצא",
+    staff_missing_email: "יש להוסיף אימייל לאיש הצוות לפני יצירת כניסה",
+    staff_already_linked: "לאיש צוות זה כבר יש כניסה מקושרת",
+    invite_failed: "שליחת ההזמנה נכשלה",
+    invite_sent_but_link_failed: "ההזמנה נשלחה אך קישור החשבון נכשל",
+    not_authenticated: "יש להתחבר מחדש",
+  };
+
+  // קורא לפונקציית ה-Edge Function (server-side, מחזיקה service_role שם בלבד —
+  // לעולם לא בדפדפן) שמזמינה בפועל את איש הצוות ומקשרת את חשבון ה-Auth שלו לשורה
+  // המתאימה ב-medical_staff.
+  async function createStaffLogin(staff, btn) {
+    hideError(appError);
+    setButtonLoading(btn, true, "יוצר...");
+    const { data, error } = await supabaseClient.functions.invoke("create-staff-login", {
+      body: { staff_id: staff.id, origin: window.location.origin },
+    });
+    setButtonLoading(btn, false);
+    // ב-supabase-js, תשובת שגיאה (סטטוס לא 2xx) מגיעה כ-error עם ה-Response הגולמי תחת
+    // error.context — לא ב-data — לכן שולפים משם את קוד השגיאה שהפונקציה החזירה בגוף.
+    let errorCode = data?.error || null;
+    if (error && !errorCode) {
+      try {
+        const body = await error.context?.json?.();
+        errorCode = body?.error || null;
+      } catch (e) { /* אין גוף JSON תקין — נופלים ל-friendlyErrorMessage למטה */ }
+    }
+    if (errorCode || error) {
+      flashError(STAFF_LOGIN_ERROR_HE[errorCode] || friendlyErrorMessage(error) || "שגיאה ביצירת הכניסה");
+      return;
+    }
+    flashSuccess(`הזמנה נשלחה ל-${staff.email} — ${staff.full_name} יקבל/תקבל מייל להגדרת סיסמה`);
+    loadStaff();
   }
 
   async function deleteStaff(id, name) {
@@ -576,6 +637,8 @@
     document.getElementById("staff-full-name").value = staff?.full_name || "";
     document.getElementById("staff-role").value = staff?.role || "nurse";
     document.getElementById("staff-spec").value = staff?.specialization || "";
+    document.getElementById("staff-national-id").value = staff?.national_id || "";
+    document.getElementById("staff-email").value = staff?.email || "";
     document.getElementById("staff-phone").value = staff?.phone || "";
     document.getElementById("staff-start").value = staff?.work_start_time?.slice(0,5) || "08:00";
     document.getElementById("staff-end").value = staff?.work_end_time?.slice(0,5) || "16:00";
@@ -607,6 +670,8 @@
       full_name: fullName,
       role: document.getElementById("staff-role").value,
       specialization: document.getElementById("staff-spec").value.trim() || null,
+      national_id: document.getElementById("staff-national-id").value.trim() || null,
+      email: document.getElementById("staff-email").value.trim() || null,
       phone: document.getElementById("staff-phone").value.trim() || null,
       available_weekdays: weekdays,
       work_start_time: document.getElementById("staff-start").value,
@@ -1257,6 +1322,7 @@
       payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
     });
 
+    const markCompleted = document.getElementById("vr-mark-completed").checked;
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
     let error, savedReport;
@@ -1272,13 +1338,24 @@
       setButtonLoading(btn, false);
     }
 
-    if (error) { showError(modalError, friendlyErrorMessage(error)); return; }
+    if (error) {
+      // אין רשת (לא שגיאת ולידציה/הרשאה) — לא מאבדים את מה שהאחות הזינה: שומרים
+      // מקומית ומנסים שוב אוטומטית כשהחיבור חוזר (ר' flushOfflineQueue ב-app.js).
+      if (isNetworkError(error)) {
+        queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+        visitReportModal.style.display = "none";
+        flashSuccess("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
+        loadBookings();
+        return;
+      }
+      showError(modalError, friendlyErrorMessage(error));
+      return;
+    }
 
     // שמירת דוח הביקור ("שמירה") לא הייתה מסמנת בעבר את ההזמנה כהושלמה — שתי פעולות
     // נפרדות, לא מקושרות, מה שגרם לתחושה ש"שום דבר לא נשמר / הטיפול לא הסתיים" כי
     // מסך ההזמנות המשיך להראות "מתוכנן". עכשיו זו פעולה אחת: שמירה + סימון כהושלם
     // (אלא אם המשתמש הסיר את הסימון, למשל לתיעוד טיוטה על ביקור עתידי).
-    const markCompleted = document.getElementById("vr-mark-completed").checked;
     let statusError = null;
     if (markCompleted) {
       ({ error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id));
@@ -2296,6 +2373,7 @@
 
   // ===== אתחול =====
   setupAllModalsAccessibility();
+  window.onOfflineQueueFlushed = (count) => flashSuccess(`${count} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`);
   (async () => {
     // אם הגענו מקישור איפוס סיסמה (type=recovery ב-URL), onAuthStateChange כבר מציג
     // את מסך "בחירת סיסמה חדשה" — לא ממשיכים לבדוק session/כניסה אוטומטית לאפליקציה.
@@ -2303,6 +2381,10 @@
     const admin = await isAdminSession();
     if (admin) {
       showAdminApp();
+      if (navigator.onLine) {
+        const { synced } = await flushOfflineQueue();
+        if (synced > 0) { flashSuccess(`${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`); loadBookings(); }
+      }
     }
   })();
 </script>

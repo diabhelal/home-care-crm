@@ -1,6 +1,90 @@
 // לוגיקה משותפת לכל דפי המערכת
 const supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
+// PWA: רישום ה-service worker (מעטפת אפליקציה אופליין בלבד — ר' הערה ב-service-worker.js
+// לגבי למה נתוני Supabase לעולם לא נכנסים למטמון הזה).
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("service-worker.js").catch((err) => {
+      console.error("service worker registration failed", err);
+    });
+  });
+}
+
+// ===== Offline Draft Queue: visit_reports =====
+// כשהשמירה ל-Supabase נכשלת בגלל היעדר רשת (לא שגיאת ולידציה/הרשאה אמיתית), שומרים
+// את הדוח מקומית ב-localStorage במקום לאבד אותו, ומנסים שוב אוטומטית ברגע שהחיבור
+// חוזר (או בטעינת עמוד הבאה). שימושי בשטח כשאחות מאבדת קליטה תוך כדי ביקור.
+const OFFLINE_QUEUE_KEY = "visitReportOfflineQueue";
+
+function isNetworkError(err) {
+  const msg = err?.message || String(err);
+  return /failed to fetch|network|load failed|networkerror/i.test(msg);
+}
+
+function getOfflineQueue() {
+  try {
+    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+  } catch (e) {
+    return [];
+  }
+}
+
+function setOfflineQueue(queue) {
+  try {
+    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+  } catch (e) {
+    console.error("offline queue save failed", e);
+  }
+}
+
+// טיוטה חדשה לאותה הזמנה (booking_id) מחליפה טיוטה קודמת שממתינה לה — לא מצטברות כפילויות.
+function queueVisitReportDraft(payload) {
+  const queue = getOfflineQueue().filter((d) => d.booking_id !== payload.booking_id);
+  queue.push({ ...payload, _queuedAt: new Date().toISOString() });
+  setOfflineQueue(queue);
+}
+
+function getQueuedDraftCount() {
+  return getOfflineQueue().length;
+}
+
+// מנסה לסנכרן את כל התור מול Supabase (upsert לפי booking_id — בטוח לקרוא שוב ושוב).
+// מחזירה {synced, failed} כדי שהקורא יוכל להציג משוב למשתמש/ת.
+async function flushOfflineQueue() {
+  const queue = getOfflineQueue();
+  if (!queue.length) return { synced: 0, failed: 0 };
+  let synced = 0;
+  const stillPending = [];
+  for (const draft of queue) {
+    const { _queuedAt, _markCompleted, ...payload } = draft;
+    try {
+      const { error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" });
+      if (error) {
+        stillPending.push(draft); // שגיאת שרת אמיתית (למשל RLS/ולידציה) — לא רשת, לא ננסה בלולאה אינסופית בשקט
+        continue;
+      }
+      synced++;
+      // אם "לסמן כהושלם" היה מסומן בזמן השמירה האופליין, משלימים את זה עכשיו —
+      // לא רק שומרים את המדדים, אלא מכבדים את מה שהאחות באמת ביקשה.
+      if (_markCompleted) {
+        await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id);
+      }
+    } catch (err) {
+      stillPending.push(draft); // עדיין אין רשת
+    }
+  }
+  setOfflineQueue(stillPending);
+  return { synced, failed: stillPending.length };
+}
+
+window.addEventListener("online", async () => {
+  const { synced } = await flushOfflineQueue();
+  if (synced > 0 && typeof window.onOfflineQueueFlushed === "function") {
+    window.onOfflineQueueFlushed(synced);
+  }
+});
+
 const ROLE_LABELS = {
   nurse: "אח/ות",
   doctor: "רופא/ה",
@@ -173,13 +257,11 @@ async function ensureGuestSession() {
 
 // יוצר/מעדכן את שורת המטופל עם הפרטים שהוזנו בשלב אישור ההזמנה (upsert)
 async function savePatientDetails(user, details) {
-  const payload = {
-    id: user.id,
-    full_name: details.full_name,
-    phone: details.phone,
-    address: details.address,
-  };
-  // national_id רק אם סופק בפועל — לא דורסים ערך קיים בעריכה חוזרת של אותו guest session
+  const payload = { id: user.id, full_name: details.full_name };
+  // שדות אופציונליים (phone/address/national_id) רק אם סופקו בפועל — לא דורסים ערך
+  // קיים בקריאה חלקית (למשל טופס "יצירת קשר" בדף הבית ששולח רק שם, לא כתובת).
+  if (details.phone) payload.phone = details.phone;
+  if (details.address) payload.address = details.address;
   if (details.national_id) payload.national_id = details.national_id;
   return supabaseClient.from("patients").upsert(payload);
 }
