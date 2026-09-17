@@ -623,6 +623,48 @@ section { margin-bottom: 48px; }
 }
 #vr-risk-panel .risk-badge { margin-top: 0; }
 
+/* תור עבודה — קבוצות מתקפלות (native <details>), לא עוד טבלה שטוחה אחת */
+.queue-group {
+  background: var(--card-bg, #fff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 12px;
+  padding: 4px 16px 12px;
+}
+.queue-group summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 12px 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  list-style: none;
+}
+.queue-group summary::-webkit-details-marker { display: none; }
+.queue-count {
+  background: var(--primary-light);
+  color: var(--primary-dark);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* באנר זמינות שירות התחזית — קבוע בראש העמוד, לא חלק מזרימת תוכן */
+.predictive-offline-banner {
+  position: sticky;
+  top: 0;
+  z-index: 500;
+  background: #fdf1d6;
+  color: #8f5f0e;
+  border-bottom: 1.5px solid #d9a53f;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* אבחון מקיף: Baseline / חריגות עם דעיכה / Time-Series / ML */
 .warning-banner {
   border-radius: var(--radius-sm);

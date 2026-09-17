@@ -255,6 +255,11 @@ otp_expiry = 3600
 # content_path = "./templates/password_changed_notification.html"
 
 [auth.sms]
+# תשתית "קישור טלפון אופציונלי" קיימת ב-public/my-bookings.html (updateUser/
+# signInWithOtp/verifyOtp) אך לא פעילה בפועל: נדרש ספק SMS אמיתי (Twilio/MessageBird/
+# Vonage — עלות כספית) מוגדר תחת [auth.sms.<provider>] + enable_signup=true + `supabase
+# config push`, לפני שקוד אימות יישלח בפועל. עד אז הקריאות נכשלות בבירור עם שגיאת
+# Supabase אמיתית ("SMS provider not configured"), לא בשקט.
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.

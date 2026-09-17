@@ -348,6 +348,65 @@ function prInvalidate(...keys) {
   keys.forEach((k) => { window.currentPatientState[k] = null; });
 }
 
+// ===== שליפות תיק מטופל — משותף בין admin.html ו-employee.html =====
+// היה קוד כמעט-זהה משוכפל בשני הקבצים (כל אחד הגדיר את זה בעצמו) — אוחד לכאן,
+// מקור אחד. פועל מול window.currentPatientState.patientId, כמו prCached שקורא לזה.
+async function prFetchPatient() {
+  const { data, error } = await supabaseClient.from("patients").select("*").eq("id", window.currentPatientState.patientId).single();
+  if (error) throw error;
+  return data;
+}
+async function prFetchAllergies() {
+  const { data, error } = await supabaseClient.from("patient_allergies").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+  if (error) { console.error("patient_allergies", error); return []; }
+  return data || [];
+}
+async function prFetchMedicalHistory() {
+  const { data, error } = await supabaseClient.from("patient_medical_history").select("*").eq("patient_id", window.currentPatientState.patientId).maybeSingle();
+  if (error) { console.error("patient_medical_history", error); return null; }
+  return data;
+}
+async function prFetchBookings() {
+  const { data, error } = await supabaseClient.from("bookings").select("*, medical_staff(full_name, role)").eq("patient_id", window.currentPatientState.patientId).order("scheduled_at", { ascending: false });
+  if (error) { console.error("bookings", error); return []; }
+  return data || [];
+}
+async function prFetchVisitReports() {
+  const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
+  if (error) { console.error("visit_reports", error); return []; }
+  return data || [];
+}
+async function prFetchMedications() {
+  const { data, error } = await supabaseClient.from("medication_events").select("*").eq("patient_id", window.currentPatientState.patientId).order("administered_at", { ascending: false });
+  if (error) { console.error("medication_events", error); return []; }
+  return data || [];
+}
+async function prFetchServicePlans() {
+  const { data, error } = await supabaseClient.from("service_plans").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+  if (error) { console.error("service_plans", error); return []; }
+  return data || [];
+}
+async function prFetchClinicalNotes() {
+  const { data, error } = await supabaseClient.from("clinical_notes").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+  if (error) { console.error("clinical_notes", error); return []; }
+  return data || [];
+}
+async function prFetchDocuments() {
+  const { data, error } = await supabaseClient.from("patient_documents").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+  if (error) { console.error("patient_documents", error); return []; }
+  return data || [];
+}
+async function prFetchAlerts() {
+  const { data, error } = await supabaseClient.from("alerts").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+  if (error) { console.error("alerts", error); return []; }
+  return data || [];
+}
+async function prFetchTasks() {
+  const { data, error } = await supabaseClient.from("tasks").select("*").eq("patient_id", window.currentPatientState.patientId).order("due_at", { ascending: true });
+  if (error) { console.error("tasks", error); return []; }
+  return data || [];
+}
+
 // ===== נגישות מודלים: focus-trap + Escape לסגירה + החזרת פוקוס =====
 // גנרי לכל .modal-overlay עם role="dialog" — לא תלוי בתוכן ספציפי של מודל.
 function setupModalAccessibility(modalEl) {
@@ -403,4 +462,36 @@ function friendlyErrorMessage(err) {
     return "בעיית חיבור לאינטרנט. נא לבדוק את החיבור ולנסות שוב.";
   }
   return msg;
+}
+
+// ===== באנר זמינות שירות התחזית =====
+// שירות predictive-service הוא תהליך Python מקומי שמופעל ידנית, לא שירות שרץ תמיד.
+// במקום שכל כפתור (תחזית מגמה / אבחון מקיף / תצוגה חיה) יגלה בנפרד רק בלחיצה
+// שהשירות לא זמין, בודקים פעם אחת ברקע ומציגים באנר קבוע וברור בראש העמוד —
+// "no button may fail silently" ברמת העמוד כולו, לא רק ברמת כפתור בודד.
+async function checkPredictiveServiceHealth() {
+  let banner = document.getElementById("predictive-offline-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "predictive-offline-banner";
+    banner.className = "predictive-offline-banner";
+    banner.setAttribute("role", "status");
+    banner.textContent = "⚠️ שירות התחזית (predictive-service) לא זמין כרגע — תחזיות, מגמות ואבחון מקיף לא יעבדו עד שיופעל מקומית.";
+    banner.style.display = "none";
+    document.body.prepend(banner);
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2500);
+    const res = await fetch(`${window.PREDICTIVE_SERVICE_URL}/health`, { signal: controller.signal });
+    clearTimeout(timer);
+    banner.style.display = res.ok ? "none" : "block";
+  } catch (err) {
+    banner.style.display = "block";
+  }
+}
+
+function initPredictiveServiceHealthCheck() {
+  checkPredictiveServiceHealth();
+  setInterval(checkPredictiveServiceHealth, 45000);
 }

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 import ml_targets
 from clinical_baseline import compute_baseline, compute_trigger_event, detect_anomaly, weighted_severity
-from timeseries import forecast_arima
+from timeseries import MIN_POINTS_FOR_ARIMA, avg_gap_hours, forecast_arima
 
 app = FastAPI(title="home-care-crm predictive service")
 
@@ -171,8 +171,34 @@ class RiskLevelResponse(BaseModel):
     flagged_vitals: list[FlaggedVital]
 
 
-def compute_risk(vitals: VitalsInput):
-    """מחזיר (worst_level_or_None, flagged_vitals) על סמך המדדים שסופקו בפועל."""
+class PatientContextInput(BaseModel):
+    age: Optional[int] = None
+    background_conditions: list[str] = []
+    smoking_status: Optional[str] = None
+
+
+# רקע רפואי -> החמרת רמת סיכון: כלל קליני קבוע (לא ML, לא הסתברות) — סוגר את הפער
+# שבו background_conditions היה מאוחסן ואף מוצג כטקסט ב"contributing_factors", אך
+# לא השפיע בפועל על current_risk.level המחושב. ההיגיון: מדד "צהוב" (גבולי) אצל
+# מטופל עם רקע רלוונטי מדאיג יותר מאותו מדד אצל מטופל בלי רקע — לכן מוחמר ל"אדום".
+# כמו כל שאר הטווחים בקובץ הזה: כלל קליני כללי ומקובל, לא מאומת ספציפית לפרויקט הזה.
+BACKGROUND_ESCALATION_VITALS = {
+    "diabetes": {"blood_sugar"},
+    "hypertension": {"systolic_bp", "diastolic_bp"},
+    "heart_failure": {"oxygen_saturation", "pulse"},
+}
+SMOKING_ESCALATION_VITALS = {"oxygen_saturation"}
+
+
+def compute_risk(
+    vitals: VitalsInput,
+    background_conditions: Optional[list[str]] = None,
+    smoking_status: Optional[str] = None,
+):
+    """מחזיר (worst_level_or_None, flagged_vitals) על סמך המדדים שסופקו בפועל, ומוחמר
+    לפי רקע רפואי רלוונטי כשמדד "צהוב" בלבד (background_conditions/smoking_status
+    אופציונליים ותואמי-אחור — ללא הם ההתנהגות זהה לגמרי למה שהייתה קודם)."""
+    background_conditions = background_conditions or []
     worst = None
     flagged = []
     for key, (classify, label) in VITAL_CLASSIFIERS.items():
@@ -180,6 +206,12 @@ def compute_risk(vitals: VitalsInput):
         if value is None:
             continue
         level = classify(value)
+        if level == "yellow":
+            relevant_conditions = {c for c, vs in BACKGROUND_ESCALATION_VITALS.items() if key in vs}
+            has_relevant_condition = bool(relevant_conditions & set(background_conditions))
+            is_smoking_relevant = smoking_status == "current" and key in SMOKING_ESCALATION_VITALS
+            if has_relevant_condition or is_smoking_relevant:
+                level = "red"
         if worst is None or LEVEL_RANK[level] > LEVEL_RANK[worst]:
             worst = level
         if level != "green":
@@ -204,6 +236,7 @@ class RiskAssessmentRequest(BaseModel):
     current: VitalsInput
     previous: Optional[VitalsInput] = None
     prediction_horizon_hours: int = Field(8, gt=0)
+    patient_context: Optional[PatientContextInput] = None
 
 
 class RiskAssessmentResponse(BaseModel):
@@ -218,21 +251,29 @@ class RiskAssessmentResponse(BaseModel):
     model_version: str = "rule-based-v1"
 
 
+def compute_trend(worst: Optional[str], prev_worst: Optional[str]) -> Optional[str]:
+    """משווה שתי רמות-חומרה (worst-of-vitals) כדי לגזור מגמה. פונקציה משותפת —
+    היה קוד כפול זהה כאן וב-predict_medical_warning, אוחד למניעת סטייה בין השניים."""
+    if prev_worst is None or worst is None:
+        return None
+    if LEVEL_RANK[worst] > LEVEL_RANK[prev_worst]:
+        return "worsening"
+    if LEVEL_RANK[worst] < LEVEL_RANK[prev_worst]:
+        return "improving"
+    return "stable"
+
+
 @app.post("/predict/risk-assessment", response_model=RiskAssessmentResponse)
 def predict_risk_assessment(req: RiskAssessmentRequest):
-    worst, flagged = compute_risk(req.current)
+    bg = req.patient_context.background_conditions if req.patient_context else None
+    smoking = req.patient_context.smoking_status if req.patient_context else None
+    worst, flagged = compute_risk(req.current, bg, smoking)
     level = worst or "no_data"
 
     trend = None
     if req.previous is not None:
-        prev_worst, _ = compute_risk(req.previous)
-        if prev_worst is not None and worst is not None:
-            if LEVEL_RANK[worst] > LEVEL_RANK[prev_worst]:
-                trend = "worsening"
-            elif LEVEL_RANK[worst] < LEVEL_RANK[prev_worst]:
-                trend = "improving"
-            else:
-                trend = "stable"
+        prev_worst, _ = compute_risk(req.previous, bg, smoking)
+        trend = compute_trend(worst, prev_worst)
 
     provided = sum(1 for key in VITAL_CLASSIFIERS if getattr(req.current, key) is not None)
     confidence = round(provided / len(VITAL_CLASSIFIERS), 3)
@@ -246,56 +287,6 @@ def predict_risk_assessment(req: RiskAssessmentRequest):
         confidence=confidence,
         probability=None,
         prediction_horizon_hours=req.prediction_horizon_hours,
-    )
-
-
-# ===== מגמת מדדים (Linear Regression) =====
-# רגרסיה ליניארית פשוטה (least squares) על סדרת נקודות היסטוריות של מדד בודד,
-# לחיזוי הערך הצפוי בביקור הבא. גנרי לכל מדד — הצד הקורא (JS) שולח את הנקודות.
-
-class TrendPoint(BaseModel):
-    x: float
-    y: float
-
-
-class TrendForecastRequest(BaseModel):
-    points: list[TrendPoint]
-    next_x: Optional[float] = None
-
-
-class TrendForecastResponse(BaseModel):
-    slope: float
-    intercept: float
-    predicted_next_y: float
-    direction: str
-
-
-@app.post("/predict/vitals-trend", response_model=TrendForecastResponse)
-def predict_vitals_trend(req: TrendForecastRequest):
-    n = len(req.points)
-    if n < 2:
-        raise HTTPException(status_code=400, detail="נדרשות לפחות 2 נקודות היסטוריה לחישוב מגמה")
-
-    xs = [p.x for p in req.points]
-    ys = [p.y for p in req.points]
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
-    denominator = sum((x - mean_x) ** 2 for x in xs)
-    slope = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / denominator if denominator else 0.0
-    intercept = mean_y - slope * mean_x
-
-    next_x = req.next_x if req.next_x is not None else xs[-1] + (xs[-1] - xs[-2])
-    predicted_next_y = slope * next_x + intercept
-
-    direction = "יציב"
-    if abs(slope) > 1e-9:
-        direction = "עולה" if slope > 0 else "יורד"
-
-    return TrendForecastResponse(
-        slope=round(slope, 4),
-        intercept=round(intercept, 4),
-        predicted_next_y=round(predicted_next_y, 2),
-        direction=direction,
     )
 
 
@@ -326,14 +317,9 @@ class VitalHistoryEntry(BaseModel):
     oxygen_saturation: Optional[float] = None
 
 
-class PatientContextInput(BaseModel):
-    age: Optional[int] = None
-    background_conditions: list[str] = []
-    smoking_status: Optional[str] = None
 
 
-# ===== 1. רגרסיה ליניארית מודעת-זמן (timestamp אמיתי, לא אינדקס) =====
-# מוסיפה, לא מחליפה: /predict/vitals-trend (אינדקס) נשאר בדיוק כפי שהיה.
+# ===== מנוע תחזית אדפטיבי (רגרסיה ליניארית + ARIMA, timestamp אמיתי) =====
 
 _HORIZON_HOURS = {"8h": 8.0, "24h": 24.0, "72h": 72.0}
 
@@ -344,14 +330,21 @@ class VitalsForecastRequest(BaseModel):
     vital: Optional[str] = None
 
 
-class VitalsForecastResponse(BaseModel):
+class AdaptiveForecastResponse(BaseModel):
+    """תחזית מדד אחת מאוחדת — מחליפה מצב קודם שבו רגרסיה ליניארית (#4) ו-ARIMA (#5)
+    הוצגו כשני מספרים נפרדים, לפעמים סותרים, לאותו מדד. method אומר לצד הקורא
+    איזה מנוע בפועל ייצר את predicted_value, כדי שזה יישאר שקוף ולא "קופסה שחורה"."""
+
     vital: Optional[str] = None
+    method: str  # "linear" | "arima" | "linear_fallback" (ARIMA נכשל להתכנס, חזרה לרגרסיה)
     predicted_value: Optional[float] = None
-    slope_per_hour: Optional[float] = None
-    direction: Optional[str] = None
+    confidence_interval: Optional[list[float]] = None  # רק ל-ARIMA; רגרסיה לא נותנת טווח ודאות
+    slope_per_hour: Optional[float] = None  # רק לרגרסיה
+    direction: Optional[str] = None  # רק לרגרסיה
     forecast_horizon: str
     number_of_measurements: int
     model_available: bool
+    reason: Optional[str] = None
 
 
 def _linear_forecast(points: list[dict], horizon: str) -> dict:
@@ -402,12 +395,64 @@ def _linear_forecast(points: list[dict], horizon: str) -> dict:
     return result
 
 
-@app.post("/predict/vitals-forecast", response_model=VitalsForecastResponse)
+def _adaptive_vital_forecast(vital: Optional[str], points: list[dict], horizon: str) -> dict:
+    """מנוע תחזית אדפטיבי — מאחד #4 (רגרסיה ליניארית) ו-#5 (ARIMA) לתוצאה אחת:
+    ARIMA (מדויק יותר על היסטוריה מספקת, נותן טווח סמך) נבחר אוטומטית כשיש 8+ מדידות;
+    אחרת רגרסיה ליניארית (עובדת כבר מ-2 מדידות). אם ARIMA נכשל להתכנס למרות שיש
+    מספיק מדידות (דאטה לא סדיר מדי) — נופלים בחזרה לרגרסיה בשקיפות (method="linear_fallback"),
+    לא מחזירים שגיאה סתומה."""
+    n = len(points)
+    horizon_hours = _HORIZON_HOURS.get(horizon, avg_gap_hours(points) if horizon == "next" else 24.0)
+
+    if n >= MIN_POINTS_FOR_ARIMA:
+        ts = forecast_arima(vital or "", points, horizon_hours)
+        if ts["model_available"]:
+            return {
+                "vital": vital,
+                "method": "arima",
+                "predicted_value": ts["predicted_value"],
+                "confidence_interval": ts["confidence_interval"],
+                "slope_per_hour": None,
+                "direction": None,
+                "forecast_horizon": horizon,
+                "number_of_measurements": n,
+                "model_available": True,
+                "reason": None,
+            }
+        linear = _linear_forecast(points, horizon)
+        return {
+            "vital": vital,
+            "method": "linear_fallback",
+            "predicted_value": linear["predicted_value"],
+            "confidence_interval": None,
+            "slope_per_hour": linear["slope_per_hour"],
+            "direction": linear["direction"],
+            "forecast_horizon": horizon,
+            "number_of_measurements": n,
+            "model_available": linear["model_available"],
+            "reason": f"ARIMA לא זמין ({ts['reason']}) — הוצגה רגרסיה ליניארית במקום",
+        }
+
+    linear = _linear_forecast(points, horizon)
+    return {
+        "vital": vital,
+        "method": "linear",
+        "predicted_value": linear["predicted_value"],
+        "confidence_interval": None,
+        "slope_per_hour": linear["slope_per_hour"],
+        "direction": linear["direction"],
+        "forecast_horizon": horizon,
+        "number_of_measurements": n,
+        "model_available": linear["model_available"],
+        "reason": None if linear["model_available"] else f"נדרשות לפחות 2 מדידות היסטוריות ({n} קיימות כרגע)",
+    }
+
+
+@app.post("/predict/vitals-forecast", response_model=AdaptiveForecastResponse)
 def predict_vitals_forecast(req: VitalsForecastRequest):
     points = [{"measured_at": p.measured_at, "value": p.value} for p in req.points]
-    result = _linear_forecast(points, req.horizon)
-    result["vital"] = req.vital
-    return VitalsForecastResponse(**result)
+    result = _adaptive_vital_forecast(req.vital, points, req.horizon)
+    return AdaptiveForecastResponse(**result)
 
 
 # ===== 2. Baseline אישי =====
@@ -517,6 +562,7 @@ class FutureEventResponse(BaseModel):
     algorithm: str
     horizon_hours: int
     model_available: bool
+    status: str = "collecting_ground_truth"  # "collecting_ground_truth" | "active"
     probability: Optional[float] = None
     predicted_class: Optional[bool] = None
     reason: Optional[str] = None
@@ -575,8 +621,7 @@ class MedicalWarningResponse(BaseModel):
     baseline_analysis: list[BaselineAnalysisResponse]
     detected_anomalies: list[AnomalyResponse]
     trigger_events: list[TriggerEventResponse]
-    numeric_forecasts: list[VitalsForecastResponse]
-    timeseries_forecasts: list[TimeseriesForecastResponse]
+    vital_forecasts: list[AdaptiveForecastResponse]
     future_event_models: list[FutureEventResponse]
     short_term_concern: str
     risk_window_hours: float
@@ -600,7 +645,7 @@ def predict_medical_warning(req: MedicalWarningRequest):
 
     latest_vitals_dict = {k: getattr(latest, k) for k in VITAL_CLASSIFIERS}
     current_vitals = VitalsInput(**latest_vitals_dict)
-    worst, flagged = compute_risk(current_vitals)
+    worst, flagged = compute_risk(current_vitals, req.patient_context.background_conditions, req.patient_context.smoking_status)
     current_risk = (
         RiskLevelResponse(level="no_data", level_label=LEVEL_LABELS["no_data"], flagged_vitals=[])
         if worst is None
@@ -610,22 +655,14 @@ def predict_medical_warning(req: MedicalWarningRequest):
     trend = None
     if previous is not None:
         prev_vitals = VitalsInput(**{k: getattr(previous, k) for k in VITAL_CLASSIFIERS})
-        prev_worst, _ = compute_risk(prev_vitals)
-        if prev_worst is not None and worst is not None:
-            if LEVEL_RANK[worst] > LEVEL_RANK[prev_worst]:
-                trend = "worsening"
-            elif LEVEL_RANK[worst] < LEVEL_RANK[prev_worst]:
-                trend = "improving"
-            else:
-                trend = "stable"
+        prev_worst, _ = compute_risk(prev_vitals, req.patient_context.background_conditions, req.patient_context.smoking_status)
+        trend = compute_trend(worst, prev_worst)
 
     baseline_list: list[BaselineAnalysisResponse] = []
     anomalies_list: list[AnomalyResponse] = []
     trigger_list: list[TriggerEventResponse] = []
-    forecasts_list: list[VitalsForecastResponse] = []
-    timeseries_list: list[TimeseriesForecastResponse] = []
+    forecasts_list: list[AdaptiveForecastResponse] = []
 
-    ts_horizon_hours = _HORIZON_HOURS.get(req.horizon, 24.0)
     forecast_horizon = req.horizon if req.horizon in _HORIZON_HOURS else "next"
     now = datetime.now(timezone.utc)
 
@@ -651,12 +688,8 @@ def predict_medical_warning(req: MedicalWarningRequest):
         if trigger:
             trigger_list.append(TriggerEventResponse(**trigger))
 
-        forecast = _linear_forecast(points, forecast_horizon)
-        forecast["vital"] = vital_key
-        forecasts_list.append(VitalsForecastResponse(**forecast))
-
-        ts = forecast_arima(vital_key, points, ts_horizon_hours)
-        timeseries_list.append(TimeseriesForecastResponse(**ts))
+        forecast = _adaptive_vital_forecast(vital_key, points, forecast_horizon)
+        forecasts_list.append(AdaptiveForecastResponse(**forecast))
 
     features = ml_targets.build_feature_vector(
         req.patient_context.model_dump(),
@@ -711,8 +744,7 @@ def predict_medical_warning(req: MedicalWarningRequest):
         baseline_analysis=baseline_list,
         detected_anomalies=anomalies_list,
         trigger_events=trigger_list,
-        numeric_forecasts=forecasts_list,
-        timeseries_forecasts=timeseries_list,
+        vital_forecasts=forecasts_list,
         future_event_models=future_events,
         short_term_concern=concern,
         risk_window_hours=risk_window_hours,

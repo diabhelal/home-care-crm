@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit-tests-js:
+    name: JS unit tests (slot calculation)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: node --test tests/unit/*.test.js
+
+  unit-tests-py:
+    name: Python unit tests (risk calculation)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: predictive-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest tests/ -v
+
+  # E2E לא רץ אוטומטית על כל push/PR בכוונה: דורש פרויקט Supabase ייעודי לבדיקות
+  # (secrets: E2E_STAFF_EMAIL/E2E_STAFF_PASSWORD, ו-public/config.js מצביע על אותו
+  # פרויקט בדיקה) — כדי לא ליצור בטעות הזמנות/דוחות מזויפים בפרויקט האמיתי בכל push.
+  # מופעל רק ידנית (workflow_dispatch) אחרי שהוגדרו ה-secrets ב-repo settings.
+  e2e:
+    name: E2E (Playwright) — manual trigger only
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    env:
+      E2E_STAFF_EMAIL: ${{ secrets.E2E_STAFF_EMAIL }}
+      E2E_STAFF_PASSWORD: ${{ secrets.E2E_STAFF_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

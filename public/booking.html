@@ -83,6 +83,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="slot-calculation.js"></script>
 <script>
   (async () => {
     const user = await ensureGuestSession();
@@ -195,30 +196,22 @@
         showError(errorBox, "שגיאה בטעינת שעות פנויות: " + friendlyErrorMessage(error));
         return;
       }
-      const takenTimes = new Set((existing || []).map((b) => new Date(b.scheduled_at).getTime()));
+      const slots = computeAvailableSlots({
+        date,
+        workStartTime: staff.work_start_time,
+        workEndTime: staff.work_end_time,
+        slotDurationMinutes: staff.slot_duration_minutes,
+        takenTimes: (existing || []).map((b) => b.scheduled_at),
+      });
 
-      const [startH, startM] = staff.work_start_time.split(":").map(Number);
-      const [endH, endM] = staff.work_end_time.split(":").map(Number);
-      const durationMs = staff.slot_duration_minutes * 60 * 1000;
-
-      const dayStart = new Date(date);
-      dayStart.setHours(startH, startM, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(endH, endM, 0, 0);
-
-      const now = new Date();
       let anyEnabled = false;
-
-      for (let t = dayStart.getTime(); t + durationMs <= dayEnd.getTime(); t += durationMs) {
-        const slotDate = new Date(t);
-        const isTaken = takenTimes.has(t);
-        const isPast = slotDate < now;
+      slots.forEach(({ time: slotDate, available }) => {
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-btn";
         btn.textContent = formatTimeHe(slotDate);
         btn.setAttribute("aria-pressed", "false");
-        if (isTaken || isPast) {
+        if (!available) {
           btn.disabled = true;
         } else {
           anyEnabled = true;
@@ -231,7 +224,7 @@
           });
         }
         slotGrid.appendChild(btn);
-      }
+      });
 
       if (!anyEnabled) {
         slotsSection.style.display = "none";

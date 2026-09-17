@@ -1,0 +1,13 @@
+{
+  "name": "home-care-crm-tests",
+  "private": true,
+  "description": "תלויות בדיקה בלבד — האפליקציה עצמה נשארת בלי build step, ראה CLAUDE.md",
+  "scripts": {
+    "test:unit": "node --test tests/unit/*.test.js",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.47.0"
+  }
+}

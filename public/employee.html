@@ -38,14 +38,9 @@
       </div>
     </div>
 
-    <section id="my-bookings-section">
-      <h2>הביקורים שלי</h2>
-      <div style="overflow-x:auto;">
-        <table class="admin-table" id="my-bookings-table">
-          <thead><tr><th>מטופל</th><th>טלפון</th><th>מטרה</th><th>מועד</th><th>סטטוס</th><th>רמת סיכון</th><th>פעולות</th></tr></thead>
-          <tbody id="my-bookings-tbody"></tbody>
-        </table>
-      </div>
+    <section id="my-work-section">
+      <h2>העבודה שלי</h2>
+      <div id="my-work"><p style="color:var(--text-muted);">טוען...</p></div>
     </section>
 
     <section id="patient-record-section">
@@ -116,7 +111,8 @@
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script>
-  const PREDICTIVE_SERVICE_URL = "http://localhost:8000";
+  // PREDICTIVE_SERVICE_URL מוגדר ב-config.js (מקור יחיד, לא כפול בין admin/employee).
+  initPredictiveServiceHealthCheck();
   const staffApp = document.getElementById("staff-app");
   const appError = document.getElementById("app-error");
   const appSuccess = document.getElementById("app-success");
@@ -184,51 +180,152 @@
     await loadMyBookings();
   }
 
-  // ===== הביקורים שלי =====
-  // RLS (staff_select_assigned_bookings) כבר מגביל את זה אוטומטית לביקורים שלי —
-  // אין צורך לסנן staff_id= בצד לקוח, השרת פשוט לא יחזיר שורות שאינן שלי.
-  async function loadMyBookings() {
-    const tbody = document.getElementById("my-bookings-tbody");
-    showLoadingRow(tbody, "טוען...");
-    const { data, error } = await supabaseClient
-      .from("bookings")
-      .select("*, patients(id, full_name, phone)")
-      .order("scheduled_at", { ascending: false });
-    if (error) {
-      tbody.innerHTML = `<tr><td colspan="7">${friendlyErrorMessage(error)}</td></tr>`;
-      return;
-    }
-    const { data: risks } = await supabaseClient.from("current_patient_risk").select("*");
-    const riskByPatient = new Map((risks || []).map((r) => [r.patient_id, r]));
+  // ===== העבודה שלי =====
+  // RLS (staff_select_assigned_bookings / staff_select_assigned_tasks / staff_select_assigned_alerts,
+  // דרך is_my_patient) כבר מגביל הכל אוטומטית לצוות הזה — אין צורך לסנן staff_id= בצד לקוח.
+  // תצוגה ממוקדת-משימה במקום טבלה שטוחה של כל הביקורים אי-פעם: הבא / היום / בתהליך /
+  // מעקבים פתוחים / התראות, ורק בסוף רשימה מתקפלת (סגורה כברירת מחדל) של ההיסטוריה המלאה.
+  function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  function endOfToday() { const d = new Date(); d.setHours(23, 59, 59, 999); return d; }
 
-    tbody.innerHTML = "";
-    (data || []).forEach((b) => {
-      const date = new Date(b.scheduled_at);
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${escapeHtml(b.patients?.full_name || "—")}</td>
-        <td>${escapeHtml(b.patients?.phone || "")}</td>
-        <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
-        <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>
-        <td><span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span></td>
-        <td>${riskBadgeHtml(riskByPatient.get(b.patient_id))}</td>
-        <td></td>
-      `;
-      const actionsTd = tr.lastElementChild;
-      const reportBtn = document.createElement("button");
-      reportBtn.className = "btn btn-secondary btn-sm";
-      reportBtn.textContent = "עריכת תיק / ביצוע ביקור";
-      reportBtn.addEventListener("click", () => openVisitReportModal(b, null));
-      actionsTd.appendChild(reportBtn);
+  function myWorkBookingRowHtml(b, riskByPatient) {
+    const date = new Date(b.scheduled_at);
+    const report = (b.visit_reports && b.visit_reports[0]) || null;
+    return `
+      <div class="pr-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <div>
+          <strong>${escapeHtml(b.patients?.full_name || "—")}</strong>
+          <span style="color:var(--text-muted); font-size:13px;"> · ${escapeHtml(b.patients?.phone || "")}</span>
+          <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">
+            ${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose} · ${formatDateHe(date)} ${formatTimeHe(date)}
+            ${riskBadgeHtml(riskByPatient.get(b.patient_id))}
+          </div>
+        </div>
+        <div class="actions-row" data-booking-id="${b.id}" style="margin:0;"></div>
+      </div>
+    `;
+  }
+
+  function bindMyWorkBookingActions(container, bookingsById) {
+    container.querySelectorAll(".actions-row[data-booking-id]").forEach((row) => {
+      const b = bookingsById.get(Number(row.dataset.bookingId));
+      if (!b) return;
+      if (b.status === "scheduled") {
+        const startBtn = document.createElement("button");
+        startBtn.className = "btn btn-primary btn-sm";
+        startBtn.textContent = b.workflow_status === "in_progress" ? "המשך ביקור" : "התחלת ביקור";
+        startBtn.addEventListener("click", () => startMyVisit(b));
+        row.appendChild(startBtn);
+      } else if (b.status !== "cancelled") {
+        const report = (b.visit_reports && b.visit_reports[0]) || null;
+        const reportBtn = document.createElement("button");
+        reportBtn.className = "btn btn-secondary btn-sm";
+        reportBtn.textContent = report ? "עריכת דוח" : "דוח ביקור";
+        reportBtn.addEventListener("click", () => openVisitReportModal(b, report));
+        row.appendChild(reportBtn);
+      }
       const openRecordBtn = document.createElement("button");
-      openRecordBtn.className = "btn btn-primary btn-sm";
+      openRecordBtn.className = "btn btn-secondary btn-sm";
       openRecordBtn.textContent = "פתיחת תיק מטופל";
       openRecordBtn.addEventListener("click", () => openPatientRecord(b.patient_id));
-      actionsTd.appendChild(openRecordBtn);
-      tbody.appendChild(tr);
+      row.appendChild(openRecordBtn);
     });
-    if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="7" class="empty-state">אין ביקורים משויכים אליך</td></tr>`;
+  }
+
+  async function startMyVisit(b) {
+    if (b.workflow_status !== "in_progress") {
+      const { error } = await supabaseClient.from("bookings").update({ workflow_status: "in_progress" }).eq("id", b.id);
+      if (error) { showError(appError, friendlyErrorMessage(error)); return; }
+      b.workflow_status = "in_progress";
+    }
+    const report = (b.visit_reports && b.visit_reports[0]) || null;
+    openVisitReportModal(b, report);
+  }
+
+  async function loadMyBookings() {
+    const container = document.getElementById("my-work");
+    container.innerHTML = `<div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div>`;
+    let bookings, bookingsError, risks, tasks, alerts;
+    try {
+      ({ data: bookings, error: bookingsError } = await supabaseClient
+        .from("bookings")
+        .select("*, patients(id, full_name, phone), visit_reports(*)")
+        .order("scheduled_at", { ascending: true }));
+      ({ data: risks } = await supabaseClient.from("current_patient_risk").select("*"));
+      ({ data: tasks } = await supabaseClient.from("tasks").select("*, patients(full_name)").eq("status", "pending").order("due_at", { ascending: true }));
+      ({ data: alerts } = await supabaseClient.from("alerts").select("*, patients(full_name)").eq("status", "open").order("severity", { ascending: false }));
+    } catch (err) {
+      bookingsError = err;
+    }
+    if (bookingsError) {
+      container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(bookingsError)}</p>`;
+      return;
+    }
+    bookings = bookings || [];
+    const riskByPatient = new Map((risks || []).map((r) => [r.patient_id, r]));
+    const bookingsById = new Map(bookings.map((b) => [b.id, b]));
+
+    const now = new Date();
+    const todayStart = startOfToday(), todayEnd = endOfToday();
+    const scheduled = bookings.filter((b) => b.status === "scheduled");
+    const nextVisit = scheduled.filter((b) => new Date(b.scheduled_at) >= now).sort((a, c) => new Date(a.scheduled_at) - new Date(c.scheduled_at))[0] || null;
+    const todaysVisits = scheduled.filter((b) => { const d = new Date(b.scheduled_at); return d >= todayStart && d <= todayEnd && (!nextVisit || b.id !== nextVisit.id); });
+    const inProgress = scheduled.filter((b) => b.workflow_status === "in_progress" && (!nextVisit || b.id !== nextVisit.id) && !todaysVisits.some((t) => t.id === b.id));
+    const historical = [...bookings].sort((a, c) => new Date(c.scheduled_at) - new Date(a.scheduled_at));
+
+    let html = "";
+
+    html += `<h3 style="margin:16px 0 8px;">הביקור הבא</h3>`;
+    html += nextVisit ? myWorkBookingRowHtml(nextVisit, riskByPatient) : `<p class="empty-state">אין ביקור מתוכנן</p>`;
+
+    if (inProgress.length) {
+      html += `<h3 style="margin:20px 0 8px;">🩺 בתהליך</h3>`;
+      html += inProgress.map((b) => myWorkBookingRowHtml(b, riskByPatient)).join("");
+    }
+
+    html += `<h3 style="margin:20px 0 8px;">ביקורי היום</h3>`;
+    html += todaysVisits.length
+      ? todaysVisits.map((b) => myWorkBookingRowHtml(b, riskByPatient)).join("")
+      : `<p class="empty-state">אין עוד ביקורים היום</p>`;
+
+    if ((tasks || []).length) {
+      html += `<h3 style="margin:20px 0 8px;">🔔 מעקבים פתוחים</h3>`;
+      html += tasks.map((t) => `
+        <div class="pr-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div><strong>${escapeHtml(t.patients?.full_name || "—")}</strong><div style="font-size:13px; color:var(--text-muted);">${escapeHtml(t.title)} · עד ${formatDateHe(new Date(t.due_at))}</div></div>
+          <button class="btn btn-secondary btn-sm my-work-open-patient" data-patient-id="${t.patient_id}">פתיחת תיק</button>
+        </div>
+      `).join("");
+    }
+
+    if ((alerts || []).length) {
+      html += `<h3 style="margin:20px 0 8px;">⚠️ התראות קליניות חשובות</h3>`;
+      html += alerts.map((a) => `
+        <div class="pr-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+          <div><strong>${escapeHtml(a.patients?.full_name || "—")}</strong><div style="font-size:13px; color:var(--text-muted);">${escapeHtml(a.message)}</div></div>
+          <button class="btn btn-secondary btn-sm my-work-open-patient" data-patient-id="${a.patient_id}">פתיחת תיק</button>
+        </div>
+      `).join("");
+    }
+
+    html += `
+      <details class="queue-group" style="margin-top:20px;">
+        <summary>כל הביקורים שלי <span class="queue-count">${historical.length}</span></summary>
+        <div id="my-work-history"></div>
+      </details>
+    `;
+
+    container.innerHTML = html;
+    bindMyWorkBookingActions(container, bookingsById);
+    container.querySelectorAll(".my-work-open-patient").forEach((btn) => {
+      btn.addEventListener("click", () => openPatientRecord(btn.dataset.patientId));
+    });
+    const historyEl = document.getElementById("my-work-history");
+    if (historical.length) {
+      historyEl.innerHTML = historical.map((b) => myWorkBookingRowHtml(b, riskByPatient)).join("");
+      bindMyWorkBookingActions(historyEl, bookingsById);
+    } else {
+      historyEl.innerHTML = `<p class="empty-state">אין ביקורים משויכים אליך</p>`;
     }
   }
 
@@ -308,6 +405,17 @@
     hideError(document.getElementById("visit-report-modal-error"));
     visitReportModal.style.display = "flex";
     loadAndRenderRisk(booking.patient_id);
+    loadPatientContextForRisk(booking.patient_id);
+  }
+
+  // רקע רפואי (background_conditions/smoking_status) לחישוב הסיכון — ר' הערה מקבילה
+  // ב-admin.html ובpredictive-service/main.py compute_risk().
+  let vrPatientContext = null;
+  async function loadPatientContextForRisk(patientId) {
+    vrPatientContext = null;
+    const { data, error } = await supabaseClient.from("patients").select("background_conditions, smoking_status").eq("id", patientId).maybeSingle();
+    if (error) { console.error("patient context for risk", error); vrPatientContext = { background_conditions: [], smoking_status: null }; return; }
+    vrPatientContext = { background_conditions: data?.background_conditions || [], smoking_status: data?.smoking_status || null };
   }
 
   async function loadCurrentRiskForPatient(patientId) {
@@ -392,7 +500,7 @@
     try {
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8 }),
+        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8, patient_context: vrPatientContext }),
       });
       if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
       assessment = await res.json();
@@ -541,51 +649,8 @@
     document.getElementById("pr-record").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  async function prFetchPatient() {
-    const { data, error } = await supabaseClient.from("patients").select("*").eq("id", window.currentPatientState.patientId).single();
-    if (error) throw error;
-    return data;
-  }
-  async function prFetchAllergies() {
-    const { data, error } = await supabaseClient.from("patient_allergies").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
-    if (error) { console.error("patient_allergies", error); return []; }
-    return data || [];
-  }
-  async function prFetchMedicalHistory() {
-    const { data, error } = await supabaseClient.from("patient_medical_history").select("*").eq("patient_id", window.currentPatientState.patientId).maybeSingle();
-    if (error) { console.error("patient_medical_history", error); return null; }
-    return data;
-  }
-  async function prFetchBookings() {
-    const { data, error } = await supabaseClient.from("bookings").select("*, medical_staff(full_name, role)").eq("patient_id", window.currentPatientState.patientId).order("scheduled_at", { ascending: false });
-    if (error) { console.error("bookings", error); return []; }
-    return data || [];
-  }
-  async function prFetchVisitReports() {
-    const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
-    if (error) { console.error("visit_reports", error); return []; }
-    return data || [];
-  }
-  async function prFetchMedications() {
-    const { data, error } = await supabaseClient.from("medication_events").select("*").eq("patient_id", window.currentPatientState.patientId).order("administered_at", { ascending: false });
-    if (error) { console.error("medication_events", error); return []; }
-    return data || [];
-  }
-  async function prFetchClinicalNotes() {
-    const { data, error } = await supabaseClient.from("clinical_notes").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
-    if (error) { console.error("clinical_notes", error); return []; }
-    return data || [];
-  }
-  async function prFetchAlerts() {
-    const { data, error } = await supabaseClient.from("alerts").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
-    if (error) { console.error("alerts", error); return []; }
-    return data || [];
-  }
-  async function prFetchTasks() {
-    const { data, error } = await supabaseClient.from("tasks").select("*").eq("patient_id", window.currentPatientState.patientId).order("due_at", { ascending: true });
-    if (error) { console.error("tasks", error); return []; }
-    return data || [];
-  }
+  // prFetch* (patient/allergies/medicalHistory/bookings/visitReports/medications/
+  // clinicalNotes/alerts/tasks) עברו ל-app.js — משותפים עם admin.html, לא מוכפלים יותר.
 
   async function prRenderHeader() {
     const patient = await prCached("patient", prFetchPatient);
@@ -727,6 +792,7 @@
           ${procs ? `<div style="font-size:13px; color:var(--text-muted); margin-top:2px;">פעולות: ${escapeHtml(procs)}</div>` : ""}
           ${v.treatment_summary ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(v.treatment_summary)}</div>` : ""}
           <button class="btn btn-secondary btn-sm pr-visit-open" data-visit-id="${v.id}" style="margin-top:8px;">פתיחת הדוח המלא</button>
+          ${clinicalOutcomeSelectHtml(v)}
         </div>
       `;
     }).join("");
@@ -735,6 +801,58 @@
         const v = visits.find((r) => r.id === Number(btn.dataset.visitId));
         const booking = bookings.find((b) => b.id === v.booking_id);
         if (booking) openVisitReportModal(booking, v);
+      });
+    });
+    bindClinicalOutcomeSelects(content, visits);
+  }
+
+  // ===== תיעוד תוצאה קלינית בדיעבד — הדאטה המתויג היחיד שחסר כדי שמודל 6
+  // (predictive-service/ml_targets.py) יוכל בכלל להתחיל להתאמן פעם בעתיד. =====
+  // הערה: RLS מאפשר לאיש/אשת צוות לעדכן רק דוחות שהם עצמם כתבו (staff_id = current_staff_id());
+  // עדכון דוח של איש צוות אחר ייכשל בשקט RLS-wise ויוצג כשגיאה ידידותית.
+  const CLINICAL_OUTCOME_OPTIONS = [
+    { value: "", label: "טרם תועד" },
+    { value: "none", label: "תקין — לא קרה כלום חריג" },
+    { value: "hypoglycemia", label: "היפוגליקמיה" },
+    { value: "severe_hyperglycemia", label: "היפרגליקמיה חמורה" },
+    { value: "respiratory_deterioration", label: "החמרה נשימתית" },
+    { value: "hemodynamic_deterioration", label: "החמרה המודינמית (כולל הלם)" },
+  ];
+
+  function clinicalOutcomeSelectHtml(v) {
+    const options = CLINICAL_OUTCOME_OPTIONS.map(
+      (o) => `<option value="${o.value}" ${(v.clinical_outcome_8h || "") === o.value ? "selected" : ""}>${o.label}</option>`
+    ).join("");
+    return `
+      <div class="field" style="margin-top:10px;">
+        <label style="font-size:12px; color:var(--text-muted);">תוצאה קלינית בתוך כ-8 שעות מהביקור (לתיעוד בדיעבד)</label>
+        <div style="display:flex; align-items:center; gap:8px;">
+          <select class="pr-outcome-select" data-visit-id="${v.id}" style="max-width:320px;">${options}</select>
+          <span class="pr-outcome-saved" data-visit-id="${v.id}" style="font-size:12px; color:var(--success); display:none;">✓ נשמר</span>
+        </div>
+        <div class="error-msg pr-outcome-error" data-visit-id="${v.id}" role="alert" aria-live="assertive"></div>
+      </div>
+    `;
+  }
+
+  function bindClinicalOutcomeSelects(content, visits) {
+    content.querySelectorAll(".pr-outcome-select").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const visitId = Number(sel.dataset.visitId);
+        const errEl = content.querySelector(`.pr-outcome-error[data-visit-id="${visitId}"]`);
+        const savedEl = content.querySelector(`.pr-outcome-saved[data-visit-id="${visitId}"]`);
+        hideError(errEl);
+        const newVal = sel.value || null;
+        const { error } = await supabaseClient.from("visit_reports").update({ clinical_outcome_8h: newVal }).eq("id", visitId);
+        if (error) {
+          showError(errEl, friendlyErrorMessage(error));
+          return;
+        }
+        const v = visits.find((r) => r.id === visitId);
+        if (v) v.clinical_outcome_8h = newVal;
+        prInvalidate("visitReports");
+        savedEl.style.display = "inline";
+        setTimeout(() => { savedEl.style.display = "none"; }, 2000);
       });
     });
   }
