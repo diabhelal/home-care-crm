@@ -455,9 +455,19 @@ async function prCached(key, fetchFn) {
   return state[key];
 }
 
-// הופך שגיאות רשת (למשל אין חיבור לאינטרנט) להודעה ברורה בעברית
+// הופך שגיאות רשת (למשל אין חיבור לאינטרנט) להודעה ברורה בעברית.
+// err עשוי להיות Error רגיל, PostgrestError של supabase-js, מחרוזת, או משהו אחר —
+// String(err) על אובייקט בלי .message תקין מדפיס "[object Object]" למשתמש, אז יש
+// ברירת מחדל כללית וקריאה במקום זאת (לא JSON גולמי — גם הוא לא ידידותי למשתמש).
 function friendlyErrorMessage(err) {
-  const msg = err?.message || String(err);
+  let msg;
+  if (typeof err === "string" && err.trim()) {
+    msg = err;
+  } else if (err && typeof err.message === "string" && err.message.trim()) {
+    msg = err.message;
+  } else {
+    msg = "אירעה שגיאה לא צפויה. נא לנסות שוב.";
+  }
   if (/failed to fetch|network|load failed|ERR_/i.test(msg)) {
     return "בעיית חיבור לאינטרנט. נא לבדוק את החיבור ולנסות שוב.";
   }

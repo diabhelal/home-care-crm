@@ -131,10 +131,12 @@
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script>
-  // מכינים session אנונימי ברקע כדי שההזמנה בהמשך תהיה חלקה (בלי לחכות בעמוד ההזמנה)
-  ensureGuestSession();
-
   (async () => {
+    // ממתינים ל-session האנונימי לפני כל שאילתה (אותה תבנית כמו staff.html/booking.html/
+    // my-bookings.html/employee.html) — בלי await כאן, בביקור ראשון (בלי session שמור
+    // ב-localStorage) שאילתת medical_staff למטה הייתה יוצאת לפני שיש auth.uid() ומקבלת 401.
+    await ensureGuestSession();
+
     const grid = document.getElementById("services-grid");
     showLoadingRow(grid, "טוען שירותים...");
 

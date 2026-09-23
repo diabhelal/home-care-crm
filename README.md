@@ -86,7 +86,7 @@ There is currently a **single shared admin role** — see [RBAC status](#known-l
 - The frontend is a set of static HTML pages that talk **directly** to Supabase's auto-generated REST API (PostgREST) using `supabase-js` from the browser — there is no application backend server for the CRM itself.
 - All data access control is enforced in the database via **Row Level Security (RLS)** policies, not in application code.
 - A small, separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
-- There is no CI pipeline, no automated test suite, and no separate staging/production environment configuration at this time (see [Known Limitations](#known-limitations)).
+- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs JS and Python unit tests on every push/PR; there is no separate staging/production environment configuration at this time (see [Known Limitations](#known-limitations)).
 
 ## Technology Stack
 
@@ -271,11 +271,10 @@ Being transparent about what's *not* built, since the goal of this README is acc
 
 - **No RBAC.** There is exactly one privileged role (`app_metadata.is_admin`, shared by all staff); there is no separate "caregiver" or "family member" role or account type, and no per-role permission granularity beyond patient-vs-admin.
 - **No client-side data-fetching/caching layer.** All data fetching is direct `supabase-js` calls per page load; there is no TanStack Query, no optimistic UI updates, and no Supabase Realtime subscriptions — the UI does not update live when another user changes data.
-- **No automated test suite.** No unit tests, no component tests, no end-to-end tests exist in this repository at this time.
-- **No CI/CD pipeline.** No GitHub Actions workflow or equivalent currently runs linting, type-checking, or tests on push/PR.
+- **Automated tests exist but E2E coverage is unverified.** Unit tests (`tests/unit/`, JS; `predictive-service/tests/`, Python) run on every push/PR via GitHub Actions CI. Playwright end-to-end specs exist (`tests/e2e/`) but require a dedicated test Supabase project to run safely (they'd otherwise create real bookings/reports against production data) — that project hasn't been set up yet, so the E2E job is gated to manual `workflow_dispatch` only and has never actually been executed; treat it as unverified.
 - **No emergency/alerting mechanism.** As covered above, a Red risk badge is passive and manual-review-only.
-- **Background medical conditions are not yet used in risk scoring** — they're captured and displayed, but the current risk classifier is vitals-only.
-- **Guest identity is per-browser.** A patient cannot access their booking history from a different device or browser; there is no patient login.
+- **Background medical conditions are now used in risk scoring, but only as an escalation rule.** A Yellow vital is escalated to Red when a relevant background condition or smoking status is present (see `predictive-service/main.py`, `BACKGROUND_ESCALATION_VITALS`); it never touches an already-Green or already-Red vital, and it's still a hand-written rule, not a learned model.
+- **Guest identity is per-browser by default.** A patient cannot access their booking history from a different device or browser out of the box. Optional phone+OTP identity-linking infrastructure exists (`public/my-bookings.html`, Supabase Auth's anonymous-upgrade flow) so a patient *can* opt in to cross-device access, but it's inert today — no real SMS provider is configured (`[auth.sms] enable_signup = false` in `supabase/config.toml`), so the phone-linking UI is present but non-functional until one is wired up.
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.
 
 ## Future Development / Roadmap
@@ -283,11 +282,11 @@ Being transparent about what's *not* built, since the goal of this README is acc
 Roughly in order of likely value:
 
 1. Real RBAC: distinct staff/nurse, admin, and (if patient portals are added) family-member roles with scoped RLS policies per role.
-2. Automated tests: unit tests for the slot-availability and risk-classification logic, and end-to-end coverage of the booking and visit-report flows.
-3. CI (lint/type-check/test on every PR).
-4. A live-update layer (Supabase Realtime or a client-side caching/query library) so admin views reflect changes without a manual refresh.
-5. An audit trail for who viewed or changed a patient's clinical data and when.
-6. A patient data retention/deletion mechanism.
+2. A dedicated test Supabase project so the existing Playwright E2E specs (`tests/e2e/`) can actually run — in CI and locally — instead of sitting unexecuted.
+3. A live-update layer (Supabase Realtime or a client-side caching/query library) so admin views reflect changes without a manual refresh.
+4. An audit trail for who viewed or changed a patient's clinical data and when.
+5. A patient data retention/deletion mechanism.
+6. A real SMS provider for the phone+OTP identity-linking flow that already exists in the code but is currently inert.
 7. If a genuine outcome-labeled dataset is ever collected, a properly trained and *validated* statistical/ML model as a distinct, clearly-labeled addition alongside (not replacing) the current rule-based layer.
 
 ## Disclaimer — Medical Risk Functionality

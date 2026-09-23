@@ -107,6 +107,16 @@
     </section>
 
     <section>
+      <h2>פניות מהאתר</h2>
+      <div style="overflow-x:auto;">
+        <table class="admin-table" id="contacts-table">
+          <thead><tr><th>תאריך</th><th>שם</th><th>טלפון</th><th>נושא</th><th>הודעה</th></tr></thead>
+          <tbody id="contacts-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
       <div class="section-header">
         <h2>ניהול צוות רפואי</h2>
         <button class="btn btn-secondary" id="add-staff-btn">+ הוספת איש צוות</button>
@@ -304,6 +314,7 @@
 <script src="js/admin/capacity.js"></script>
 <script src="js/admin/patient-record.js"></script>
 <script src="js/admin/work-queue.js"></script>
+<script src="js/admin/contacts.js"></script>
 <script>
   initPredictiveServiceHealthCheck();
   const loginScreen = document.getElementById("login-screen");
@@ -424,7 +435,7 @@
   async function showAdminApp() {
     loginScreen.style.display = "none";
     adminApp.style.display = "flex";
-    await Promise.all([loadBookings(), loadStaff(), loadPatients(), loadAttentionDashboard()]);
+    await Promise.all([loadBookings(), loadStaff(), loadPatients(), loadAttentionDashboard(), loadContacts()]);
   }
 
   // ===== תור עבודה / הזמנות ===== הועבר ל-js/admin/work-queue.js (loadBookings/

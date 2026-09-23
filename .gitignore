@@ -8,3 +8,4 @@ predictive-service/.venv/
 __pycache__/
 *.pyc
 predictive-service/models/*.joblib
+keys.txt
