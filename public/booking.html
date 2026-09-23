@@ -173,15 +173,18 @@
       const endOfDay = new Date(date);
       endOfDay.setDate(endOfDay.getDate() + 1);
 
+      // RLS על bookings (bookings_select_own) מציגה למטופל רק את ההזמנות שלו — אז
+      // select() ישיר לא מראה תורים שתפוסים ע"י מטופלים אחרים. taken_slots() היא
+      // RPC צר (SECURITY DEFINER, ר' migration) שחושף רק scheduled_at לתורים תפוסים
+      // של איש הצוות הזה, בלי לחשוף מי הזמין אותם.
       let existing, error;
       try {
         ({ data: existing, error } = await supabaseClient
-          .from("bookings")
-          .select("scheduled_at")
-          .eq("staff_id", staff.id)
-          .neq("status", "cancelled")
-          .gte("scheduled_at", startOfDay.toISOString())
-          .lt("scheduled_at", endOfDay.toISOString()));
+          .rpc("taken_slots", {
+            p_staff_id: staff.id,
+            p_from: startOfDay.toISOString(),
+            p_to: endOfDay.toISOString(),
+          }));
       } catch (err) {
         error = err;
       }
