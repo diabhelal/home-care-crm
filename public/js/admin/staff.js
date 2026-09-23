@@ -28,10 +28,10 @@ async function loadStaff() {
   (data || []).forEach((s) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${s.full_name}</td>
+      <td>${escapeHtml(s.full_name)}</td>
       <td>${ROLE_LABELS[s.role] || s.role}</td>
-      <td>${s.specialization || ""}</td>
-      <td>${s.phone || ""}</td>
+      <td>${escapeHtml(s.specialization || "")}</td>
+      <td>${escapeHtml(s.phone || "")}</td>
       <td>${(s.available_weekdays || []).map((d) => WEEKDAY_SHORT[d]).join(", ")}</td>
       <td>${s.work_start_time?.slice(0,5)}–${s.work_end_time?.slice(0,5)}</td>
       <td>${s.slot_duration_minutes} ד'</td>

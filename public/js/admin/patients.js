@@ -21,10 +21,10 @@ async function loadPatients() {
   (data || []).forEach((p) => {
     const tr = document.createElement("tr");
     tr.innerHTML = `
-      <td>${p.full_name}</td>
-      <td>${p.phone || ""}</td>
-      <td>${p.address || ""}</td>
-      <td>${conditionsLabel(p.background_conditions)}${smokingStatusLabel(p.smoking_status) ? " · " + smokingStatusLabel(p.smoking_status) : ""}</td>
+      <td>${escapeHtml(p.full_name)}</td>
+      <td>${escapeHtml(p.phone || "")}</td>
+      <td>${escapeHtml(p.address || "")}</td>
+      <td>${escapeHtml(conditionsLabel(p.background_conditions))}${smokingStatusLabel(p.smoking_status) ? " · " + escapeHtml(smokingStatusLabel(p.smoking_status)) : ""}</td>
       <td></td>
     `;
     const actionsTd = tr.lastElementChild;

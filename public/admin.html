@@ -1014,7 +1014,7 @@
   // maybeCreateAlert וכו׳ — כולם נגישים כאן כשם חשוף).
   // ===== אתחול =====
   setupAllModalsAccessibility();
-  window.onOfflineQueueFlushed = (count) => flashSuccess(`${count} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`);
+  window.onOfflineQueueFlushed = (count, partial) => flashSuccess(offlineQueueFlushMessage(count, partial));
   (async () => {
     // אם הגענו מקישור איפוס סיסמה (type=recovery ב-URL), onAuthStateChange כבר מציג
     // את מסך "בחירת סיסמה חדשה" — לא ממשיכים לבדוק session/כניסה אוטומטית לאפליקציה.
@@ -1023,8 +1023,8 @@
     if (admin) {
       showAdminApp();
       if (navigator.onLine) {
-        const { synced } = await flushOfflineQueue();
-        if (synced > 0) { flashSuccess(`${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`); loadBookings(); }
+        const { synced, partial } = await flushOfflineQueue();
+        if (synced > 0 || partial > 0) { flashSuccess(offlineQueueFlushMessage(synced, partial)); loadBookings(); }
       }
     }
   })();

@@ -22,6 +22,18 @@ function isNetworkError(err) {
   return /failed to fetch|network|load failed|networkerror/i.test(msg);
 }
 
+// הודעה מדויקת אחרי סנכרון תור אופליין — משותפת בין admin.html/employee.html כדי
+// שכישלון חלקי (מדדים נשמרו, סימון "הושלם" עדיין לא) לא יוצג כהצלחה מלאה סתמית.
+function offlineQueueFlushMessage(synced, partial) {
+  if (synced > 0 && partial > 0) {
+    return `${synced} דוחות ביקור סונכרנו בהצלחה · ${partial} נשמרו אך סימון "הושלם" עדיין ממתין לחיבור, ינוסה שוב אוטומטית`;
+  }
+  if (partial > 0) {
+    return `${partial} דוחות ביקור נשמרו, אך סימון "הושלם" עדיין ממתין לחיבור — ינוסה שוב אוטומטית`;
+  }
+  return `${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`;
+}
+
 function getOfflineQueue() {
   try {
     return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
@@ -50,11 +62,15 @@ function getQueuedDraftCount() {
 }
 
 // מנסה לסנכרן את כל התור מול Supabase (upsert לפי booking_id — בטוח לקרוא שוב ושוב).
-// מחזירה {synced, failed} כדי שהקורא יוכל להציג משוב למשתמש/ת.
+// מחזירה {synced, failed, partial} כדי שהקורא יוכל להציג משוב מדויק למשתמש/ת.
+// "partial": הדוח (מדדים/סיכום) נשמר בהצלחה, אבל סימון ההזמנה כ"הושלם" נכשל —
+// נשאר בתור לניסיון חוזר (עם _markCompleted, לא מוסר) ולא נספר כ-synced מלא, כדי
+// שכישלון חלקי לא ייעלם בשקט כאילו הכול הצליח.
 async function flushOfflineQueue() {
   const queue = getOfflineQueue();
-  if (!queue.length) return { synced: 0, failed: 0 };
+  if (!queue.length) return { synced: 0, failed: 0, partial: 0 };
   let synced = 0;
+  let partial = 0;
   const stillPending = [];
   for (const draft of queue) {
     const { _queuedAt, _markCompleted, ...payload } = draft;
@@ -64,24 +80,32 @@ async function flushOfflineQueue() {
         stillPending.push(draft); // שגיאת שרת אמיתית (למשל RLS/ולידציה) — לא רשת, לא ננסה בלולאה אינסופית בשקט
         continue;
       }
-      synced++;
       // אם "לסמן כהושלם" היה מסומן בזמן השמירה האופליין, משלימים את זה עכשיו —
       // לא רק שומרים את המדדים, אלא מכבדים את מה שהאחות באמת ביקשה.
       if (_markCompleted) {
-        await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id);
+        const { error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id);
+        if (statusError) {
+          // הדוח עצמו כבר נשמר (upsert לפי booking_id — ניסיון חוזר לא יוצר כפילות),
+          // רק סימון "הושלם" נכשל. משאירים את אותה טיוטה בתור (עם _markCompleted) כדי
+          // שהניסיון הבא ישלים רק את זה — לא סופרים synced עד ששני החלקים הצליחו.
+          stillPending.push(draft);
+          partial++;
+          continue;
+        }
       }
+      synced++;
     } catch (err) {
       stillPending.push(draft); // עדיין אין רשת
     }
   }
   setOfflineQueue(stillPending);
-  return { synced, failed: stillPending.length };
+  return { synced, failed: stillPending.length, partial };
 }
 
 window.addEventListener("online", async () => {
-  const { synced } = await flushOfflineQueue();
-  if (synced > 0 && typeof window.onOfflineQueueFlushed === "function") {
-    window.onOfflineQueueFlushed(synced);
+  const { synced, partial } = await flushOfflineQueue();
+  if ((synced > 0 || partial > 0) && typeof window.onOfflineQueueFlushed === "function") {
+    window.onOfflineQueueFlushed(synced, partial);
   }
 });
 

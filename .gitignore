@@ -9,3 +9,4 @@ __pycache__/
 *.pyc
 predictive-service/models/*.joblib
 keys.txt
+test-results/

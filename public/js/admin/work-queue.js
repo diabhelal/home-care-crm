@@ -143,8 +143,8 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
       const tr = document.createElement("tr");
       const date = new Date(b.scheduled_at);
       tr.innerHTML = `
-        <td>${b.patients?.full_name || "—"}</td>
-        <td>${b.patients?.phone || "—"}</td>
+        <td>${escapeHtml(b.patients?.full_name || "—")}</td>
+        <td>${escapeHtml(b.patients?.phone || "—")}</td>
         <td class="queue-staff-cell"></td>
         <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
         <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>

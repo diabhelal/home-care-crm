@@ -242,18 +242,68 @@
     openVisitReportModal(b, report);
   }
 
+  // "העבודה שלי" הייתה טוענת פעם *את כל ההיסטוריה* של הצוות בשאילתה אחת בלי הגבלה —
+  // עם staff ותיק/ה (הרבה ביקורים לאורך שנים) זה עלול לחתוך בשקט ב-max_rows (1000,
+  // ר' supabase/config.toml) ולהעלים בדיוק את מה שהכי קריטי: ביקורי היום/הבא/בתהליך,
+  // כי המיון היה עולה (ascending) — הישנים ביותר קודם. עכשיו שתי שאילתות נפרדות:
+  // (1) "חלון פעיל" — רק status='scheduled' עתידי/היום או workflow_status='in_progress',
+  //     בלי הגבלת תאריך אחורה, אז לעולם לא נחתך ע"י max_rows בגלל היסטוריה ישנה.
+  // (2) היסטוריה מלאה — נטענת lazy (רק כשפותחים את הפירוט) ומעומדת (range), חדש→ישן.
+  const MY_WORK_HISTORY_PAGE_SIZE = 20;
+  let myWorkHistoryOffset = 0;
+  let myWorkHistoryBookingsById = new Map();
+  let myWorkRiskByPatient = new Map();
+  let myWorkHistoryLoaded = false;
+
+  async function loadMyWorkHistoryPage(historyEl, moreBtn) {
+    const todayStart = startOfToday();
+    const { data, error } = await supabaseClient
+      .from("bookings")
+      .select("*, patients(id, full_name, phone), visit_reports(*)")
+      .lt("scheduled_at", todayStart.toISOString())
+      .order("scheduled_at", { ascending: false })
+      .range(myWorkHistoryOffset, myWorkHistoryOffset + MY_WORK_HISTORY_PAGE_SIZE - 1);
+    if (error) {
+      historyEl.insertAdjacentHTML("beforeend", `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`);
+      if (moreBtn) moreBtn.remove();
+      return;
+    }
+    const rows = data || [];
+    rows.forEach((b) => myWorkHistoryBookingsById.set(b.id, b));
+    if (myWorkHistoryOffset === 0 && !rows.length) {
+      historyEl.innerHTML = `<p class="empty-state">אין ביקורים ישנים יותר</p>`;
+    } else {
+      historyEl.insertAdjacentHTML("beforeend", rows.map((b) => myWorkBookingRowHtml(b, myWorkRiskByPatient)).join(""));
+      bindMyWorkBookingActions(historyEl, myWorkHistoryBookingsById);
+    }
+    myWorkHistoryOffset += rows.length;
+    if (moreBtn) {
+      if (rows.length < MY_WORK_HISTORY_PAGE_SIZE) moreBtn.remove();
+      else moreBtn.disabled = false;
+    }
+  }
+
   async function loadMyBookings() {
     const container = document.getElementById("my-work");
     container.innerHTML = `<div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div>`;
-    let bookings, bookingsError, risks, tasks, alerts;
+    myWorkHistoryOffset = 0;
+    myWorkHistoryBookingsById = new Map();
+    myWorkHistoryLoaded = false;
+
+    let bookings, bookingsError, risks, tasks, alerts, historyCount;
+    const todayStart = startOfToday();
     try {
       ({ data: bookings, error: bookingsError } = await supabaseClient
         .from("bookings")
         .select("*, patients(id, full_name, phone), visit_reports(*)")
-        .order("scheduled_at", { ascending: true }));
+        .eq("status", "scheduled")
+        .or(`scheduled_at.gte.${todayStart.toISOString()},workflow_status.eq.in_progress`)
+        .order("scheduled_at", { ascending: true })
+        .limit(500));
       ({ data: risks } = await supabaseClient.from("current_patient_risk").select("*"));
       ({ data: tasks } = await supabaseClient.from("tasks").select("*, patients(full_name)").eq("status", "pending").order("due_at", { ascending: true }));
       ({ data: alerts } = await supabaseClient.from("alerts").select("*, patients(full_name)").eq("status", "open").order("severity", { ascending: false }));
+      ({ count: historyCount } = await supabaseClient.from("bookings").select("id", { count: "exact", head: true }).lt("scheduled_at", todayStart.toISOString()));
     } catch (err) {
       bookingsError = err;
     }
@@ -263,15 +313,15 @@
     }
     bookings = bookings || [];
     const riskByPatient = new Map((risks || []).map((r) => [r.patient_id, r]));
+    myWorkRiskByPatient = riskByPatient;
     const bookingsById = new Map(bookings.map((b) => [b.id, b]));
 
     const now = new Date();
-    const todayStart = startOfToday(), todayEnd = endOfToday();
-    const scheduled = bookings.filter((b) => b.status === "scheduled");
+    const todayEnd = endOfToday();
+    const scheduled = bookings; // כבר מסונן ל-status='scheduled' בשאילתה עצמה
     const nextVisit = scheduled.filter((b) => new Date(b.scheduled_at) >= now).sort((a, c) => new Date(a.scheduled_at) - new Date(c.scheduled_at))[0] || null;
     const todaysVisits = scheduled.filter((b) => { const d = new Date(b.scheduled_at); return d >= todayStart && d <= todayEnd && (!nextVisit || b.id !== nextVisit.id); });
     const inProgress = scheduled.filter((b) => b.workflow_status === "in_progress" && (!nextVisit || b.id !== nextVisit.id) && !todaysVisits.some((t) => t.id === b.id));
-    const historical = [...bookings].sort((a, c) => new Date(c.scheduled_at) - new Date(a.scheduled_at));
 
     let html = "";
 
@@ -309,9 +359,10 @@
     }
 
     html += `
-      <details class="queue-group" style="margin-top:20px;">
-        <summary>כל הביקורים שלי <span class="queue-count">${historical.length}</span></summary>
+      <details class="queue-group" style="margin-top:20px;" id="my-work-history-details">
+        <summary>היסטוריית ביקורים (ישנים מהיום) <span class="queue-count">${historyCount || 0}</span></summary>
         <div id="my-work-history"></div>
+        ${historyCount ? `<button type="button" class="btn btn-secondary btn-sm" id="my-work-history-more" style="margin-top:8px;">טען עוד</button>` : ""}
       </details>
     `;
 
@@ -320,12 +371,22 @@
     container.querySelectorAll(".my-work-open-patient").forEach((btn) => {
       btn.addEventListener("click", () => openPatientRecord(btn.dataset.patientId));
     });
+
+    // היסטוריה נטענת רק כשפותחים את הפירוט (lazy) — לא בכל טעינת עמוד, כדי שלעולם
+    // לא נשלוף היסטוריה גדולה בלי שהעובד/ת בפועל ביקש/ה לראות אותה.
+    const historyDetails = document.getElementById("my-work-history-details");
     const historyEl = document.getElementById("my-work-history");
-    if (historical.length) {
-      historyEl.innerHTML = historical.map((b) => myWorkBookingRowHtml(b, riskByPatient)).join("");
-      bindMyWorkBookingActions(historyEl, bookingsById);
+    const moreBtn = document.getElementById("my-work-history-more");
+    if (moreBtn) moreBtn.addEventListener("click", () => { moreBtn.disabled = true; loadMyWorkHistoryPage(historyEl, moreBtn); });
+    if (!historyCount) {
+      historyEl.innerHTML = `<p class="empty-state">אין ביקורים ישנים יותר</p>`;
     } else {
-      historyEl.innerHTML = `<p class="empty-state">אין ביקורים משויכים אליך</p>`;
+      historyDetails.addEventListener("toggle", () => {
+        if (historyDetails.open && !myWorkHistoryLoaded) {
+          myWorkHistoryLoaded = true;
+          loadMyWorkHistoryPage(historyEl, moreBtn);
+        }
+      });
     }
   }
 
@@ -1099,7 +1160,7 @@
 
   // ===== אתחול: הגנה על העמוד — לא מחובר/ת או לא איש-צוות פעיל => redirect להתחברות =====
   setupAllModalsAccessibility();
-  window.onOfflineQueueFlushed = (count) => flashSuccess(`${count} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`);
+  window.onOfflineQueueFlushed = (count, partial) => flashSuccess(offlineQueueFlushMessage(count, partial));
   (async () => {
     const staff = await resolveActiveStaffSession();
     if (!staff) {
@@ -1109,8 +1170,8 @@
     myStaffRow = staff;
     await showStaffApp();
     if (navigator.onLine) {
-      const { synced } = await flushOfflineQueue();
-      if (synced > 0) { flashSuccess(`${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`); loadMyBookings(); }
+      const { synced, partial } = await flushOfflineQueue();
+      if (synced > 0 || partial > 0) { flashSuccess(offlineQueueFlushMessage(synced, partial)); loadMyBookings(); }
     }
   })();
 </script>

@@ -243,7 +243,7 @@
       list.forEach((b) => {
         const date = new Date(b.scheduled_at);
         const staffLabel = b.medical_staff
-          ? `${b.medical_staff.full_name} (${ROLE_LABELS[b.medical_staff.role] || b.medical_staff.role})`
+          ? `${escapeHtml(b.medical_staff.full_name)} (${ROLE_LABELS[b.medical_staff.role] || b.medical_staff.role})`
           : "—";
         const item = document.createElement("div");
         item.className = "booking-item";
@@ -251,7 +251,7 @@
           <div class="info">
             <div class="purpose">${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</div>
             <div class="meta">${staffLabel} · ${formatDateHe(date)} ${formatTimeHe(date)}</div>
-            ${b.notes ? `<div class="meta">הערה: ${b.notes}</div>` : ""}
+            ${b.notes ? `<div class="meta">הערה: ${escapeHtml(b.notes)}</div>` : ""}
           </div>
           <div class="item-actions" style="display:flex; align-items:center; gap:10px;">
             <span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span>
