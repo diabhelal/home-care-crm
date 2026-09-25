@@ -740,17 +740,13 @@ section { margin-bottom: 48px; }
   box-shadow: var(--shadow-sm);
 }
 .hero-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface);
-  color: var(--primary-dark);
-  font-weight: 700;
-  font-size: 14px;
-  padding: 6px 16px;
-  border-radius: 999px;
-  box-shadow: var(--shadow-sm);
-  margin-bottom: 16px;
+  display: block;
+  font-family: var(--font-head);
+  font-weight: 800;
+  font-size: 26px;
+  line-height: 1.25;
+  color: var(--accent-dark);
+  margin-bottom: 10px;
 }
 .hero h1 {
   font-size: 38px;
@@ -891,6 +887,7 @@ section { margin-bottom: 48px; }
 
 @media (max-width: 560px) {
   .hero { padding: 40px 20px 32px; border-radius: var(--radius); }
+  .hero-eyebrow { font-size: 20px; }
   .hero h1 { font-size: 28px; }
   .hero-subtitle { font-size: 17px; }
   html, body { font-size: 16px; }
