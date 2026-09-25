@@ -2,10 +2,11 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<script>(function(){try{var l=localStorage.getItem("appLanguage");if(l==="en"){document.documentElement.lang="en";document.documentElement.dir="ltr";}else if(l==="ar"){document.documentElement.lang="ar";document.documentElement.dir="rtl";}}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>בית חם — טיפול רפואי עד הבית</title>
+<title data-i18n="index.title">בית חם — טיפול רפואי עד הבית</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2f7d6e">
@@ -15,12 +16,12 @@
 <body>
 <div class="page">
   <header class="app-header">
-    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
     <nav>
-      <a href="#services">השירותים שלנו</a>
-      <a href="#how-it-works">איך זה עובד</a>
-      <a href="#contact">יצירת קשר</a>
-      <a href="my-bookings.html">ההזמנות שלי</a>
+      <a href="#services" data-i18n="common.navServices">השירותים שלנו</a>
+      <a href="#how-it-works" data-i18n="common.navHowItWorks">איך זה עובד</a>
+      <a href="#contact" data-i18n="common.navContact">יצירת קשר</a>
+      <a href="my-bookings.html" data-i18n="common.navMyBookings">ההזמנות שלי</a>
     </nav>
   </header>
 
@@ -29,100 +30,100 @@
       <div class="hero-icons">
         <span>💉</span><span>🩺</span><span>🏃</span><span>🤝</span>
       </div>
-      <div class="hero-eyebrow">🏠 טיפול רפואי עד הבית</div>
-      <h1>טיפול רפואי מקצועי, ישירות לביתך</h1>
-      <p class="hero-subtitle">אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.</p>
-      <a href="staff.html" class="btn btn-primary hero-cta">הזמנת ביקור עכשיו</a>
+      <div class="hero-eyebrow" data-i18n="index.heroEyebrow">🏠 טיפול רפואי עד הבית</div>
+      <h1 data-i18n="index.heroTitle">טיפול רפואי מקצועי, ישירות לביתך</h1>
+      <p class="hero-subtitle" data-i18n="index.heroSubtitle">אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.</p>
+      <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.heroCta">הזמנת ביקור עכשיו</a>
       <p class="hero-trust" id="hero-trust" style="display:none;"></p>
     </section>
 
     <section class="services-section" id="services">
-      <h2>השירותים שלנו</h2>
+      <h2 data-i18n="common.navServices">השירותים שלנו</h2>
       <div class="grid" id="services-grid"></div>
     </section>
 
     <section class="how-it-works" id="how-it-works">
-      <h2>איך זה עובד</h2>
+      <h2 data-i18n="index.howTitle">איך זה עובד</h2>
       <div class="how-grid">
         <div class="how-step">
           <div class="how-step-num">1</div>
-          <div class="how-step-title">בוחרים איש/אשת צוות</div>
-          <div class="how-step-text">לפי תפקיד וזמינות שמתאימה לכם</div>
+          <div class="how-step-title" data-i18n="index.howStep1Title">בוחרים איש/אשת צוות</div>
+          <div class="how-step-text" data-i18n="index.howStep1Text">לפי תפקיד וזמינות שמתאימה לכם</div>
         </div>
         <div class="how-step">
           <div class="how-step-num">2</div>
-          <div class="how-step-title">בוחרים תאריך ושעה</div>
-          <div class="how-step-text">מתוך הזמנים הפנויים בפועל, בזמן אמת</div>
+          <div class="how-step-title" data-i18n="index.howStep2Title">בוחרים תאריך ושעה</div>
+          <div class="how-step-text" data-i18n="index.howStep2Text">מתוך הזמנים הפנויים בפועל, בזמן אמת</div>
         </div>
         <div class="how-step">
           <div class="how-step-num">3</div>
-          <div class="how-step-title">ממלאים פרטים ומאשרים</div>
-          <div class="how-step-text">שם, טלפון וכתובת — וזהו, ההזמנה נקבעה</div>
+          <div class="how-step-title" data-i18n="index.howStep3Title">ממלאים פרטים ומאשרים</div>
+          <div class="how-step-text" data-i18n="index.howStep3Text">שם, טלפון וכתובת — וזהו, ההזמנה נקבעה</div>
         </div>
       </div>
     </section>
 
     <section class="why-us-band">
-      <h2>למה בית חם?</h2>
+      <h2 data-i18n="index.whyTitle">למה בית חם?</h2>
       <div class="why-grid">
         <div class="why-item">
           <div class="why-icon">✅</div>
-          <div class="why-title">צוות מוסמך ומנוסה</div>
-          <div class="why-text">כל אנשי הצוות מורשים ובעלי ניסיון בטיפול ביתי</div>
+          <div class="why-title" data-i18n="index.why1Title">צוות מוסמך ומנוסה</div>
+          <div class="why-text" data-i18n="index.why1Text">כל אנשי הצוות מורשים ובעלי ניסיון בטיפול ביתי</div>
         </div>
         <div class="why-item">
           <div class="why-icon">⏱️</div>
-          <div class="why-title">קביעת תור מיידית</div>
-          <div class="why-text">בוחרים תאריך ושעה פנויים ומקבלים אישור מיידי</div>
+          <div class="why-title" data-i18n="index.why2Title">קביעת תור מיידית</div>
+          <div class="why-text" data-i18n="index.why2Text">בוחרים תאריך ושעה פנויים ומקבלים אישור מיידי</div>
         </div>
         <div class="why-item">
           <div class="why-icon">🔒</div>
-          <div class="why-title">בלי הרשמה מיותרת</div>
-          <div class="why-text">מזמינים תוך דקה, הפרטים שלכם נשמרים רק אצלכם</div>
+          <div class="why-title" data-i18n="index.why3Title">בלי הרשמה מיותרת</div>
+          <div class="why-text" data-i18n="index.why3Text">מזמינים תוך דקה, הפרטים שלכם נשמרים רק אצלכם</div>
         </div>
       </div>
     </section>
 
     <section class="cta-bottom">
-      <h2>מוכנים להתחיל?</h2>
-      <p>קביעת ביקור בית לוקחת פחות מדקה — בלי הרשמה, בלי סיסמה.</p>
-      <a href="staff.html" class="btn btn-primary hero-cta">בואו נתחיל</a>
+      <h2 data-i18n="index.ctaTitle">מוכנים להתחיל?</h2>
+      <p data-i18n="index.ctaText">קביעת ביקור בית לוקחת פחות מדקה — בלי הרשמה, בלי סיסמה.</p>
+      <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.ctaButton">בואו נתחיל</a>
     </section>
 
     <section class="contact-section" id="contact">
-      <h2>יצירת קשר</h2>
-      <p style="color:var(--text-muted);">שאלה לפני שקובעים ביקור? לפניות שאינן דחופות — למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.</p>
+      <h2 data-i18n="common.navContact">יצירת קשר</h2>
+      <p style="color:var(--text-muted);" data-i18n="index.contactIntro">שאלה לפני שקובעים ביקור? לפניות שאינן דחופות — למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.</p>
       <div class="field">
-        <label for="contact-name">שם מלא</label>
+        <label for="contact-name" data-i18n="index.contactNameLabel">שם מלא</label>
         <input type="text" id="contact-name" required autocomplete="name">
       </div>
       <div class="field">
-        <label for="contact-phone">טלפון (אופציונלי, לחזרה אליך)</label>
+        <label for="contact-phone" data-i18n="index.contactPhoneLabel">טלפון (אופציונלי, לחזרה אליך)</label>
         <input type="tel" id="contact-phone" autocomplete="tel">
       </div>
       <div class="field">
-        <label for="contact-subject">נושא</label>
-        <input type="text" id="contact-subject" placeholder="אופציונלי">
+        <label for="contact-subject" data-i18n="index.contactSubjectLabel">נושא</label>
+        <input type="text" id="contact-subject" data-i18n-placeholder="index.contactSubjectPlaceholder" placeholder="אופציונלי">
       </div>
       <div class="field">
-        <label for="contact-body">הודעה</label>
+        <label for="contact-body" data-i18n="index.contactBodyLabel">הודעה</label>
         <textarea id="contact-body" rows="3" required></textarea>
       </div>
       <div class="error-msg" id="contact-error" role="alert" aria-live="assertive"></div>
       <div class="success-msg" id="contact-success" role="status" aria-live="polite"></div>
-      <button class="btn btn-secondary" id="contact-submit">שליחת פנייה</button>
+      <button class="btn btn-secondary" id="contact-submit" data-i18n="index.contactSubmit">שליחת פנייה</button>
     </section>
   </main>
   <footer class="site-footer">
     <div class="site-footer-brand">
-      <span class="brand"><span class="logo">🏠</span> בית חם</span>
-      <p>טיפול רפואי מקצועי, ישירות לביתך.</p>
+      <span class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></span>
+      <p data-i18n="index.footerTagline">טיפול רפואי מקצועי, ישירות לביתך.</p>
     </div>
     <nav class="site-footer-links">
-      <a href="#services">השירותים שלנו</a>
-      <a href="my-bookings.html">ההזמנות שלי</a>
-      <a href="employee-login.html">כניסת צוות רפואי</a>
-      <a href="admin.html">כניסת מנהל</a>
+      <a href="#services" data-i18n="common.navServices">השירותים שלנו</a>
+      <a href="my-bookings.html" data-i18n="common.navMyBookings">ההזמנות שלי</a>
+      <a href="employee-login.html" data-i18n="index.footerStaffLogin">כניסת צוות רפואי</a>
+      <a href="admin.html" data-i18n="index.footerAdminLogin">כניסת מנהל</a>
     </nav>
   </footer>
 </div>
@@ -130,7 +131,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="i18n.js"></script>
 <script>
+  applyTranslations();
+  renderLangSwitch();
+
   (async () => {
     // ממתינים ל-session האנונימי לפני כל שאילתה (אותה תבנית כמו staff.html/booking.html/
     // my-bookings.html/employee.html) — בלי await כאן, בביקור ראשון (בלי session שמור
@@ -138,7 +143,7 @@
     await ensureGuestSession();
 
     const grid = document.getElementById("services-grid");
-    showLoadingRow(grid, "טוען שירותים...");
+    showLoadingRow(grid, t("index.loadingServices"));
 
     let staff, error;
     try {
@@ -149,20 +154,21 @@
     grid.innerHTML = "";
 
     if (error || !staff) {
-      grid.innerHTML = `<div class="empty-state">${friendlyErrorMessage(error || "שגיאה בטעינת השירותים")}</div>`;
+      grid.innerHTML = `<div class="empty-state">${friendlyErrorMessageLocalized(error || t("index.errLoadingServices"))}</div>`;
       return;
     }
 
     const rolesPresent = [...new Set(staff.map((s) => s.role))];
+    const ROLE_ICONS_LOCAL = { nurse: "💉", doctor: "🩺", physiotherapist: "🏃", caregiver: "🤝" };
     rolesPresent.forEach((role) => {
       const card = document.createElement("a");
       card.href = `staff.html?role=${encodeURIComponent(role)}`;
       card.className = "service-card";
       card.innerHTML = `
-        <div class="service-icon">${ROLE_ICONS[role] || "🏠"}</div>
-        <div class="service-title">${ROLE_LABELS[role] || role}</div>
-        <div class="service-desc">${ROLE_DESCRIPTIONS[role] || ""}</div>
-        <div class="service-link">לצפייה בזמינות ←</div>
+        <div class="service-icon">${ROLE_ICONS_LOCAL[role] || "🏠"}</div>
+        <div class="service-title">${roleLabel(role)}</div>
+        <div class="service-desc">${roleDescription(role)}</div>
+        <div class="service-link">${t("index.serviceLinkText")}</div>
       `;
       grid.appendChild(card);
     });
@@ -172,8 +178,8 @@
     if (staff.length > 0) {
       const trustEl = document.getElementById("hero-trust");
       trustEl.textContent = staff.length === 1
-        ? "✅ איש צוות מוסמך אחד זמין כרגע"
-        : `✅ ${staff.length} אנשי צוות מוסמכים זמינים כרגע`;
+        ? t("index.heroTrustSingle")
+        : tf("index.heroTrustPlural", { count: staff.length });
       trustEl.style.display = "block";
     }
   })();
@@ -187,12 +193,12 @@
     hideError(errEl);
     const fullName = document.getElementById("contact-name").value.trim();
     const body = document.getElementById("contact-body").value.trim();
-    if (!fullName || !body) { showError(errEl, "יש להזין שם מלא והודעה"); return; }
+    if (!fullName || !body) { showError(errEl, t("index.contactValidation")); return; }
 
     const btn = document.getElementById("contact-submit");
-    setButtonLoading(btn, true, "שולח...");
+    setButtonLoading(btn, true, t("index.contactSending"));
     const user = await ensureGuestSession();
-    if (!user) { setButtonLoading(btn, false); showError(errEl, "שגיאה ביצירת חיבור. נסה/י שוב."); return; }
+    if (!user) { setButtonLoading(btn, false); showError(errEl, t("index.contactConnError")); return; }
 
     const phone = document.getElementById("contact-phone").value.trim();
     let error;
@@ -206,12 +212,12 @@
       }));
     }
     setButtonLoading(btn, false);
-    if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+    if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
 
     document.getElementById("contact-subject").value = "";
     document.getElementById("contact-body").value = "";
     const successEl = document.getElementById("contact-success");
-    successEl.textContent = "הפנייה נשלחה, נחזור אליך בהקדם.";
+    successEl.textContent = t("index.contactSuccess");
     successEl.classList.add("show");
     setTimeout(() => successEl.classList.remove("show"), 3000);
   });
