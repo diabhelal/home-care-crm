@@ -1016,3 +1016,40 @@ section { margin-bottom: 48px; }
 .pr-badge-open { background: var(--danger-light); color: var(--danger); }
 .pr-badge-acknowledged { background: #fdf1d6; color: #8f5f0e; }
 .pr-badge-resolved { background: #e2f3e8; color: #1f7a3f; }
+
+/* ===== i18n: עמודים הפונים למטופל בלבד (index/staff/booking/my-bookings.html) =====
+   כל הכללים למעלה (direction: rtl גלובלי + 7 כללי text-align: right) נשארים בדיוק
+   כמו שהם — נכונים גם לעברית וגם לערבית (שתיהן RTL). הבלוק הזה אדיטיבי בלבד: הופך
+   ל-LTR רק כש-<html dir="ltr"> (אנגלית), וזה קורה רק בעמודי המטופל (admin.html/
+   employee.html/employee-login.html אף פעם לא מקבלים dir="ltr" — הכללים כאן פשוט לא
+   פעילים אצלם). */
+html[lang="ar"] {
+  --font-body: "Cairo", "Segoe UI", Arial, sans-serif;
+  --font-head: "Cairo", "Segoe UI", Arial, sans-serif;
+}
+
+html[dir="ltr"], html[dir="ltr"] body { direction: ltr; }
+html[dir="ltr"] .field,
+html[dir="ltr"] .error-msg,
+html[dir="ltr"] .success-msg,
+html[dir="ltr"] .staff-card,
+html[dir="ltr"] .service-card,
+html[dir="ltr"] .admin-table th, html[dir="ltr"] .admin-table td {
+  text-align: left;
+}
+
+.lang-switch { display: flex; gap: 2px; flex-wrap: nowrap; }
+.lang-switch button {
+  min-height: 28px;
+  padding: 3px 9px;
+  border: 1.5px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+.lang-switch button:hover { border-color: var(--primary); }
+.lang-switch button.active { background: var(--primary); border-color: var(--primary); color: #fff; }
