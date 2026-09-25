@@ -2,10 +2,11 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<script>(function(){try{var l=localStorage.getItem("appLanguage");if(l==="en"){document.documentElement.lang="en";document.documentElement.dir="ltr";}else if(l==="ar"){document.documentElement.lang="ar";document.documentElement.dir="rtl";}}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>בית חם — קביעת תור</title>
+<title data-i18n="booking.title">בית חם — קביעת תור</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2f7d6e">
@@ -15,67 +16,67 @@
 <body>
 <div class="page">
   <header class="app-header">
-    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
     <nav>
-      <a href="my-bookings.html">ההזמנות שלי</a>
-      <button class="btn btn-ghost" id="reset-btn">התחלה מחדש</button>
+      <a href="my-bookings.html" data-i18n="common.navMyBookings">ההזמנות שלי</a>
+      <button class="btn btn-ghost" id="reset-btn" data-i18n="common.navReset">התחלה מחדש</button>
     </nav>
   </header>
   <main>
-    <h1 class="visually-hidden">קביעת תור — בית חם</h1>
+    <h1 class="visually-hidden" data-i18n="booking.h1Hidden">קביעת תור — בית חם</h1>
     <div class="steps">
-      <div class="step done">1. בחירת צוות</div>
-      <div class="step active">2. הזמנה ופרטים</div>
+      <div class="step done" data-i18n="staff.step1">1. בחירת צוות</div>
+      <div class="step active" data-i18n="staff.step2">2. הזמנה ופרטים</div>
     </div>
 
     <div class="summary-box">
-      <div>איש/אשת צוות: <span class="staff-name" id="staff-name"></span></div>
-      <a href="staff.html">החלפת איש צוות</a>
+      <div><span data-i18n="booking.staffLabel">איש/אשת צוות:</span> <span class="staff-name" id="staff-name"></span></div>
+      <a href="staff.html" data-i18n="booking.changeStaff">החלפת איש צוות</a>
     </div>
 
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
 
-    <h2>מטרת הביקור</h2>
+    <h2 data-i18n="booking.purposeTitle">מטרת הביקור</h2>
     <div class="chips" id="purpose-chips"></div>
 
-    <h2>תאריך</h2>
+    <h2 data-i18n="booking.dateTitle">תאריך</h2>
     <div class="date-list" id="date-list"></div>
 
     <div id="slots-section" style="display:none;">
-      <h2>שעה פנויה</h2>
+      <h2 data-i18n="booking.timeTitle">שעה פנויה</h2>
       <div class="slot-grid" id="slot-grid" aria-live="polite"></div>
     </div>
-    <div id="no-slots" class="empty-state" style="display:none;">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
+    <div id="no-slots" class="empty-state" style="display:none;" data-i18n="booking.noSlots">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
 
     <div id="patient-details-section" style="display:none;">
-      <h2>עוד רגע וסיימנו — הפרטים שלך</h2>
-      <p style="color:var(--text-muted); margin-top:-8px; margin-bottom:16px;">נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה. שדות עם * הם חובה.</p>
+      <h2 data-i18n="booking.detailsTitle">עוד רגע וסיימנו — הפרטים שלך</h2>
+      <p style="color:var(--text-muted); margin-top:-8px; margin-bottom:16px;" data-i18n="booking.detailsSubtitle">נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה. שדות עם * הם חובה.</p>
       <div class="field">
-        <label for="patient-name">שם מלא *</label>
-        <input type="text" id="patient-name" required autocomplete="name" placeholder="לדוגמה: ישראל ישראלי">
+        <label for="patient-name" data-i18n="booking.nameLabel">שם מלא *</label>
+        <input type="text" id="patient-name" required autocomplete="name" data-i18n-placeholder="booking.namePlaceholder" placeholder="לדוגמה: ישראל ישראלי">
       </div>
       <div class="field">
-        <label for="patient-national-id">תעודת זהות *</label>
-        <input type="text" id="patient-national-id" required inputmode="numeric" autocomplete="off" placeholder="9 ספרות" maxlength="9">
-        <p style="color:var(--text-muted); font-size:13px; margin:4px 0 0;">משמשת לזיהוי מדויק שלך בתיק הרפואי שלך במערכת — לא נשתף עם צד שלישי.</p>
+        <label for="patient-national-id" data-i18n="booking.idLabel">תעודת זהות *</label>
+        <input type="text" id="patient-national-id" required inputmode="numeric" autocomplete="off" data-i18n-placeholder="booking.idPlaceholder" placeholder="9 ספרות" maxlength="9">
+        <p style="color:var(--text-muted); font-size:13px; margin:4px 0 0;" data-i18n="booking.idHelp">משמשת לזיהוי מדויק שלך בתיק הרפואי שלך במערכת — לא נשתף עם צד שלישי.</p>
       </div>
       <div class="field">
-        <label for="patient-phone">טלפון *</label>
+        <label for="patient-phone" data-i18n="booking.phoneLabel">טלפון *</label>
         <input type="tel" id="patient-phone" required autocomplete="tel" placeholder="050-1234567">
       </div>
       <div class="field">
-        <label for="patient-address">כתובת לביקור *</label>
-        <input type="text" id="patient-address" required autocomplete="street-address" placeholder="רחוב, מספר בית ועיר">
+        <label for="patient-address" data-i18n="booking.addressLabel">כתובת לביקור *</label>
+        <input type="text" id="patient-address" required autocomplete="street-address" data-i18n-placeholder="booking.addressPlaceholder" placeholder="רחוב, מספר בית ועיר">
       </div>
       <div class="field">
-        <label for="notes">הערות (אופציונלי)</label>
-        <input type="text" id="notes" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
+        <label for="notes" data-i18n="booking.notesLabel">הערות (אופציונלי)</label>
+        <input type="text" id="notes" data-i18n-placeholder="booking.notesPlaceholder" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
       </div>
 
-      <p class="trust-strip">🔒 צוות מוסמך ומנוסה · הפרטים שלך משמשים רק לתיאום הביקור ואינם נמסרים לגורם שלישי</p>
+      <p class="trust-strip" data-i18n="booking.trustStrip">🔒 צוות מוסמך ומנוסה · הפרטים שלך משמשים רק לתיאום הביקור ואינם נמסרים לגורם שלישי</p>
       <div class="actions-row">
-        <button class="btn btn-primary" id="confirm-btn" disabled>אישור הזמנה</button>
+        <button class="btn btn-primary" id="confirm-btn" disabled data-i18n="booking.confirmButton">אישור הזמנה</button>
       </div>
     </div>
   </main>
@@ -84,9 +85,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="i18n.js"></script>
 <script src="slot-calculation.js"></script>
 <script>
   (async () => {
+    applyTranslations();
+    renderLangSwitch();
+
     const user = await ensureGuestSession();
     if (!user) return;
     wireReset();
@@ -95,7 +100,7 @@
     if (!staff) { window.location.href = "staff.html"; return; }
 
     document.getElementById("staff-name").textContent =
-      `${staff.full_name} (${ROLE_LABELS[staff.role] || staff.role})`;
+      `${staff.full_name} (${roleLabel(staff.role)})`;
 
     const errorBox = document.getElementById("error-box");
     const successBox = document.getElementById("success-box");
@@ -111,11 +116,11 @@
 
     // מטרת ביקור
     const chipsEl = document.getElementById("purpose-chips");
-    Object.entries(PURPOSE_LABELS).forEach(([key, label]) => {
+    Object.keys(I18N_STRINGS[getLang()].purposeLabels).forEach((key) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "chip";
-      chip.textContent = label;
+      chip.textContent = purposeLabel(key);
       chip.setAttribute("aria-pressed", "false");
       chip.addEventListener("click", () => {
         chipsEl.querySelectorAll(".chip").forEach((c) => { c.classList.remove("selected"); c.setAttribute("aria-pressed", "false"); });
@@ -141,7 +146,7 @@
       pill.type = "button";
       pill.className = "date-pill";
       pill.setAttribute("aria-pressed", "false");
-      pill.innerHTML = `<div class="dow">${WEEKDAY_SHORT[d.getDay()]}</div><div class="dom">${d.getDate()}/${d.getMonth() + 1}</div>`;
+      pill.innerHTML = `<div class="dow">${weekdayShortLabel(d.getDay())}</div><div class="dom">${d.getDate()}/${d.getMonth() + 1}</div>`;
       pill.addEventListener("click", () => {
         dateListEl.querySelectorAll(".date-pill").forEach((p) => { p.classList.remove("selected"); p.setAttribute("aria-pressed", "false"); });
         pill.classList.add("selected");
@@ -155,7 +160,7 @@
       dateButtons.push(pill);
     }
     if (dateButtons.length === 0) {
-      dateListEl.innerHTML = '<div class="empty-state">אין ימים זמינים לאיש צוות זה.</div>';
+      dateListEl.innerHTML = `<div class="empty-state">${t("booking.noDatesAvailable")}</div>`;
     }
 
     let loadSlotsToken = 0;
@@ -168,7 +173,7 @@
       hideError(errorBox);
       noSlots.style.display = "none";
       slotsSection.style.display = "block";
-      showLoadingRow(slotGrid, "טוען שעות פנויות...");
+      showLoadingRow(slotGrid, t("booking.loadingSlots"));
 
       const startOfDay = new Date(date);
       const endOfDay = new Date(date);
@@ -197,7 +202,7 @@
 
       if (error) {
         slotsSection.style.display = "none";
-        showError(errorBox, "שגיאה בטעינת שעות פנויות: " + friendlyErrorMessage(error));
+        showError(errorBox, t("booking.errLoadingSlots") + friendlyErrorMessageLocalized(error));
         return;
       }
       const slots = computeAvailableSlots({
@@ -213,7 +218,7 @@
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-btn";
-        btn.textContent = formatTimeHe(slotDate);
+        btn.textContent = formatTimeLocalized(slotDate);
         btn.setAttribute("aria-pressed", "false");
         if (!available) {
           btn.disabled = true;
@@ -267,16 +272,16 @@
       const phone = phoneInput.value.trim();
       const address = addressInput.value.trim();
       if (!fullName || !nationalId || !phone || !address) {
-        showError(errorBox, "נא למלא שם מלא, תעודת זהות, טלפון וכתובת לביקור.");
+        showError(errorBox, t("booking.fillAllFields"));
         return;
       }
       if (!/^\d{5,9}$/.test(nationalId)) {
-        showError(errorBox, "תעודת זהות צריכה להכיל בין 5 ל-9 ספרות.");
+        showError(errorBox, t("booking.invalidId"));
         return;
       }
 
       submittingBooking = true;
-      setButtonLoading(confirmBtn, true, "שומר הזמנה...");
+      setButtonLoading(confirmBtn, true, t("booking.savingBooking"));
       const notes = document.getElementById("notes").value.trim() || null;
 
       let error;
@@ -298,19 +303,19 @@
       if (error) {
         submittingBooking = false;
         if (error.code === "23505") {
-          showError(errorBox, "מצטערים, השעה הזו נתפסה זה עתה. נא לבחור שעה אחרת.");
+          showError(errorBox, t("booking.slotTaken"));
           selectedSlot = null;
           updateConfirmState();
           setButtonLoading(confirmBtn, false);
           loadSlots(selectedDate);
         } else {
-          showError(errorBox, "שגיאה בשמירת ההזמנה: " + friendlyErrorMessage(error));
+          showError(errorBox, t("booking.errSavingBooking") + friendlyErrorMessageLocalized(error));
           setButtonLoading(confirmBtn, false);
         }
         return;
       }
 
-      successBox.textContent = "ההזמנה נקבעה בהצלחה! מעביר אותך לרשימת ההזמנות שלך...";
+      successBox.textContent = t("booking.bookingSuccess");
       successBox.classList.add("show");
       sessionStorage.removeItem("selected_staff");
       setTimeout(() => { window.location.href = "my-bookings.html"; }, 1200);
