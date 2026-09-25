@@ -12,6 +12,7 @@
   --border: #dfe6e3;
   --danger: #b3452f;
   --danger-light: #fbeae5;
+  --success: #235c51; /* זהה ל-primary-dark — אותו ירוק "הצלחה" שכבר בשימוש ב-.success-msg */
   --radius: 16px;
   --radius-sm: 10px;
   --radius-lg: 28px;
@@ -157,6 +158,10 @@ main {
   box-shadow: var(--shadow);
   padding: 32px;
 }
+
+/* כרטיס קומפקטי (למשל כרטיס "קישור טלפון") — היו 3 ריפוד שונים (16/20/32px) ל-
+   אותו סוג כרטיס בעמודים שונים, class אחת עכשיו. */
+.card-compact { padding: 20px; }
 
 .auth-card {
   width: 100%;

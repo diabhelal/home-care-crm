@@ -104,6 +104,7 @@ async function flushOfflineQueue() {
 
 window.addEventListener("online", async () => {
   const { synced, partial } = await flushOfflineQueue();
+  updateOfflineDraftBanner();
   if ((synced > 0 || partial > 0) && typeof window.onOfflineQueueFlushed === "function") {
     window.onOfflineQueueFlushed(synced, partial);
   }
@@ -340,7 +341,6 @@ const SERVICE_PLAN_STATUS_LABELS = {
 const ALERT_TYPE_LABELS = {
   new_red: "התראת סיכון אדום", worsening_trend: "מגמת החמרה", vital_anomaly: "חריגה במדד", repeated_abnormal: "חריגות חוזרות",
 };
-const SEVERITY_ORDER = { high: 3, medium: 2, low: 1 };
 const RISK_LEVEL_ORDER = { red: 3, yellow: 2, green: 1, no_data: 0 };
 
 function calcAge(dateOfBirth) {
@@ -527,5 +527,27 @@ async function checkPredictiveServiceHealth() {
 
 function initPredictiveServiceHealthCheck() {
   checkPredictiveServiceHealth();
-  setInterval(checkPredictiveServiceHealth, 45000);
+  updateOfflineDraftBanner();
+  setInterval(() => { checkPredictiveServiceHealth(); updateOfflineDraftBanner(); }, 45000);
+}
+
+// ===== באנר "דוחות ממתינים לסנכרון" =====
+// getQueuedDraftCount() (למעלה) חושב ומעולם לא הוצג — עכשיו יש לו שימוש אמיתי:
+// כשיש טיוטות שמורות מקומית (למשל אחות שאיבדה קליטה תוך כדי ביקור), רואים את
+// זה בבירור בראש העמוד, לא רק אחרי שה-online event יורה מאחורי הקלעים.
+function updateOfflineDraftBanner() {
+  let banner = document.getElementById("offline-draft-banner");
+  const count = getQueuedDraftCount();
+  if (!count) { if (banner) banner.style.display = "none"; return; }
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "offline-draft-banner";
+    banner.className = "predictive-offline-banner";
+    banner.setAttribute("role", "status");
+    document.body.prepend(banner);
+  }
+  banner.textContent = count === 1
+    ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
+    : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
+  banner.style.display = "block";
 }

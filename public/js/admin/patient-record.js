@@ -25,10 +25,12 @@ document.getElementById("patient-search-input").addEventListener("input", () => 
   prSearchTimer = setTimeout(prRunSearch, 300);
 });
 
+let prSearchRequestToken = 0;
 async function prRunSearch() {
   const raw = document.getElementById("patient-search-input").value.trim();
   const resultsEl = document.getElementById("patient-search-results");
   if (!raw) { resultsEl.innerHTML = ""; return; }
+  const requestToken = ++prSearchRequestToken;
   const q = raw.replace(/[,()]/g, "");
   showLoadingRow(resultsEl, "מחפש...");
   const { data, error } = await supabaseClient
@@ -36,14 +38,18 @@ async function prRunSearch() {
     .select("id, full_name, phone, national_id")
     .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
     .limit(10);
+  if (requestToken !== prSearchRequestToken) return; // תוצאה מיושנת — חיפוש חדש יותר כבר בדרך
   if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
-  if (!data || data.length === 0) { resultsEl.innerHTML = `<p style="color:var(--text-muted);">לא נמצאו מטופלים.</p>`; return; }
+  if (!data || data.length === 0) { resultsEl.innerHTML = `<p class="empty-state">לא נמצאו מטופלים.</p>`; return; }
   resultsEl.innerHTML = "";
   data.forEach((p) => {
     const row = document.createElement("div");
     row.className = "pr-search-result";
+    row.setAttribute("role", "button");
+    row.setAttribute("tabindex", "0");
     row.innerHTML = `<span>${escapeHtml(p.full_name)}</span><span style="color:var(--text-muted); font-size:13px;">${escapeHtml(p.phone || "")}${p.national_id ? " · " + escapeHtml(p.national_id) : ""}</span>`;
     row.addEventListener("click", () => openPatientRecord(p.id));
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPatientRecord(p.id); } });
     resultsEl.appendChild(row);
   });
 }
@@ -54,7 +60,7 @@ async function openPatientRecord(patientId) {
   document.getElementById("patient-search-results").innerHTML = "";
   document.getElementById("patient-search-input").value = "";
   document.getElementById("pr-record").style.display = "block";
-  document.getElementById("pr-header").innerHTML = `<p style="color:var(--text-muted);">טוען תיק...</p>`;
+  showLoadingRow(document.getElementById("pr-header"), "טוען תיק...");
   document.getElementById("pr-allergy-banner").style.display = "none";
   try {
     await prRenderHeader();
@@ -167,7 +173,7 @@ function prRenderTabsNav() {
 async function prSwitchTab(key) {
   document.querySelectorAll(".pr-tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === key));
   const content = document.getElementById("pr-tab-content");
-  content.innerHTML = `<p style="color:var(--text-muted);">טוען...</p>`;
+  showLoadingRow(content, "טוען...");
   const tab = PR_TABS.find((t) => t.key === key);
   try {
     await tab.render(content);
@@ -408,7 +414,7 @@ async function prRenderVitalsTab(content) {
     } catch (err) { /* predictive-service לא זמין — מדלגים על הניתוח, המדידות הגולמיות כבר מוצגות למעלה */ }
   }
   baselineEl.innerHTML = rows.length
-    ? `<h3>בסיס אישי (Baseline)</h3><table class="admin-table"><thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>${rows.join("")}</tbody></table>`
+    ? `<h3>בסיס אישי (Baseline)</h3><div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`
     : `<p style="color:var(--text-muted);">אין עדיין מספיק היסטוריה לניתוח בסיס אישי.</p>`;
 }
 
@@ -520,9 +526,9 @@ async function prRenderMedsTab(content) {
       <div class="error-msg" id="pr-med-error" role="alert" aria-live="assertive"></div>
       <button class="btn btn-primary btn-sm" id="pr-med-add">תיעוד מתן</button>
     </div>
-    ${meds.length ? `<table class="admin-table"><thead><tr><th>תאריך</th><th>תרופה</th><th>מינון</th><th>נתיב</th><th>הערות</th></tr></thead><tbody>
+    ${meds.length ? `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>תאריך</th><th>תרופה</th><th>מינון</th><th>נתיב</th><th>הערות</th></tr></thead><tbody>
       ${meds.map((m) => `<tr><td>${formatDateHe(new Date(m.administered_at))} ${formatTimeHe(new Date(m.administered_at))}</td><td>${escapeHtml(m.medication_name)}</td><td>${escapeHtml(m.dose || "—")}</td><td>${ROUTE_LABELS[m.route] || "—"}</td><td>${escapeHtml(m.notes || "—")}</td></tr>`).join("")}
-    </tbody></table>` : `<div class="empty-state">לא תועדו טיפולים/תרופות</div>`}
+    </tbody></table></div>` : `<div class="empty-state">לא תועדו טיפולים/תרופות</div>`}
   `;
   document.getElementById("pr-med-add").addEventListener("click", async () => {
     const errEl = document.getElementById("pr-med-error");
@@ -565,7 +571,7 @@ function prRenderPlanList(plans) {
       ${p.notes ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(p.notes)}</div>` : ""}
       <div class="actions-row" style="justify-content:flex-start; margin-top:10px; flex-wrap:wrap;">
         <button class="btn btn-secondary btn-sm pr-plan-generate" data-plan-id="${p.id}">יצירת ביקורים מתוכננים</button>
-        <select class="pr-plan-status-select" data-plan-id="${p.id}">
+        <select class="pr-plan-status-select" data-plan-id="${p.id}" style="min-height:44px;">
           ${Object.entries(SERVICE_PLAN_STATUS_LABELS).map(([k, v]) => `<option value="${k}" ${k === p.status ? "selected" : ""}>${v}</option>`).join("")}
         </select>
       </div>
@@ -573,7 +579,8 @@ function prRenderPlanList(plans) {
     </div>
   `).join("");
 
-  listEl.querySelectorAll(".pr-plan-generate").forEach((btn) => btn.addEventListener("click", () => prGeneratePlanVisits(Number(btn.dataset.planId))));
+  plans.forEach((p) => prRenderPlanVisits(p.id)); // מציג ביקורים שכבר נוצרו קודם, לא רק אחרי "יצירה" חדשה
+  listEl.querySelectorAll(".pr-plan-generate").forEach((btn) => btn.addEventListener("click", () => prGeneratePlanVisits(Number(btn.dataset.planId), btn)));
   listEl.querySelectorAll(".pr-plan-status-select").forEach((sel) => {
     sel.addEventListener("change", async () => {
       const { error } = await supabaseClient.from("service_plans").update({ status: sel.value }).eq("id", Number(sel.dataset.planId));
@@ -584,10 +591,11 @@ function prRenderPlanList(plans) {
   });
 }
 
-async function prGeneratePlanVisits(planId) {
+async function prGeneratePlanVisits(planId, btn) {
   const plans = window.currentPatientState.servicePlans || [];
   const plan = plans.find((p) => p.id === planId);
   if (!plan) return;
+  setButtonLoading(btn, true, "יוצר...");
   let planned;
   try {
     const res = await fetch(`${PREDICTIVE_SERVICE_URL}/plan/generate-visits`, {
@@ -602,11 +610,13 @@ async function prGeneratePlanVisits(planId) {
     if (!res.ok) throw new Error();
     ({ planned_dates: planned } = await res.json());
   } catch (err) {
+    setButtonLoading(btn, false);
     flashError("שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000.");
     return;
   }
   const rows = planned.map((d) => ({ service_plan_id: planId, planned_date: d, status: "planned" }));
   const { error } = await supabaseClient.from("service_plan_visits").upsert(rows, { onConflict: "service_plan_id,planned_date", ignoreDuplicates: true });
+  setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   flashSuccess(`נוצרו ${planned.length} ביקורים מתוכננים`);
   prRenderPlanVisits(planId);
@@ -650,9 +660,10 @@ async function prRenderPlanTab(content) {
     chip.type = "button";
     chip.className = "chip";
     chip.textContent = label;
+    chip.setAttribute("aria-pressed", "false");
     chip.addEventListener("click", () => {
-      if (selectedWeekdays.has(idx)) { selectedWeekdays.delete(idx); chip.classList.remove("selected"); }
-      else { selectedWeekdays.add(idx); chip.classList.add("selected"); }
+      if (selectedWeekdays.has(idx)) { selectedWeekdays.delete(idx); chip.classList.remove("selected"); chip.setAttribute("aria-pressed", "false"); }
+      else { selectedWeekdays.add(idx); chip.classList.add("selected"); chip.setAttribute("aria-pressed", "true"); }
     });
     weekdaysEl.appendChild(chip);
   });
@@ -693,9 +704,9 @@ async function prRenderPlanTab(content) {
 async function prRenderAppointmentsTab(content) {
   const bookings = await prCached("bookings", prFetchBookings);
   if (!bookings.length) { content.innerHTML = `<div class="empty-state">אין תורים</div>`; return; }
-  content.innerHTML = `<table class="admin-table"><thead><tr><th>תאריך</th><th>איש צוות</th><th>מטרה</th><th>סטטוס</th></tr></thead><tbody>
+  content.innerHTML = `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>תאריך</th><th>איש צוות</th><th>מטרה</th><th>סטטוס</th></tr></thead><tbody>
     ${bookings.map((b) => `<tr><td>${formatDateHe(new Date(b.scheduled_at))} ${formatTimeHe(new Date(b.scheduled_at))}</td><td>${escapeHtml(b.medical_staff?.full_name || "—")}</td><td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td><td>${STATUS_LABELS[b.status] || b.status}</td></tr>`).join("")}
-  </tbody></table>`;
+  </tbody></table></div>`;
 }
 
 // ----- הערות קליניות -----
@@ -795,23 +806,28 @@ async function prRenderDocumentsTab(content) {
 }
 
 // ----- התראות ומשימות מעקב -----
-async function prAckAlert(alertId) {
+async function prAckAlert(alertId, btn) {
+  setButtonLoading(btn, true, "מעדכן...");
   const { data: { session } } = await supabaseClient.auth.getSession();
   const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged", acknowledged_by: session?.user?.id || null, acknowledged_at: new Date().toISOString() }).eq("id", alertId);
+  setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("alerts"); flashSuccess("ההתראה סומנה כטופלה"); prSwitchTab("alerts"); loadAttentionDashboard();
 }
-async function prResolveAlert(alertId) {
+async function prResolveAlert(alertId, btn) {
+  setButtonLoading(btn, true, "סוגר...");
   const { error } = await supabaseClient.from("alerts").update({ status: "resolved" }).eq("id", alertId);
+  setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("alerts"); flashSuccess("ההתראה נסגרה"); prSwitchTab("alerts"); loadAttentionDashboard();
 }
-async function prCreateTask(alertId) {
+async function prCreateTask(alertId, btn) {
   const titleEl = alertId ? document.querySelector(`.pr-task-title[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-title");
   const dueEl = alertId ? document.querySelector(`.pr-task-due[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-due");
   const title = titleEl.value.trim();
   const due = dueEl.value;
   if (!title || !due) { flashError("יש להזין כותרת ותאריך/שעה למשימה"); return; }
+  setButtonLoading(btn, true, "יוצר...");
   const { data: { session } } = await supabaseClient.auth.getSession();
   const { error } = await supabaseClient.from("tasks").insert({
     patient_id: window.currentPatientState.patientId,
@@ -820,12 +836,15 @@ async function prCreateTask(alertId) {
     due_at: new Date(due).toISOString(),
     created_by: session?.user?.id || null,
   });
+  setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("tasks"); flashSuccess("משימת המעקב נוצרה"); prSwitchTab("alerts");
 }
-async function prCompleteTask(taskId) {
+async function prCompleteTask(taskId, btn) {
+  setButtonLoading(btn, true, "משלים...");
   const { data: { session } } = await supabaseClient.auth.getSession();
   const { error } = await supabaseClient.from("tasks").update({ status: "completed", completed_by: session?.user?.id || null, completed_at: new Date().toISOString() }).eq("id", taskId);
+  setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("tasks"); flashSuccess("המשימה הושלמה"); prSwitchTab("alerts");
 }
@@ -894,12 +913,12 @@ async function prRenderAlertsTab(content) {
     ${!overdue.length && !upcoming.length && !completed.length ? `<div class="empty-state">אין משימות מעקב</div>` : ""}
   `;
 
-  content.querySelectorAll(".pr-alert-ack").forEach((btn) => btn.addEventListener("click", () => prAckAlert(Number(btn.dataset.alertId))));
-  content.querySelectorAll(".pr-alert-resolve").forEach((btn) => btn.addEventListener("click", () => prResolveAlert(Number(btn.dataset.alertId))));
-  content.querySelectorAll(".pr-task-create").forEach((btn) => btn.addEventListener("click", () => prCreateTask(Number(btn.dataset.alertId))));
-  content.querySelectorAll(".pr-task-complete").forEach((btn) => btn.addEventListener("click", () => prCompleteTask(Number(btn.dataset.taskId))));
+  content.querySelectorAll(".pr-alert-ack").forEach((btn) => btn.addEventListener("click", () => prAckAlert(Number(btn.dataset.alertId), btn)));
+  content.querySelectorAll(".pr-alert-resolve").forEach((btn) => btn.addEventListener("click", () => prResolveAlert(Number(btn.dataset.alertId), btn)));
+  content.querySelectorAll(".pr-task-create").forEach((btn) => btn.addEventListener("click", () => prCreateTask(Number(btn.dataset.alertId), btn)));
+  content.querySelectorAll(".pr-task-complete").forEach((btn) => btn.addEventListener("click", () => prCompleteTask(Number(btn.dataset.taskId), btn)));
   const generalBtn = document.getElementById("pr-general-task-create");
-  if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null));
+  if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null, generalBtn));
 }
 
 // ----- ציר זמן -----
@@ -962,7 +981,7 @@ async function maybeCreateAlert(patientId, riskLevel, trend, statusMessage, risk
 // ----- "מי דורש תשומת לב עכשיו" -----
 async function loadAttentionDashboard() {
   const el = document.getElementById("attention-list");
-  el.innerHTML = `<p style="color:var(--text-muted);">טוען...</p>`;
+  showLoadingRow(el, "טוען...");
   const [{ data: risks }, { data: patientsList }, { data: openAlerts }] = await Promise.all([
     supabaseClient.from("current_patient_risk").select("*"),
     supabaseClient.from("patients").select("id, full_name"),
@@ -988,15 +1007,16 @@ async function loadAttentionDashboard() {
     return { patient: p, risk, alertInfo, score };
   }).filter((r) => r.score > 0).sort((a, b) => b.score - a.score);
 
-  if (!rows.length) { el.innerHTML = `<p style="color:var(--text-muted);">אין כרגע מטופלים שדורשים תשומת לב מיוחדת.</p>`; return; }
+  if (!rows.length) { el.innerHTML = `<p class="empty-state">אין כרגע מטופלים שדורשים תשומת לב מיוחדת.</p>`; return; }
 
   el.innerHTML = rows.map(({ patient, risk, alertInfo }) => `
-    <div class="pr-search-result" data-patient-id="${patient.id}">
+    <div class="pr-search-result" role="button" tabindex="0" data-patient-id="${patient.id}">
       <span>${escapeHtml(patient.full_name)} ${riskBadgeHtml(risk)}</span>
       <span style="font-size:12px; color:var(--text-muted);">${alertInfo.count ? `${alertInfo.count} התראות פתוחות` : ""}</span>
     </div>
   `).join("");
   el.querySelectorAll("[data-patient-id]").forEach((row) => {
     row.addEventListener("click", () => openPatientRecord(row.dataset.patientId));
+    row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPatientRecord(row.dataset.patientId); } });
   });
 }

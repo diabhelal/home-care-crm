@@ -50,6 +50,7 @@ function renderQueueStaffCell(td, b) {
     td.innerHTML = "";
     const select = document.createElement("select");
     select.style.maxWidth = "190px";
+    select.style.minHeight = "44px";
     staffListCache.filter((s) => s.is_active).forEach((s) => {
       const opt = document.createElement("option");
       opt.value = s.id;
@@ -183,7 +184,12 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
   });
 }
 
+// מונע תגובה מיושנת (חיפוש/טעינה קודמים, איטיים ברשת) מלדרוס תוצאה חדשה יותר —
+// אותו דפוס בדיוק כמו loadSlotsToken ב-booking.html.
+let workQueueRequestToken = 0;
+
 async function loadBookings() {
+  const requestToken = ++workQueueRequestToken;
   const container = document.getElementById("work-queue");
   container.innerHTML = `<div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div>`;
   const searchInput = document.getElementById("work-queue-search");
@@ -204,10 +210,12 @@ async function loadBookings() {
     error = err;
   }
   if (error) {
+    if (requestToken !== workQueueRequestToken) return;
     container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`;
     return;
   }
   const { riskByPatient, patientsWithOpenTask } = await fetchRiskAndTasks();
+  if (requestToken !== workQueueRequestToken) return;
   renderWorkQueueBuckets(container, data, riskByPatient, patientsWithOpenTask);
 }
 
@@ -215,15 +223,17 @@ async function loadBookings() {
 // עצמאית לפי שם/טלפון/ת.ז. מטופל, בלי הגבלת תאריך, כדי למצוא כל דבר גם מחוץ לחלון
 // — ה"escape hatch" שמונע חיפוש בטבלה שטוחה של אלפי מטופלים.
 async function searchWorkQueue(raw) {
-  const container = document.getElementById("work-queue");
   const q = raw.trim().replace(/[,()]/g, "");
   if (!q) { loadBookings(); return; }
+  const requestToken = ++workQueueRequestToken;
+  const container = document.getElementById("work-queue");
   container.innerHTML = `<div class="loading-row"><span class="spinner spinner-dark"></span><span>מחפש...</span></div>`;
   const { data: patients, error: patientsError } = await supabaseClient
     .from("patients")
     .select("id")
     .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
     .limit(20);
+  if (requestToken !== workQueueRequestToken) return;
   if (patientsError) { container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(patientsError)}</p>`; return; }
   if (!patients || !patients.length) { container.innerHTML = `<p class="empty-state">לא נמצא מטופל מתאים</p>`; return; }
   const { data, error } = await supabaseClient
@@ -232,8 +242,10 @@ async function searchWorkQueue(raw) {
     .in("patient_id", patients.map((p) => p.id))
     .order("scheduled_at", { ascending: false })
     .limit(200);
+  if (requestToken !== workQueueRequestToken) return;
   if (error) { container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
   const { riskByPatient, patientsWithOpenTask } = await fetchRiskAndTasks();
+  if (requestToken !== workQueueRequestToken) return;
   renderWorkQueueBuckets(container, data, riskByPatient, patientsWithOpenTask);
 }
 

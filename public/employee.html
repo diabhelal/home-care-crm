@@ -23,10 +23,11 @@
     </nav>
   </header>
   <main style="max-width:1100px;">
+    <h1 class="visually-hidden">האזור האישי לצוות — בית חם</h1>
     <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
 
-    <div id="change-password-box" class="card" style="display:none; padding:16px; margin-bottom:16px; max-width:360px;">
+    <div id="change-password-box" class="card card-compact" style="display:none; margin-bottom:16px; max-width:360px;">
       <div class="field">
         <label for="staff-new-password">סיסמה חדשה</label>
         <input type="password" id="staff-new-password" autocomplete="new-password" minlength="6">
@@ -40,7 +41,7 @@
 
     <section id="my-work-section">
       <h2>העבודה שלי</h2>
-      <div id="my-work"><p style="color:var(--text-muted);">טוען...</p></div>
+      <div id="my-work"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></div>
     </section>
 
     <section id="patient-record-section">
@@ -71,7 +72,7 @@
     </div>
 
     <h3>מדדים רפואיים</h3>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0 16px;">
       <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" id="vr-systolic" placeholder="120"></div>
       <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" id="vr-diastolic" placeholder="80"></div>
       <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" id="vr-sugar" placeholder="100"></div>
@@ -393,10 +394,10 @@
   // ===== דוח ביקור (זהה במבנה לזה שבפאנל הניהול, מותאם לצוות) =====
   const vrProceduresEl = document.getElementById("vr-procedures");
   PROCEDURE_META.forEach((p) => {
-    const label = document.createElement("label");
-    label.style.display = "block";
-    label.innerHTML = `<input type="checkbox" data-proc="${p.key}" style="width:auto; display:inline-block;"> ${p.label}`;
-    vrProceduresEl.appendChild(label);
+    const row = document.createElement("label");
+    row.className = "procedure-row";
+    row.innerHTML = `<input type="checkbox" data-proc="${p.key}"><span>${p.label}</span>`;
+    vrProceduresEl.appendChild(row);
   });
 
   const visitReportModal = document.getElementById("visit-report-modal");
@@ -638,6 +639,7 @@
     if (error) {
       if (isNetworkError(error)) {
         queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+        updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
         flashSuccess("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadMyBookings();
@@ -654,7 +656,11 @@
     }
 
     visitReportModal.style.display = "none";
-    flashSuccess(markCompleted && !statusError ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
+    if (statusError) {
+      flashError(`דוח הביקור נשמר, אך סימון ההזמנה כ"הושלם" נכשל: ${friendlyErrorMessage(statusError)}`);
+    } else {
+      flashSuccess(markCompleted ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
+    }
     loadMyBookings();
     await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
     refreshOpenPatientRecordIfMatching(payload.patient_id);
@@ -667,10 +673,12 @@
     prSearchTimer = setTimeout(prRunSearch, 300);
   });
 
+  let prSearchRequestToken = 0;
   async function prRunSearch() {
     const raw = document.getElementById("patient-search-input").value.trim();
     const resultsEl = document.getElementById("patient-search-results");
     if (!raw) { resultsEl.innerHTML = ""; return; }
+    const requestToken = ++prSearchRequestToken;
     const q = raw.replace(/[,()]/g, "");
     showLoadingRow(resultsEl, "מחפש...");
     // RLS (staff_select_assigned_patients) כבר מגביל את התוצאות למטופלים המשויכים אליי.
@@ -679,14 +687,18 @@
       .select("id, full_name, phone, national_id")
       .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
       .limit(10);
+    if (requestToken !== prSearchRequestToken) return; // תוצאה מיושנת
     if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
-    if (!data || data.length === 0) { resultsEl.innerHTML = `<p style="color:var(--text-muted);">לא נמצאו מטופלים משויכים אליך בחיפוש זה.</p>`; return; }
+    if (!data || data.length === 0) { resultsEl.innerHTML = `<p class="empty-state">לא נמצאו מטופלים משויכים אליך בחיפוש זה.</p>`; return; }
     resultsEl.innerHTML = "";
     data.forEach((p) => {
       const row = document.createElement("div");
       row.className = "pr-search-result";
+      row.setAttribute("role", "button");
+      row.setAttribute("tabindex", "0");
       row.innerHTML = `<span>${escapeHtml(p.full_name)}</span><span style="color:var(--text-muted); font-size:13px;">${escapeHtml(p.phone || "")}${p.national_id ? " · " + escapeHtml(p.national_id) : ""}</span>`;
       row.addEventListener("click", () => openPatientRecord(p.id));
+      row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPatientRecord(p.id); } });
       resultsEl.appendChild(row);
     });
   }
@@ -1067,34 +1079,42 @@
     </tbody></table>`;
   }
 
-  async function prAckAlert(alertId) {
+  async function prAckAlert(alertId, btn) {
+    setButtonLoading(btn, true, "מעדכן...");
     const { data: { session } } = await supabaseClient.auth.getSession();
     const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged", acknowledged_by: session?.user?.id || null, acknowledged_at: new Date().toISOString() }).eq("id", alertId);
+    setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("alerts"); flashSuccess("ההתראה סומנה כטופלה"); prSwitchTab("alerts");
   }
-  async function prResolveAlert(alertId) {
+  async function prResolveAlert(alertId, btn) {
+    setButtonLoading(btn, true, "סוגר...");
     const { error } = await supabaseClient.from("alerts").update({ status: "resolved" }).eq("id", alertId);
+    setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("alerts"); flashSuccess("ההתראה נסגרה"); prSwitchTab("alerts");
   }
-  async function prCreateTask(alertId) {
+  async function prCreateTask(alertId, btn) {
     const titleEl = alertId ? document.querySelector(`.pr-task-title[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-title");
     const dueEl = alertId ? document.querySelector(`.pr-task-due[data-alert-id="${alertId}"]`) : document.getElementById("pr-general-task-due");
     const title = titleEl.value.trim();
     const due = dueEl.value;
     if (!title || !due) { flashError("יש להזין כותרת ותאריך/שעה למשימה"); return; }
+    setButtonLoading(btn, true, "יוצר...");
     const { data: { session } } = await supabaseClient.auth.getSession();
     const { error } = await supabaseClient.from("tasks").insert({
       patient_id: window.currentPatientState.patientId, alert_id: alertId, title,
       due_at: new Date(due).toISOString(), created_by: session?.user?.id || null,
     });
+    setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("tasks"); flashSuccess("משימת המעקב נוצרה"); prSwitchTab("alerts");
   }
-  async function prCompleteTask(taskId) {
+  async function prCompleteTask(taskId, btn) {
+    setButtonLoading(btn, true, "משלים...");
     const { data: { session } } = await supabaseClient.auth.getSession();
     const { error } = await supabaseClient.from("tasks").update({ status: "completed", completed_by: session?.user?.id || null, completed_at: new Date().toISOString() }).eq("id", taskId);
+    setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("tasks"); flashSuccess("המשימה הושלמה"); prSwitchTab("alerts");
   }
@@ -1150,12 +1170,12 @@
       ${completed.length ? `<h4>הושלמו</h4>${completed.map((t) => taskRow(t, false)).join("")}` : ""}
       ${!overdue.length && !upcoming.length && !completed.length ? `<div class="empty-state">אין משימות מעקב</div>` : ""}
     `;
-    content.querySelectorAll(".pr-alert-ack").forEach((btn) => btn.addEventListener("click", () => prAckAlert(Number(btn.dataset.alertId))));
-    content.querySelectorAll(".pr-alert-resolve").forEach((btn) => btn.addEventListener("click", () => prResolveAlert(Number(btn.dataset.alertId))));
-    content.querySelectorAll(".pr-task-create").forEach((btn) => btn.addEventListener("click", () => prCreateTask(Number(btn.dataset.alertId))));
-    content.querySelectorAll(".pr-task-complete").forEach((btn) => btn.addEventListener("click", () => prCompleteTask(Number(btn.dataset.taskId))));
+    content.querySelectorAll(".pr-alert-ack").forEach((btn) => btn.addEventListener("click", () => prAckAlert(Number(btn.dataset.alertId), btn)));
+    content.querySelectorAll(".pr-alert-resolve").forEach((btn) => btn.addEventListener("click", () => prResolveAlert(Number(btn.dataset.alertId), btn)));
+    content.querySelectorAll(".pr-task-create").forEach((btn) => btn.addEventListener("click", () => prCreateTask(Number(btn.dataset.alertId), btn)));
+    content.querySelectorAll(".pr-task-complete").forEach((btn) => btn.addEventListener("click", () => prCompleteTask(Number(btn.dataset.taskId), btn)));
     const generalBtn = document.getElementById("pr-general-task-create");
-    if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null));
+    if (generalBtn) generalBtn.addEventListener("click", () => prCreateTask(null, generalBtn));
   }
 
   // ===== אתחול: הגנה על העמוד — לא מחובר/ת או לא איש-צוות פעיל => redirect להתחברות =====

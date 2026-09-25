@@ -20,6 +20,7 @@
     <h1>כניסת מנהל</h1>
     <p class="subtitle">פאנל ניהול — בית חם</p>
     <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="login-success" role="status" aria-live="polite"></div>
     <form id="admin-login-form">
       <div class="field">
         <label for="admin-email">אימייל</label>
@@ -61,12 +62,13 @@
     </nav>
   </header>
   <main style="max-width:1100px;">
+    <h1 class="visually-hidden">פאנל ניהול — בית חם</h1>
     <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
 
     <section id="attention-section">
       <h2>מי דורש תשומת לב עכשיו?</h2>
-      <div id="attention-list"><p style="color:var(--text-muted);">טוען...</p></div>
+      <div id="attention-list"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></div>
     </section>
 
     <section id="patient-record-section">
@@ -87,7 +89,7 @@
 
     <section>
       <h2>תחזית קיבולת לחודש הבא</h2>
-      <div class="card" style="padding:20px;">
+      <div class="card card-compact">
         <div class="field" style="max-width:220px;">
           <label for="capacity-growth-rate">אחוז צמיחה משוער (%)</label>
           <input type="number" id="capacity-growth-rate" value="5" step="0.5">
@@ -216,7 +218,7 @@
     </div>
 
     <h3>מדדים רפואיים</h3>
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0 16px;">
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0 16px;">
       <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" id="vr-systolic" placeholder="120"></div>
       <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" id="vr-diastolic" placeholder="80"></div>
       <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" id="vr-sugar" placeholder="100"></div>
@@ -362,7 +364,7 @@
       setButtonLoading(btn, false);
     }
     if (error) {
-      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)} (${error.status || error.code || "?"})`);
+      showError(loginError, `שגיאת התחברות: ${friendlyErrorMessage(error)}`);
       return;
     }
     if (data.user?.app_metadata?.is_admin !== true) {
@@ -391,7 +393,9 @@
       return;
     }
     hideError(loginError);
-    alert(`אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`);
+    const loginSuccess = document.getElementById("login-success");
+    loginSuccess.textContent = `אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`;
+    loginSuccess.classList.add("show");
   });
 
   // תפוס אירוע התאוששות סיסמה: לחיצה על הקישור מהמייל מחזירה לכאן עם session זמני
@@ -507,6 +511,9 @@
   }
 
   function openVisitReportModal(booking, report) {
+    // מונע תצוגת תחזית-סיכון "חיה" ישנה (מבוקש קודם, מטופל אחר) מלהידרס על פני
+    // מה ש-loadAndRenderRisk טוען עכשיו עבור ההזמנה הנוכחית.
+    if (liveRiskPreviewTimer) { clearTimeout(liveRiskPreviewTimer); liveRiskPreviewTimer = null; }
     document.getElementById("visit-report-modal-title").textContent = report ? "עריכת דוח ביקור" : "הוספת דוח ביקור";
     document.getElementById("vr-booking-id").value = booking.id;
     visitReportModal.dataset.patientId = booking.patient_id;
@@ -919,6 +926,7 @@
   });
 
   document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
+    if (liveRiskPreviewTimer) { clearTimeout(liveRiskPreviewTimer); liveRiskPreviewTimer = null; }
     visitReportModal.style.display = "none";
   });
 
@@ -972,6 +980,7 @@
       // מקומית ומנסים שוב אוטומטית כשהחיבור חוזר (ר' flushOfflineQueue ב-app.js).
       if (isNetworkError(error)) {
         queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+        updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
         flashSuccess("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadBookings();
@@ -992,7 +1001,13 @@
     }
 
     visitReportModal.style.display = "none";
-    flashSuccess(markCompleted && !statusError ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
+    if (statusError) {
+      // הדוח עצמו נשמר בהצלחה — רק סימון "הושלם" נכשל. לא משתיקים את זה כהצלחה סתמית
+      // (בדיוק כמו הטיפול ב"partial" בתור האופליין, app.js).
+      flashError(`דוח הביקור נשמר, אך סימון ההזמנה כ"הושלם" נכשל: ${friendlyErrorMessage(statusError)}`);
+    } else {
+      flashSuccess(markCompleted ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
+    }
     loadBookings();
     await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
     refreshOpenPatientRecordIfMatching(payload.patient_id);

@@ -84,8 +84,8 @@
       card.className = "staff-card";
       card.innerHTML = `
         <span class="role-badge">${ROLE_LABELS[s.role] || s.role}</span>
-        <div class="name">${s.full_name}</div>
-        <div class="spec">${s.specialization || ""}</div>
+        <div class="name">${escapeHtml(s.full_name)}</div>
+        <div class="spec">${escapeHtml(s.specialization || "")}</div>
         <div class="avail">${formatAvailability(s)}</div>
       `;
       card.addEventListener("click", () => {

@@ -20,6 +20,7 @@
     <h1>כניסת צוות רפואי</h1>
     <p class="subtitle">אח/ות, רופא/ה, מטפל/ת — בית חם</p>
     <div class="error-msg" id="login-error" role="alert" aria-live="assertive"></div>
+    <div class="success-msg" id="login-success" role="status" aria-live="polite"></div>
     <form id="staff-login-form">
       <div class="field">
         <label for="staff-login-email">אימייל</label>
@@ -134,7 +135,9 @@
       return;
     }
     hideError(loginError);
-    alert(`אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`);
+    const loginSuccess = document.getElementById("login-success");
+    loginSuccess.textContent = `אם הכתובת ${email} קיימת במערכת, נשלח אליה מייל עם קישור לאיפוס סיסמה.`;
+    loginSuccess.classList.add("show");
   });
 
   // אותו hash type (type=recovery) משמש גם לאיפוס סיסמה וגם לקבלת הזמנה ראשונית —

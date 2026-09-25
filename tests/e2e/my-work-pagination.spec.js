@@ -58,7 +58,9 @@ test("העבודה שלי: ביקורי היום/מחר/בתהליך מוצגי�
 
   const result = await page.evaluate(async () => {
     const now = new Date();
-    const todayNoon = new Date(now); todayNoon.setHours(12, 0, 0, 0);
+    // "היום" חייב להיות תמיד בעבר-קרוב (לא עתידי) ביחס ל-now, אחרת בבוקר (לפני
+    // השעה הקבועה) הוא הופך ל-nextVisit במקום "מחר" — תלוי בשעת ההרצה בפועל.
+    const todayEarly = new Date(now); todayEarly.setHours(0, 1, 0, 0);
     const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1); tomorrow.setHours(10, 0, 0, 0);
     const oldInProgress = new Date(now); oldInProgress.setDate(oldInProgress.getDate() - 5);
 
@@ -72,7 +74,7 @@ test("העבודה שלי: ביקורי היום/מחר/בתהליך מוצגי�
       });
     }
     const activeBookings = [
-      { id: 1, status: "scheduled", workflow_status: "assigned", scheduled_at: todayNoon.toISOString(), visit_purpose: "checkup", patient_id: "today-patient", staff_id: 1, patients: { id: "today-patient", full_name: "מטופל היום", phone: "050-1" }, visit_reports: [] },
+      { id: 1, status: "scheduled", workflow_status: "assigned", scheduled_at: todayEarly.toISOString(), visit_purpose: "checkup", patient_id: "today-patient", staff_id: 1, patients: { id: "today-patient", full_name: "מטופל היום", phone: "050-1" }, visit_reports: [] },
       { id: 2, status: "scheduled", workflow_status: "assigned", scheduled_at: tomorrow.toISOString(), visit_purpose: "checkup", patient_id: "tomorrow-patient", staff_id: 1, patients: { id: "tomorrow-patient", full_name: "מטופל מחר", phone: "050-2" }, visit_reports: [] },
       { id: 3, status: "scheduled", workflow_status: "in_progress", scheduled_at: oldInProgress.toISOString(), visit_purpose: "checkup", patient_id: "inprogress-patient", staff_id: 1, patients: { id: "inprogress-patient", full_name: "מטופל בתהליך", phone: "050-3" }, visit_reports: [] },
     ];
