@@ -2,10 +2,11 @@
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
+<script>(function(){try{var l=localStorage.getItem("appLanguage");if(l==="en"){document.documentElement.lang="en";document.documentElement.dir="ltr";}else if(l==="ar"){document.documentElement.lang="ar";document.documentElement.dir="rtl";}}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>בית חם — ההזמנות שלי</title>
+<title data-i18n="myBookings.title">בית חם — ההזמנות שלי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2f7d6e">
@@ -15,94 +16,94 @@
 <body>
 <div class="page">
   <header class="app-header">
-    <div class="brand"><span class="logo">🏠</span> בית חם</div>
+    <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
     <nav>
-      <a href="staff.html">קביעת ביקור חדש</a>
-      <button class="btn btn-ghost" id="reset-btn">התחלה מחדש</button>
+      <a href="staff.html" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
+      <button class="btn btn-ghost" id="reset-btn" data-i18n="common.navReset">התחלה מחדש</button>
     </nav>
   </header>
   <main>
-    <h1>ההזמנות שלי</h1>
+    <h1 data-i18n="myBookings.h1">ההזמנות שלי</h1>
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
 
-    <div class="section-title">גישה מכל מכשיר</div>
+    <div class="section-title" data-i18n="myBookings.accessTitle">גישה מכל מכשיר</div>
     <div class="card card-compact" id="phone-link-card" style="margin-bottom:16px;">
       <p id="phone-link-status" style="color:var(--text-muted); margin-top:0;"></p>
 
       <div id="phone-link-form">
         <div class="field">
-          <label for="phone-link-input">מספר טלפון</label>
+          <label for="phone-link-input" data-i18n="myBookings.phoneNumberLabel">מספר טלפון</label>
           <input type="tel" id="phone-link-input" placeholder="05XXXXXXXX" autocomplete="tel">
         </div>
-        <button class="btn btn-secondary btn-sm" id="phone-link-send-btn">שליחת קוד אימות</button>
+        <button class="btn btn-secondary btn-sm" id="phone-link-send-btn" data-i18n="myBookings.sendCodeButton">שליחת קוד אימות</button>
         <div id="phone-link-code-row" style="display:none; margin-top:10px;">
           <div class="field">
-            <label for="phone-link-code-input">קוד אימות</label>
+            <label for="phone-link-code-input" data-i18n="myBookings.verifyCodeLabel">קוד אימות</label>
             <input type="text" id="phone-link-code-input" inputmode="numeric" maxlength="6" placeholder="123456">
           </div>
-          <button class="btn btn-primary btn-sm" id="phone-link-verify-btn">אימות וקישור</button>
+          <button class="btn btn-primary btn-sm" id="phone-link-verify-btn" data-i18n="myBookings.verifyAndLinkButton">אימות וקישור</button>
         </div>
         <div class="error-msg" id="phone-link-error" role="alert" aria-live="assertive"></div>
       </div>
 
       <details style="margin-top:12px;">
-        <summary style="cursor:pointer; color:var(--text-muted); font-size:13px;">כבר קישרת טלפון ממכשיר אחר? התחברות</summary>
+        <summary style="cursor:pointer; color:var(--text-muted); font-size:13px;" data-i18n="myBookings.alreadyLinkedSummary">כבר קישרת טלפון ממכשיר אחר? התחברות</summary>
         <div style="margin-top:10px;">
           <div class="field">
-            <label for="phone-signin-input">מספר טלפון</label>
+            <label for="phone-signin-input" data-i18n="myBookings.phoneNumberLabel">מספר טלפון</label>
             <input type="tel" id="phone-signin-input" placeholder="05XXXXXXXX" autocomplete="tel">
           </div>
-          <button class="btn btn-secondary btn-sm" id="phone-signin-send-btn">שליחת קוד</button>
+          <button class="btn btn-secondary btn-sm" id="phone-signin-send-btn" data-i18n="myBookings.sendCodeButtonShort">שליחת קוד</button>
           <div id="phone-signin-code-row" style="display:none; margin-top:10px;">
             <div class="field">
-              <label for="phone-signin-code-input">קוד אימות</label>
+              <label for="phone-signin-code-input" data-i18n="myBookings.verifyCodeLabel">קוד אימות</label>
               <input type="text" id="phone-signin-code-input" inputmode="numeric" maxlength="6" placeholder="123456">
             </div>
-            <button class="btn btn-primary btn-sm" id="phone-signin-verify-btn">התחברות</button>
+            <button class="btn btn-primary btn-sm" id="phone-signin-verify-btn" data-i18n="myBookings.signInButton">התחברות</button>
           </div>
           <div class="error-msg" id="phone-signin-error" role="alert" aria-live="assertive"></div>
         </div>
       </details>
     </div>
 
-    <div class="section-title">ביקורים קרובים</div>
+    <div class="section-title" data-i18n="myBookings.upcomingTitle">ביקורים קרובים</div>
     <div id="upcoming-list" aria-live="polite"></div>
     <div id="upcoming-empty" class="empty-state" style="display:none;">
-      אין לך ביקורים מתוכננים. <a href="staff.html">קביעת ביקור חדש</a>
+      <span data-i18n="myBookings.upcomingEmpty">אין לך ביקורים מתוכננים.</span> <a href="staff.html" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
     </div>
 
-    <div class="section-title">היסטוריית ביקורים</div>
+    <div class="section-title" data-i18n="myBookings.pastTitle">היסטוריית ביקורים</div>
     <div id="past-list"></div>
-    <div id="past-empty" class="empty-state" style="display:none;">אין היסטוריית ביקורים.</div>
+    <div id="past-empty" class="empty-state" style="display:none;" data-i18n="myBookings.pastEmpty">אין היסטוריית ביקורים.</div>
 
-    <div class="section-title">בקשת שירות</div>
-    <p style="color:var(--text-muted); margin-top:-8px;">ביקור חד פעמי נקבע ישירות מתוך הזמנים הפנויים בפועל. שירות תקופתי (למשל פעמיים בשבוע למשך חודש) הוא בקשה שנבדקת ומאושרת על ידי הצוות שלנו.</p>
+    <div class="section-title" data-i18n="myBookings.serviceRequestTitle">בקשת שירות</div>
+    <p style="color:var(--text-muted); margin-top:-8px;" data-i18n="myBookings.serviceRequestIntro">ביקור חד פעמי נקבע ישירות מתוך הזמנים הפנויים בפועל. שירות תקופתי (למשל פעמיים בשבוע למשך חודש) הוא בקשה שנבדקת ומאושרת על ידי הצוות שלנו.</p>
     <div class="field">
-      <label for="mb-plan-type">סוג השירות המבוקש</label>
-      <input type="text" id="mb-plan-type" placeholder="לדוגמה: ביקור אחות">
+      <label for="mb-plan-type" data-i18n="myBookings.serviceTypeLabel">סוג השירות המבוקש</label>
+      <input type="text" id="mb-plan-type" data-i18n-placeholder="myBookings.serviceTypePlaceholder" placeholder="לדוגמה: ביקור אחות">
     </div>
     <div class="field">
-      <label for="mb-plan-frequency">תדירות</label>
+      <label for="mb-plan-frequency" data-i18n="myBookings.frequencyLabel">תדירות</label>
       <select id="mb-plan-frequency">
-        <option value="single">חד פעמי</option>
-        <option value="weekly">שבועי</option>
-        <option value="twice_weekly">פעמיים בשבוע</option>
-        <option value="daily">יומי</option>
-        <option value="custom">אחר</option>
+        <option value="single" data-i18n="myBookings.freqSingle">חד פעמי</option>
+        <option value="weekly" data-i18n="myBookings.freqWeekly">שבועי</option>
+        <option value="twice_weekly" data-i18n="myBookings.freqTwiceWeekly">פעמיים בשבוע</option>
+        <option value="daily" data-i18n="myBookings.freqDaily">יומי</option>
+        <option value="custom" data-i18n="myBookings.freqCustom">אחר</option>
       </select>
     </div>
     <div class="field" id="mb-plan-start-field">
-      <label for="mb-plan-start">תאריך התחלה מבוקש</label>
+      <label for="mb-plan-start" data-i18n="myBookings.startDateLabel">תאריך התחלה מבוקש</label>
       <input type="date" id="mb-plan-start">
     </div>
     <div class="field" id="mb-plan-notes-field">
-      <label for="mb-plan-notes">פרטים נוספים</label>
-      <input type="text" id="mb-plan-notes" placeholder="אופציונלי">
+      <label for="mb-plan-notes" data-i18n="myBookings.moreDetailsLabel">פרטים נוספים</label>
+      <input type="text" id="mb-plan-notes" data-i18n-placeholder="myBookings.optionalPlaceholder" placeholder="אופציונלי">
     </div>
     <div class="error-msg" id="mb-plan-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="mb-plan-success" role="status" aria-live="polite"></div>
-    <button class="btn btn-primary" id="mb-plan-submit">שליחת בקשה</button>
-    <a href="staff.html" class="btn btn-primary" id="mb-plan-onetime-link" style="display:none;">מעבר לקביעת תור</a>
+    <button class="btn btn-primary" id="mb-plan-submit" data-i18n="myBookings.submitRequest">שליחת בקשה</button>
+    <a href="staff.html" class="btn btn-primary" id="mb-plan-onetime-link" style="display:none;" data-i18n="myBookings.goToBooking">מעבר לקביעת תור</a>
     <div id="mb-plan-list" style="margin-top:16px;"></div>
   </main>
 </div>
@@ -110,8 +111,12 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="i18n.js"></script>
 <script>
   (async () => {
+    applyTranslations();
+    renderLangSwitch();
+
     const user = await ensureGuestSession();
     if (!user) return;
     wireReset();
@@ -137,23 +142,23 @@
       const statusEl = document.getElementById("phone-link-status");
       const formEl = document.getElementById("phone-link-form");
       if (u.phone) {
-        statusEl.textContent = `מחובר/ת עם הטלפון ${u.phone} — ניתן להיכנס מכל מכשיר איתו (בכפוף להפעלת שירות SMS).`;
+        statusEl.textContent = tf("myBookings.phoneLinkStatusLinked", { phone: u.phone });
         formEl.style.display = "none";
         return;
       }
-      statusEl.textContent = "קישור מספר טלפון מאפשר לך לגשת להזמנות שלך גם ממכשיר אחר.";
+      statusEl.textContent = t("myBookings.phoneLinkStatusDefault");
 
       let pendingPhone = null;
       document.getElementById("phone-link-send-btn").addEventListener("click", async () => {
         const errEl = document.getElementById("phone-link-error");
         hideError(errEl);
         const phone = normalizeIsraeliPhone(document.getElementById("phone-link-input").value);
-        if (!phone) { showError(errEl, "יש להזין מספר טלפון תקין"); return; }
+        if (!phone) { showError(errEl, t("myBookings.invalidPhone")); return; }
         const btn = document.getElementById("phone-link-send-btn");
-        setButtonLoading(btn, true, "שולח...");
+        setButtonLoading(btn, true, t("myBookings.sending"));
         const { error } = await supabaseClient.auth.updateUser({ phone });
         setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
         pendingPhone = phone;
         document.getElementById("phone-link-code-row").style.display = "block";
       });
@@ -161,12 +166,12 @@
         const errEl = document.getElementById("phone-link-error");
         hideError(errEl);
         const code = document.getElementById("phone-link-code-input").value.trim();
-        if (!pendingPhone || !code) { showError(errEl, "יש להזין את הקוד שהתקבל"); return; }
+        if (!pendingPhone || !code) { showError(errEl, t("myBookings.missingCode")); return; }
         const btn = document.getElementById("phone-link-verify-btn");
-        setButtonLoading(btn, true, "מאמת...");
+        setButtonLoading(btn, true, t("myBookings.verifying"));
         const { error } = await supabaseClient.auth.verifyOtp({ phone: pendingPhone, token: code, type: "phone_change" });
         setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
         location.reload();
       });
     }
@@ -177,12 +182,12 @@
         const errEl = document.getElementById("phone-signin-error");
         hideError(errEl);
         const phone = normalizeIsraeliPhone(document.getElementById("phone-signin-input").value);
-        if (!phone) { showError(errEl, "יש להזין מספר טלפון תקין"); return; }
+        if (!phone) { showError(errEl, t("myBookings.invalidPhone")); return; }
         const btn = document.getElementById("phone-signin-send-btn");
-        setButtonLoading(btn, true, "שולח...");
+        setButtonLoading(btn, true, t("myBookings.sending"));
         const { error } = await supabaseClient.auth.signInWithOtp({ phone });
         setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
         pendingPhone = phone;
         document.getElementById("phone-signin-code-row").style.display = "block";
       });
@@ -190,12 +195,12 @@
         const errEl = document.getElementById("phone-signin-error");
         hideError(errEl);
         const code = document.getElementById("phone-signin-code-input").value.trim();
-        if (!pendingPhone || !code) { showError(errEl, "יש להזין את הקוד שהתקבל"); return; }
+        if (!pendingPhone || !code) { showError(errEl, t("myBookings.missingCode")); return; }
         const btn = document.getElementById("phone-signin-verify-btn");
-        setButtonLoading(btn, true, "מתחבר/ת...");
+        setButtonLoading(btn, true, t("myBookings.signingIn"));
         const { error } = await supabaseClient.auth.verifyOtp({ phone: pendingPhone, token: code, type: "sms" });
         setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
         location.reload();
       });
     })();
@@ -204,7 +209,7 @@
 
     async function loadBookings() {
       hideError(errorBox);
-      showLoadingRow(document.getElementById("upcoming-list"), "טוען את ההזמנות שלך...");
+      showLoadingRow(document.getElementById("upcoming-list"), t("myBookings.loadingBookings"));
       document.getElementById("past-list").innerHTML = "";
       document.getElementById("upcoming-empty").style.display = "none";
       document.getElementById("past-empty").style.display = "none";
@@ -222,7 +227,7 @@
 
       if (error) {
         document.getElementById("upcoming-list").innerHTML = "";
-        showError(errorBox, "שגיאה בטעינת ההזמנות: " + friendlyErrorMessage(error));
+        showError(errorBox, t("myBookings.errLoadingBookings") + friendlyErrorMessageLocalized(error));
         return;
       }
 
@@ -243,28 +248,28 @@
       list.forEach((b) => {
         const date = new Date(b.scheduled_at);
         const staffLabel = b.medical_staff
-          ? `${escapeHtml(b.medical_staff.full_name)} (${ROLE_LABELS[b.medical_staff.role] || b.medical_staff.role})`
+          ? `${escapeHtml(b.medical_staff.full_name)} (${roleLabel(b.medical_staff.role)})`
           : "—";
         const item = document.createElement("div");
         item.className = "booking-item";
         item.innerHTML = `
           <div class="info">
-            <div class="purpose">${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</div>
-            <div class="meta">${staffLabel} · ${formatDateHe(date)} ${formatTimeHe(date)}</div>
-            ${b.notes ? `<div class="meta">הערה: ${escapeHtml(b.notes)}</div>` : ""}
+            <div class="purpose">${purposeLabel(b.visit_purpose)}</div>
+            <div class="meta">${staffLabel} · ${formatDateLocalized(date)} ${formatTimeLocalized(date)}</div>
+            ${b.notes ? `<div class="meta">${t("myBookings.noteLabel")}${escapeHtml(b.notes)}</div>` : ""}
           </div>
           <div class="item-actions" style="display:flex; align-items:center; gap:10px;">
-            <span class="status-badge ${b.status}">${STATUS_LABELS[b.status] || b.status}</span>
+            <span class="status-badge ${b.status}">${statusLabel(b.status)}</span>
           </div>
         `;
         if (cancellable) {
           const cancelBtn = document.createElement("button");
           cancelBtn.className = "btn btn-danger";
-          cancelBtn.textContent = "ביטול";
+          cancelBtn.textContent = t("myBookings.cancelButton");
           cancelBtn.addEventListener("click", async () => {
-            if (!confirm("לבטל את הביקור?")) return;
+            if (!confirm(t("myBookings.cancelConfirm"))) return;
             hideError(errorBox);
-            setButtonLoading(cancelBtn, true, "מבטל...");
+            setButtonLoading(cancelBtn, true, t("myBookings.cancelling"));
             let error;
             try {
               ({ error } = await supabaseClient
@@ -275,7 +280,7 @@
               error = err;
             }
             if (error) {
-              showError(errorBox, "שגיאה בביטול ההזמנה: " + friendlyErrorMessage(error));
+              showError(errorBox, t("myBookings.errCancelling") + friendlyErrorMessageLocalized(error));
               setButtonLoading(cancelBtn, false);
               return;
             }
@@ -287,14 +292,14 @@
         if (!cancellable && report) {
           const viewBtn = document.createElement("button");
           viewBtn.className = "btn btn-secondary";
-          viewBtn.textContent = "צפייה בדוח ביקור";
+          viewBtn.textContent = t("myBookings.viewReport");
           const detailsDiv = document.createElement("div");
           detailsDiv.style.display = "none";
-          detailsDiv.innerHTML = visitReportDetailsHtml(report);
+          detailsDiv.innerHTML = visitReportDetailsHtmlLocalized(report);
           viewBtn.addEventListener("click", () => {
             const open = detailsDiv.style.display !== "none";
             detailsDiv.style.display = open ? "none" : "block";
-            viewBtn.textContent = open ? "צפייה בדוח ביקור" : "הסתרת דוח ביקור";
+            viewBtn.textContent = open ? t("myBookings.viewReport") : t("myBookings.hideReport");
           });
           item.querySelector(".item-actions").appendChild(viewBtn);
           item.appendChild(detailsDiv);
@@ -311,9 +316,9 @@
       listEl.innerHTML = (data && data.length) ? data.map((p) => `
         <div class="booking-item"><div class="info">
           <div class="purpose">${escapeHtml(p.service_type)}</div>
-          <div class="meta">${formatDateHe(new Date(p.start_date))} · ${SERVICE_PLAN_STATUS_LABELS[p.status] || p.status}</div>
+          <div class="meta">${formatDateLocalized(new Date(p.start_date))} · ${servicePlanStatusLabel(p.status)}</div>
         </div></div>
-      `).join("") : `<p style="color:var(--text-muted); font-size:14px;">אין בקשות שירות קודמות.</p>`;
+      `).join("") : `<p style="color:var(--text-muted); font-size:14px;">${t("myBookings.noPastPlanRequests")}</p>`;
     }
 
     const frequencySelect = document.getElementById("mb-plan-frequency");
@@ -332,9 +337,9 @@
       hideError(errEl);
       const serviceType = document.getElementById("mb-plan-type").value.trim();
       const startDate = document.getElementById("mb-plan-start").value;
-      if (!serviceType || !startDate) { showError(errEl, "יש להזין סוג שירות ותאריך התחלה"); return; }
+      if (!serviceType || !startDate) { showError(errEl, t("myBookings.fillServiceFields")); return; }
       const btn = document.getElementById("mb-plan-submit");
-      setButtonLoading(btn, true, "שולח...");
+      setButtonLoading(btn, true, t("myBookings.sending"));
       const { error } = await supabaseClient.from("service_plans").insert({
         patient_id: user.id,
         service_type: serviceType,
@@ -344,12 +349,12 @@
         status: "requested",
       });
       setButtonLoading(btn, false);
-      if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
+      if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
       document.getElementById("mb-plan-type").value = "";
       document.getElementById("mb-plan-start").value = "";
       document.getElementById("mb-plan-notes").value = "";
       const successEl = document.getElementById("mb-plan-success");
-      successEl.textContent = "הבקשה נשלחה — הצוות שלנו יבדוק ויחזור אליך.";
+      successEl.textContent = t("myBookings.serviceRequestSuccess");
       successEl.classList.add("show");
       setTimeout(() => successEl.classList.remove("show"), 3000);
       loadServicePlanRequests();
