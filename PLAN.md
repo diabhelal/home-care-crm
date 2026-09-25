@@ -1,5 +1,11 @@
 # תוכנית עבודה — מערכת CRM לביקורי בית
 
+> ⚠️ **מסמך היסטורי.** זה תיעוד תכנון ה-MVP המקורי (3 טבלאות בלבד) — כל השלבים כאן
+> הושלמו מזמן, והפרויקט גדל משמעותית מעבר לתיאור הזה (16 טבלאות, פאנל צוות נפרד,
+> שירות תחזית, Edge Function ועוד). **למצב הנוכחי ראה [README.md](./README.md).**
+> נשאר כאן בעיקר כתיעוד ערכי של החלטת הארכיטקטורה "הזמנה בלי הרשמה" (Anonymous
+> Sign-ins) בהמשך המסמך, ולהיסטוריה.
+
 ## רקע
 מערכת CRM לחברת שירותי טיפול רפואי וביקורי בית. מטופל נכנס למערכת, בוחר איש/אשת צוות רפואי, בוחר מטרת ביקור, ובוחר תאריך ושעה מתוך הזמנים הפנויים של איש הצוות.
 
@@ -89,14 +95,13 @@ RLS: מטופל רואה/יוצר/מעדכן (ביטול) רק הזמנות שה
 
 Frontend: `index.html` הפך מדף התחברות לדף נחיתה עם קטלוג שירותים (לפי `role` מ-`medical_staff`) ו-CTA; `staff.html` תומך בסינון `?role=`; `booking.html` כולל עכשיו טופס "הפרטים שלך" (שם/טלפון/כתובת) לפני אישור ההזמנה, וקורא ל-`savePatientDetails()` (upsert) לפני יצירת ה-booking.
 
-## מיקום הפרויקט (עודכן 2026-09-02)
-הפרויקט הועבר מ-`/Users/helaldiab/med` אל:
+## מיקום הפרויקט (עודכן 2026-09-25 — הנתיב הקודם כאן היה שגוי/מיושן)
 ```
-/Users/helaldiab/Desktop/פיתוח AI/home-care-crm
+/Users/helaldiab/home-care-crm
 ```
-כל הפקודות (הרצת שרת מקומי, `supabase` CLI וכו') יש להריץ מהנתיב החדש. השרת המקומי מופעל כך (**עם `dangerouslyDisableSandbox: true`**, אחרת הדפדפן האמיתי לא יגיע אליו):
+הרצת שרת מקומי:
 ```
-cd "/Users/helaldiab/Desktop/פיתוח AI/home-care-crm/public" && nohup python3 -m http.server 8765 > /tmp/http_server.log 2>&1 & disown
+cd /Users/helaldiab/home-care-crm/public && python3 -m http.server 8080
 ```
 
 ## מצב פתוח / להמשך
@@ -106,7 +111,7 @@ cd "/Users/helaldiab/Desktop/פיתוח AI/home-care-crm/public" && nohup python
 
 ## מבנה קבצים
 ```
-/Users/helaldiab/Desktop/פיתוח AI/home-care-crm/
+/Users/helaldiab/home-care-crm/
   supabase/
     config.toml
     migrations/
