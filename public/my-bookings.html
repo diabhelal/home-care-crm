@@ -105,6 +105,16 @@
     <button class="btn btn-primary btn-full" id="mb-plan-submit" data-i18n="myBookings.submitRequest">שליחת בקשה</button>
     <a href="staff.html" class="btn btn-primary btn-full" id="mb-plan-onetime-link" style="display:none;" data-i18n="myBookings.goToBooking">מעבר לקביעת תור</a>
     <div id="mb-plan-list" style="margin-top:16px;"></div>
+
+    <div class="section-title" data-i18n="myBookings.messagesTitle">ההודעות שלי</div>
+    <div id="mb-messages-thread" style="display:flex; flex-direction:column; gap:10px; margin-bottom:16px;"></div>
+    <div id="mb-messages-empty" class="empty-state" style="display:none;" data-i18n="myBookings.messagesEmpty">אין הודעות עדיין. אפשר לשלוח פנייה מדף הבית.</div>
+    <div class="field">
+      <label for="mb-message-reply" data-i18n="myBookings.messageReplyLabel">הוספת הודעה</label>
+      <textarea id="mb-message-reply" rows="3" data-i18n-placeholder="myBookings.messageReplyPlaceholder" placeholder="כתיבת הודעה לצוות..."></textarea>
+    </div>
+    <div class="error-msg" id="mb-message-error" role="alert" aria-live="assertive"></div>
+    <button class="btn btn-primary" id="mb-message-send" data-i18n="myBookings.messageSendButton">שליחת הודעה</button>
   </main>
 </div>
 
@@ -360,8 +370,55 @@
       loadServicePlanRequests();
     });
 
+    // ===== ההודעות שלי — שרשור דו-כיווני מול הצוות (patient_contacts) =====
+    // אותה טבלה שמשמשת את טופס "יצירת קשר" בדף הבית: is_from_patient מבדיל כיוון,
+    // אין מנגנון שיחות נפרד — שרשור אחד רציף למטופל, בדיוק כמו בצד הניהול.
+    async function loadMessages() {
+      const threadEl = document.getElementById("mb-messages-thread");
+      const emptyEl = document.getElementById("mb-messages-empty");
+      const { data, error } = await supabaseClient
+        .from("patient_contacts")
+        .select("*")
+        .eq("patient_id", user.id)
+        .order("created_at", { ascending: true });
+      if (error || !data || data.length === 0) {
+        threadEl.innerHTML = "";
+        emptyEl.style.display = "block";
+        return;
+      }
+      emptyEl.style.display = "none";
+      threadEl.innerHTML = data.map((m) => `
+        <div style="align-self:${m.is_from_patient ? "flex-end" : "flex-start"}; max-width:85%; background:${m.is_from_patient ? "var(--primary-light)" : "var(--border)"}; border-radius:var(--radius-sm); padding:10px 12px;">
+          <div style="font-size:12px; color:var(--text-muted); margin-bottom:4px;">${m.is_from_patient ? t("myBookings.messageFromMe") : t("myBookings.messageFromStaff")} · ${formatDateLocalized(new Date(m.created_at))} ${formatTimeLocalized(new Date(m.created_at))}${m.subject ? " · " + escapeHtml(m.subject) : ""}</div>
+          <div style="white-space:pre-wrap;">${escapeHtml(m.body)}</div>
+        </div>
+      `).join("");
+      threadEl.scrollTop = threadEl.scrollHeight;
+    }
+
+    document.getElementById("mb-message-send").addEventListener("click", async () => {
+      const btn = document.getElementById("mb-message-send");
+      const errEl = document.getElementById("mb-message-error");
+      hideError(errEl);
+      const textarea = document.getElementById("mb-message-reply");
+      const body = textarea.value.trim();
+      if (!body) { showError(errEl, t("myBookings.messageEmptyError")); return; }
+      setButtonLoading(btn, true, t("myBookings.sending"));
+      const { error } = await supabaseClient.from("patient_contacts").insert({
+        patient_id: user.id,
+        is_from_patient: true,
+        channel: "message",
+        body,
+      });
+      setButtonLoading(btn, false);
+      if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
+      textarea.value = "";
+      loadMessages();
+    });
+
     loadBookings();
     loadServicePlanRequests();
+    loadMessages();
   })();
 </script>
 </body>
