@@ -5,7 +5,7 @@
 // API תמיד הולכות ישירות לרשת. שמירת טיוטות אופליין (visit_reports) מטופלת בנפרד
 // ב-app.js (תור-סנכרון מפורש ב-localStorage), לא כאן.
 
-const CACHE_VERSION = "home-care-crm-shell-v4";
+const CACHE_VERSION = "home-care-crm-shell-v7";
 
 const APP_SHELL = [
   "index.html",
@@ -24,6 +24,7 @@ const APP_SHELL = [
   "icon.svg",
   "icon-192.png",
   "icon-512.png",
+  "images/hero-medical-check.jpg",
 ];
 
 // לא קוראים ל-skipWaiting() אוטומטית כאן: worker חדש נשאר ב-waiting עד שהעמוד
