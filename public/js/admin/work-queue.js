@@ -81,9 +81,11 @@ function renderQueueStaffCell(td, b) {
   td.appendChild(changeBtn);
 }
 
-async function startVisit(b) {
+async function startVisit(b, btn) {
   if (b.workflow_status !== "in_progress") {
+    if (btn) setButtonLoading(btn, true, "מתחיל...");
     const { error } = await supabaseClient.from("bookings").update({ workflow_status: "in_progress" }).eq("id", b.id);
+    if (btn) setButtonLoading(btn, false);
     if (error) { showError(appError, friendlyErrorMessage(error)); return; }
     b.workflow_status = "in_progress";
     loadBookings();
@@ -158,15 +160,15 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
         const startBtn = document.createElement("button");
         startBtn.className = "btn btn-primary btn-sm";
         startBtn.textContent = b.workflow_status === "in_progress" ? "המשך ביקור" : "התחלת ביקור";
-        startBtn.addEventListener("click", () => startVisit(b));
+        startBtn.addEventListener("click", () => startVisit(b, startBtn));
         const completeBtn = document.createElement("button");
         completeBtn.className = "btn btn-secondary btn-sm";
         completeBtn.textContent = "סמן כהושלם";
-        completeBtn.addEventListener("click", () => updateBookingStatus(b.id, "completed"));
+        completeBtn.addEventListener("click", () => updateBookingStatus(b.id, "completed", completeBtn));
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "btn btn-danger btn-sm";
         cancelBtn.textContent = "ביטול";
-        cancelBtn.addEventListener("click", () => updateBookingStatus(b.id, "cancelled"));
+        cancelBtn.addEventListener("click", () => updateBookingStatus(b.id, "cancelled", cancelBtn));
         actionsTd.appendChild(startBtn);
         actionsTd.appendChild(completeBtn);
         actionsTd.appendChild(cancelBtn);
@@ -256,13 +258,16 @@ document.getElementById("work-queue-search").addEventListener("input", (e) => {
   workQueueSearchDebounce = setTimeout(() => searchWorkQueue(value), 300);
 });
 
-async function updateBookingStatus(id, status) {
+async function updateBookingStatus(id, status, btn) {
   hideError(appError);
+  if (btn) setButtonLoading(btn, true, "מעדכן...");
   let error;
   try {
     ({ error } = await supabaseClient.from("bookings").update({ status }).eq("id", id));
   } catch (err) {
     error = err;
+  } finally {
+    if (btn) setButtonLoading(btn, false);
   }
   if (error) { showError(appError, friendlyErrorMessage(error)); return; }
   flashSuccess("הסטטוס עודכן");

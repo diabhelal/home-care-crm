@@ -26,7 +26,7 @@
     <h1 class="visually-hidden" data-i18n="booking.h1Hidden">קביעת תור — בית חם</h1>
     <div class="steps">
       <div class="step done" data-i18n="staff.step1">1. בחירת צוות</div>
-      <div class="step active" data-i18n="staff.step2">2. הזמנה ופרטים</div>
+      <div class="step active" aria-current="step" data-i18n="staff.step2">2. הזמנה ופרטים</div>
     </div>
 
     <div class="summary-box">
@@ -35,19 +35,20 @@
     </div>
 
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
-    <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
 
-    <h2 data-i18n="booking.purposeTitle">מטרת הביקור</h2>
-    <div class="chips" id="purpose-chips"></div>
+    <div id="booking-form-section">
+      <h2 data-i18n="booking.purposeTitle">מטרת הביקור</h2>
+      <div class="chips" id="purpose-chips"></div>
 
-    <h2 data-i18n="booking.dateTitle">תאריך</h2>
-    <div class="date-list" id="date-list"></div>
+      <h2 data-i18n="booking.dateTitle">תאריך</h2>
+      <div class="date-list" id="date-list"></div>
 
-    <div id="slots-section" style="display:none;">
-      <h2 data-i18n="booking.timeTitle">שעה פנויה</h2>
-      <div class="slot-grid" id="slot-grid" aria-live="polite"></div>
+      <div id="slots-section" style="display:none;">
+        <h2 data-i18n="booking.timeTitle">שעה פנויה</h2>
+        <div class="slot-grid" id="slot-grid" aria-live="polite"></div>
+      </div>
+      <div id="no-slots" class="empty-state" style="display:none;" data-i18n="booking.noSlots">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
     </div>
-    <div id="no-slots" class="empty-state" style="display:none;" data-i18n="booking.noSlots">אין שעות פנויות בתאריך זה. נסה/נסי תאריך אחר.</div>
 
     <div id="patient-details-section" style="display:none;">
       <h2 data-i18n="booking.detailsTitle">עוד רגע וסיימנו — הפרטים שלך</h2>
@@ -76,7 +77,18 @@
 
       <p class="trust-strip" data-i18n="booking.trustStrip">🔒 צוות מוסמך ומנוסה · הפרטים שלך משמשים רק לתיאום הביקור ואינם נמסרים לגורם שלישי</p>
       <div class="actions-row">
-        <button class="btn btn-primary" id="confirm-btn" disabled data-i18n="booking.confirmButton">אישור הזמנה</button>
+        <button class="btn btn-primary btn-full" id="confirm-btn" disabled data-i18n="booking.confirmButton">אישור הזמנה</button>
+      </div>
+    </div>
+
+    <div id="confirmation-panel" class="card" style="display:none;">
+      <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
+      <p><span data-i18n="booking.staffLabel">איש/אשת צוות:</span> <strong id="confirmed-staff"></strong></p>
+      <p><span data-i18n="booking.confirmedPurposeLabel">מטרת הביקור:</span> <strong id="confirmed-purpose"></strong></p>
+      <p><span data-i18n="booking.confirmedWhenLabel">מועד:</span> <strong id="confirmed-when"></strong></p>
+      <p><span data-i18n="booking.confirmedAddressLabel">כתובת:</span> <strong id="confirmed-address"></strong></p>
+      <div class="actions-row">
+        <a href="my-bookings.html" class="btn btn-primary btn-full" data-i18n="booking.confirmedGoToBookings">מעבר להזמנות שלי</a>
       </div>
     </div>
   </main>
@@ -257,7 +269,10 @@
     }
 
     [nameInput, nationalIdInput, phoneInput, addressInput].forEach((input) => {
-      input.addEventListener("input", () => hideError(errorBox));
+      input.addEventListener("input", () => {
+        hideError(errorBox);
+        input.removeAttribute("aria-invalid");
+      });
     });
 
     let submittingBooking = false;
@@ -273,10 +288,17 @@
       const address = addressInput.value.trim();
       if (!fullName || !nationalId || !phone || !address) {
         showError(errorBox, t("booking.fillAllFields"));
+        if (!fullName) nameInput.setAttribute("aria-invalid", "true");
+        if (!nationalId) nationalIdInput.setAttribute("aria-invalid", "true");
+        if (!phone) phoneInput.setAttribute("aria-invalid", "true");
+        if (!address) addressInput.setAttribute("aria-invalid", "true");
+        (!fullName ? nameInput : !nationalId ? nationalIdInput : !phone ? phoneInput : addressInput).focus();
         return;
       }
       if (!/^\d{5,9}$/.test(nationalId)) {
         showError(errorBox, t("booking.invalidId"));
+        nationalIdInput.setAttribute("aria-invalid", "true");
+        nationalIdInput.focus();
         return;
       }
 
@@ -315,10 +337,17 @@
         return;
       }
 
-      successBox.textContent = t("booking.bookingSuccess");
+      successBox.textContent = t("booking.confirmedTitle");
       successBox.classList.add("show");
+      document.getElementById("confirmed-staff").textContent = `${staff.full_name} (${roleLabel(staff.role)})`;
+      document.getElementById("confirmed-purpose").textContent = purposeLabel(selectedPurpose);
+      document.getElementById("confirmed-when").textContent = `${formatDateLocalized(selectedSlot)} ${formatTimeLocalized(selectedSlot)}`;
+      document.getElementById("confirmed-address").textContent = address;
+      document.getElementById("booking-form-section").style.display = "none";
+      patientDetailsSection.style.display = "none";
+      document.getElementById("confirmation-panel").style.display = "block";
+      document.getElementById("confirmation-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       sessionStorage.removeItem("selected_staff");
-      setTimeout(() => { window.location.href = "my-bookings.html"; }, 1200);
     });
   })();
 </script>

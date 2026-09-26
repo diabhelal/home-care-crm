@@ -70,7 +70,7 @@ const I18N_STRINGS = {
       title: "בית חם — טיפול רפואי עד הבית",
       heroEyebrow: "🏠 פותרים לך את הבעיה בבית",
       heroTitle: "טיפול רפואי מקצועי, ישירות לביתך",
-      heroSubtitle: "אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.",
+      heroSubtitle: "אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים מוסמכים — קובעים תוך דקות, בלי הרשמה ובלי סיסמה.",
       heroCta: "הזמנת ביקור עכשיו",
       heroTrustSingle: "✅ איש צוות מוסמך אחד זמין כרגע",
       heroTrustPlural: "✅ {count} אנשי צוות מוסמכים זמינים כרגע",
@@ -83,7 +83,6 @@ const I18N_STRINGS = {
       why1Title: "צוות מוסמך ומנוסה", why1Text: "כל אנשי הצוות מורשים ובעלי ניסיון בטיפול ביתי",
       why2Title: "קביעת תור מיידית", why2Text: "בוחרים תאריך ושעה פנויים ומקבלים אישור מיידי",
       why3Title: "בלי הרשמה מיותרת", why3Text: "מזמינים תוך דקה, הפרטים שלכם נשמרים רק אצלכם",
-      ctaTitle: "מוכנים להתחיל?", ctaText: "קביעת ביקור בית לוקחת פחות מדקה — בלי הרשמה, בלי סיסמה.", ctaButton: "בואו נתחיל",
       contactTitle: "יצירת קשר",
       contactIntro: "שאלה לפני שקובעים ביקור? לפניות שאינן דחופות — למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.",
       contactNameLabel: "שם מלא", contactPhoneLabel: "טלפון (אופציונלי, לחזרה אליך)",
@@ -117,7 +116,7 @@ const I18N_STRINGS = {
       detailsSubtitle: "נשמש רק כדי לתאם את הביקור — בלי הרשמה ובלי סיסמה. שדות עם * הם חובה.",
       nameLabel: "שם מלא *", namePlaceholder: "לדוגמה: ישראל ישראלי",
       idLabel: "תעודת זהות *", idPlaceholder: "9 ספרות",
-      idHelp: "משמשת לזיהוי מדויק שלך בתיק הרפואי שלך במערכת — לא נשתף עם צד שלישי.",
+      idHelp: "משמשת לזיהוי מדויק שלך בתיק הרפואי שלך במערכת — לא ישותפו עם צד שלישי.",
       phoneLabel: "טלפון *", phonePlaceholder: "050-1234567",
       addressLabel: "כתובת לביקור *", addressPlaceholder: "רחוב, מספר בית ועיר",
       notesLabel: "הערות (אופציונלי)", notesPlaceholder: "לדוגמה: יש להתקשר לפני ההגעה",
@@ -129,7 +128,9 @@ const I18N_STRINGS = {
       savingBooking: "שומר הזמנה...",
       slotTaken: "מצטערים, השעה הזו נתפסה זה עתה. נא לבחור שעה אחרת.",
       errSavingBooking: "שגיאה בשמירת ההזמנה: ",
-      bookingSuccess: "ההזמנה נקבעה בהצלחה! מעביר אותך לרשימת ההזמנות שלך...",
+      confirmedTitle: "ההזמנה נקבעה בהצלחה!",
+      confirmedPurposeLabel: "מטרת הביקור:", confirmedWhenLabel: "מועד:", confirmedAddressLabel: "כתובת:",
+      confirmedGoToBookings: "מעבר להזמנות שלי",
     },
     myBookings: {
       title: "בית חם — ההזמנות שלי",
@@ -198,7 +199,7 @@ const I18N_STRINGS = {
       title: "Warm Home — Home Medical Care",
       heroEyebrow: "🏠 We solve the problem for you, at home",
       heroTitle: "Professional medical care, straight to your door",
-      heroSubtitle: "Nurses, doctors, physiotherapists and caregivers — book a home visit in minutes, no sign-up and no password.",
+      heroSubtitle: "Licensed nurses, doctors, physiotherapists and caregivers — book in minutes, no sign-up and no password.",
       heroCta: "Book a Visit Now",
       heroTrustSingle: "✅ One qualified staff member available now",
       heroTrustPlural: "✅ {count} qualified staff members available now",
@@ -211,7 +212,6 @@ const I18N_STRINGS = {
       why1Title: "Qualified, experienced staff", why1Text: "All our staff are licensed and experienced in home care",
       why2Title: "Instant booking", why2Text: "Pick an available date and time and get instant confirmation",
       why3Title: "No unnecessary sign-up", why3Text: "Book in under a minute — your details stay with you",
-      ctaTitle: "Ready to get started?", ctaText: "Booking a home visit takes less than a minute — no sign-up, no password.", ctaButton: "Let's Get Started",
       contactTitle: "Contact Us",
       contactIntro: "Have a question before booking? For non-urgent inquiries only — for a medical emergency, please contact emergency services directly.",
       contactNameLabel: "Full name", contactPhoneLabel: "Phone (optional, so we can call you back)",
@@ -257,7 +257,9 @@ const I18N_STRINGS = {
       savingBooking: "Saving booking...",
       slotTaken: "Sorry, this time slot was just taken. Please choose another time.",
       errSavingBooking: "Error saving booking: ",
-      bookingSuccess: "Your visit has been booked successfully! Redirecting you to your bookings...",
+      confirmedTitle: "Your visit has been booked successfully!",
+      confirmedPurposeLabel: "Visit purpose:", confirmedWhenLabel: "When:", confirmedAddressLabel: "Address:",
+      confirmedGoToBookings: "Go to My Bookings",
     },
     myBookings: {
       title: "Warm Home — My Bookings",
@@ -326,7 +328,7 @@ const I18N_STRINGS = {
       title: "بيت دافئ — رعاية طبية منزلية",
       heroEyebrow: "🏠 نحلّ لك المشكلة، في المنزل",
       heroTitle: "رعاية طبية احترافية، مباشرة إلى بابك",
-      heroSubtitle: "ممرضون وأطباء وأخصائيو علاج طبيعي ومقدمو رعاية — احجز زيارة منزلية خلال دقائق، دون تسجيل ودون كلمة مرور.",
+      heroSubtitle: "ممرضون وأطباء وأخصائيو علاج طبيعي ومقدمو رعاية مرخّصون — احجز خلال دقائق، دون تسجيل ودون كلمة مرور.",
       heroCta: "احجز زيارة الآن",
       heroTrustSingle: "✅ عضو طاقم مؤهل واحد متاح الآن",
       heroTrustPlural: "✅ {count} من أعضاء الطاقم المؤهلين متاحون الآن",
@@ -339,7 +341,6 @@ const I18N_STRINGS = {
       why1Title: "طاقم مؤهل وذو خبرة", why1Text: "جميع أعضاء الطاقم مرخصون وذوو خبرة في الرعاية المنزلية",
       why2Title: "حجز فوري", why2Text: "اختر تاريخًا ووقتًا متاحين واحصل على تأكيد فوري",
       why3Title: "دون تسجيل غير ضروري", why3Text: "احجز خلال دقيقة واحدة، بياناتك تبقى معك فقط",
-      ctaTitle: "هل أنت مستعد للبدء؟", ctaText: "حجز زيارة منزلية يستغرق أقل من دقيقة — دون تسجيل، دون كلمة مرور.", ctaButton: "لنبدأ",
       contactTitle: "تواصل معنا",
       contactIntro: "لديك سؤال قبل الحجز؟ للاستفسارات غير العاجلة فقط — في حالات الطوارئ الطبية يُرجى التواصل مباشرة مع خدمات الطوارئ.",
       contactNameLabel: "الاسم الكامل", contactPhoneLabel: "الهاتف (اختياري، للتواصل معك)",
@@ -385,7 +386,9 @@ const I18N_STRINGS = {
       savingBooking: "جارٍ حفظ الحجز...",
       slotTaken: "عذرًا، تم للتو حجز هذا الوقت. يرجى اختيار وقت آخر.",
       errSavingBooking: "خطأ في حفظ الحجز: ",
-      bookingSuccess: "تم حجز زيارتك بنجاح! جارٍ تحويلك إلى حجوزاتك...",
+      confirmedTitle: "تم حجز زيارتك بنجاح!",
+      confirmedPurposeLabel: "غرض الزيارة:", confirmedWhenLabel: "الموعد:", confirmedAddressLabel: "العنوان:",
+      confirmedGoToBookings: "الانتقال إلى حجوزاتي",
     },
     myBookings: {
       title: "بيت دافئ — حجوزاتي",
@@ -505,27 +508,22 @@ function applyTranslations(root = document) {
 const LANG_NATIVE_NAMES = { he: "עב", en: "EN", ar: "عر" };
 const LANG_FULL_NAMES = { he: "עברית", en: "English", ar: "العربية" };
 
+// בורר שפה קומפקטי — <select> סמנטי יחיד במקום 3 כפתורים שווי-משקל (נגיש מהקופסה,
+// בלי JS מותאם אישית להרכבת dropdown/focus-trap).
 function renderLangSwitch() {
   const nav = document.querySelector(".app-header nav");
   if (!nav || nav.querySelector(".lang-switch")) return;
-  const wrap = document.createElement("div");
-  wrap.className = "lang-switch";
-  wrap.setAttribute("role", "group");
-  wrap.setAttribute("aria-label", "שפה / Language / اللغة");
+  const select = document.createElement("select");
+  select.className = "lang-switch";
+  select.setAttribute("aria-label", "שפה / Language / اللغة");
   const current = getLang();
   SUPPORTED_LANGS.forEach((code) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = LANG_NATIVE_NAMES[code];
-    btn.title = LANG_FULL_NAMES[code];
-    btn.setAttribute("aria-label", LANG_FULL_NAMES[code]);
-    btn.lang = code;
-    if (code === current) {
-      btn.classList.add("active");
-      btn.setAttribute("aria-current", "true");
-    }
-    btn.addEventListener("click", () => { if (code !== getLang()) setLang(code); });
-    wrap.appendChild(btn);
+    const opt = document.createElement("option");
+    opt.value = code;
+    opt.textContent = LANG_FULL_NAMES[code];
+    if (code === current) opt.selected = true;
+    select.appendChild(opt);
   });
-  nav.appendChild(wrap);
+  select.addEventListener("change", () => { if (select.value !== getLang()) setLang(select.value); });
+  nav.appendChild(select);
 }

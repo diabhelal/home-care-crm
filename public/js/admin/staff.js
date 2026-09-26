@@ -59,7 +59,7 @@ async function loadStaff() {
     const delBtn = document.createElement("button");
     delBtn.className = "btn btn-danger btn-sm";
     delBtn.textContent = "מחיקה";
-    delBtn.addEventListener("click", () => deleteStaff(s.id, s.full_name));
+    delBtn.addEventListener("click", () => deleteStaff(s.id, s.full_name, delBtn));
     actionsTd.appendChild(editBtn);
     actionsTd.appendChild(delBtn);
     tbody.appendChild(tr);
@@ -106,14 +106,17 @@ async function createStaffLogin(staff, btn) {
   loadStaff();
 }
 
-async function deleteStaff(id, name) {
+async function deleteStaff(id, name, btn) {
   if (!confirm(`למחוק את ${name}? פעולה זו תמחק גם את כל ההזמנות המשויכות אליו/ה.`)) return;
   hideError(appError);
+  if (btn) setButtonLoading(btn, true, "מוחק...");
   let error;
   try {
     ({ error } = await supabaseClient.from("medical_staff").delete().eq("id", id));
   } catch (err) {
     error = err;
+  } finally {
+    if (btn) setButtonLoading(btn, false);
   }
   if (error) { showError(appError, friendlyErrorMessage(error)); return; }
   flashSuccess("איש הצוות נמחק");

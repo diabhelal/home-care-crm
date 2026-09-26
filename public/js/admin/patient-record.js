@@ -319,9 +319,9 @@ function clinicalOutcomeSelectHtml(v) {
   ).join("");
   return `
     <div class="field" style="margin-top:10px;">
-      <label style="font-size:12px; color:var(--text-muted);">תוצאה קלינית בתוך כ-8 שעות מהביקור (לתיעוד בדיעבד)</label>
+      <label for="pr-outcome-select-${v.id}" style="font-size:12px; color:var(--text-muted);">תוצאה קלינית בתוך כ-8 שעות מהביקור (לתיעוד בדיעבד)</label>
       <div style="display:flex; align-items:center; gap:8px;">
-        <select class="pr-outcome-select" data-visit-id="${v.id}" style="max-width:320px;">${options}</select>
+        <select id="pr-outcome-select-${v.id}" class="pr-outcome-select" data-visit-id="${v.id}" style="max-width:320px;">${options}</select>
         <span class="pr-outcome-saved" data-visit-id="${v.id}" style="font-size:12px; color:var(--success); display:none;">✓ נשמר</span>
       </div>
       <div class="error-msg pr-outcome-error" data-visit-id="${v.id}" role="alert" aria-live="assertive"></div>
@@ -880,8 +880,10 @@ async function prRenderAlertsTab(content) {
       </div>` : ""}
       ${linkedTasks.length ? `<div style="margin-top:8px; font-size:13px;">${linkedTasks.map((t) => `<div>${t.status === "completed" ? "✅" : new Date(t.due_at) < new Date() ? "⏰ באיחור —" : "🕓"} ${escapeHtml(t.title)} (${formatDateHe(new Date(t.due_at))} ${formatTimeHe(new Date(t.due_at))})</div>`).join("")}</div>` : ""}
       <div class="field" style="margin-top:8px;">
-        <input type="text" class="pr-task-title" data-alert-id="${a.id}" placeholder="משימת מעקב, לדוגמה: בדיקה חוזרת בעוד שעתיים">
-        <input type="datetime-local" class="pr-task-due" data-alert-id="${a.id}" style="margin-top:4px; max-width:220px;">
+        <label for="pr-task-title-${a.id}" style="font-size:12px; color:var(--text-muted);">משימת מעקב</label>
+        <input type="text" id="pr-task-title-${a.id}" class="pr-task-title" data-alert-id="${a.id}" placeholder="לדוגמה: בדיקה חוזרת בעוד שעתיים">
+        <label for="pr-task-due-${a.id}" style="font-size:12px; color:var(--text-muted); margin-top:4px; display:block;">תאריך ושעת יעד</label>
+        <input type="datetime-local" id="pr-task-due-${a.id}" class="pr-task-due" data-alert-id="${a.id}" style="margin-top:4px; max-width:220px;">
         <button class="btn btn-secondary btn-sm pr-task-create" data-alert-id="${a.id}" style="margin-top:4px;">יצירת משימת מעקב</button>
       </div>
     </div>
@@ -903,7 +905,9 @@ async function prRenderAlertsTab(content) {
     ${alertsHtml}
     <h3 style="margin-top:20px;">משימות מעקב כלליות</h3>
     <div class="field" style="max-width:420px;">
+      <label for="pr-general-task-title" style="font-size:12px; color:var(--text-muted);">משימה חדשה</label>
       <input type="text" id="pr-general-task-title" placeholder="משימה חדשה">
+      <label for="pr-general-task-due" style="font-size:12px; color:var(--text-muted); margin-top:4px; display:block;">תאריך ושעת יעד</label>
       <input type="datetime-local" id="pr-general-task-due" style="margin-top:4px;">
       <button class="btn btn-secondary btn-sm" id="pr-general-task-create" style="margin-top:4px;">הוספה</button>
     </div>

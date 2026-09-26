@@ -30,7 +30,7 @@
         <label for="admin-password">סיסמה</label>
         <input type="password" id="admin-password" required autocomplete="current-password">
       </div>
-      <button type="submit" class="btn btn-primary" id="admin-login-btn">התחברות</button>
+      <button type="submit" class="btn btn-primary btn-full" id="admin-login-btn">התחברות</button>
     </form>
     <button type="button" class="link-btn" id="forgot-password-link">שכחתי סיסמה</button>
   </div>
@@ -48,7 +48,7 @@
         <label for="new-password">סיסמה חדשה</label>
         <input type="password" id="new-password" required autocomplete="new-password" minlength="6">
       </div>
-      <button type="submit" class="btn btn-primary" id="reset-password-btn">שמירת סיסמה חדשה</button>
+      <button type="submit" class="btn btn-primary btn-full" id="reset-password-btn">שמירת סיסמה חדשה</button>
     </form>
   </div>
 </div>
@@ -213,8 +213,9 @@
   <div class="modal-card card" style="max-width:640px;">
     <h2 id="visit-report-modal-title">דוח ביקור בית</h2>
     <input type="hidden" id="vr-booking-id">
-    <div class="field">
+    <div id="vr-sticky-header">
       <div id="vr-context" style="color:var(--text-muted); font-size:15px;"></div>
+      <div id="vr-allergy-banner" style="display:none;"></div>
     </div>
 
     <h3>מדדים רפואיים</h3>
@@ -330,9 +331,19 @@
   // כשם חשוף בדיוק כמו קודם, כי סקריפטים קלאסיים חולקים scope עליון.
 
   function flashSuccess(msg) {
+    appSuccess.classList.remove("warning");
     appSuccess.textContent = msg;
     appSuccess.classList.add("show");
     setTimeout(() => appSuccess.classList.remove("show"), 2500);
+  }
+
+  // כמו flashSuccess אבל בצבע כתום-אזהרה (זהה ל-.predictive-offline-banner) — לשמירה
+  // שהצליחה אך לא הגיעה לשרת (תור אופליין), כדי שלא תיראה זהה לשמירה מאושרת.
+  function flashWarning(msg) {
+    appSuccess.classList.add("warning");
+    appSuccess.textContent = msg;
+    appSuccess.classList.add("show");
+    setTimeout(() => { appSuccess.classList.remove("show"); appSuccess.classList.remove("warning"); }, 4000);
   }
 
   function flashError(msg) {
@@ -536,9 +547,27 @@
     hideError(document.getElementById("visit-report-modal-error"));
     document.getElementById("vr-trend-result").innerHTML = "";
     document.getElementById("vr-comprehensive-result").innerHTML = "";
+    document.getElementById("vr-allergy-banner").style.display = "none";
     visitReportModal.style.display = "flex";
     loadAndRenderRisk(booking.patient_id);
     loadPatientContextForRisk(booking.patient_id);
+    loadAllergyBannerForVisitReport(booking.patient_id);
+  }
+
+  // באנר רגישויות בתוך מודל דוח הביקור עצמו — כדי שאח/ות/מנהל לא יתעדו ביקור בלי
+  // לראות את רגישויות המטופל, גם בלי לפתוח את לשונית תיק המטופל. משתמש באותה
+  // שליפה (prFetchAllergies, app.js) ואותו סגנון (.pr-allergy-banner) כמו ה-
+  // באנר בתיק המטופל (patient-record.js prRenderHeader) — לא נבנה תיעוד חדש.
+  async function loadAllergyBannerForVisitReport(patientId) {
+    const banner = document.getElementById("vr-allergy-banner");
+    const allergies = await prFetchAllergies(patientId);
+    if (allergies.length) {
+      banner.style.display = "block";
+      banner.className = "pr-allergy-banner";
+      banner.innerHTML = "⚠️ רגישויות: " + allergies.map((a) => `${escapeHtml(a.substance)}${a.severity ? " (" + SEVERITY_LABELS[a.severity] + ")" : ""}`).join(", ");
+    } else {
+      banner.style.display = "none";
+    }
   }
 
   // רקע רפואי (background_conditions/smoking_status) שנשלף פעם אחת בפתיחת המודל,
@@ -982,7 +1011,7 @@
         queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
         updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
-        flashSuccess("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
+        flashWarning("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadBookings();
         return;
       }

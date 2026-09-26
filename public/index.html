@@ -18,22 +18,16 @@
   <header class="app-header">
     <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
     <nav>
-      <a href="#services" data-i18n="common.navServices">השירותים שלנו</a>
-      <a href="#how-it-works" data-i18n="common.navHowItWorks">איך זה עובד</a>
-      <a href="#contact" data-i18n="common.navContact">יצירת קשר</a>
       <a href="my-bookings.html" data-i18n="common.navMyBookings">ההזמנות שלי</a>
     </nav>
   </header>
 
   <main class="landing">
     <section class="hero">
-      <div class="hero-icons">
-        <span>💉</span><span>🩺</span><span>🏃</span><span>🤝</span>
-      </div>
       <div class="hero-eyebrow" data-i18n="index.heroEyebrow">🏠 פותרים לך את הבעיה בבית</div>
       <h1 data-i18n="index.heroTitle">טיפול רפואי מקצועי, ישירות לביתך</h1>
       <p class="hero-subtitle" data-i18n="index.heroSubtitle">אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים — קובעים ביקור בית תוך דקות, בלי הרשמה ובלי סיסמה.</p>
-      <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.heroCta">הזמנת ביקור עכשיו</a>
+      <a href="staff.html" class="btn btn-primary hero-cta btn-full" data-i18n="index.heroCta">הזמנת ביקור עכשיו</a>
       <p class="hero-trust" id="hero-trust" style="display:none;"></p>
     </section>
 
@@ -84,12 +78,6 @@
       </div>
     </section>
 
-    <section class="cta-bottom">
-      <h2 data-i18n="index.ctaTitle">מוכנים להתחיל?</h2>
-      <p data-i18n="index.ctaText">קביעת ביקור בית לוקחת פחות מדקה — בלי הרשמה, בלי סיסמה.</p>
-      <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.ctaButton">בואו נתחיל</a>
-    </section>
-
     <section class="contact-section" id="contact">
       <h2 data-i18n="common.navContact">יצירת קשר</h2>
       <p style="color:var(--text-muted);" data-i18n="index.contactIntro">שאלה לפני שקובעים ביקור? לפניות שאינן דחופות — למקרה חירום רפואי יש לפנות ישירות לשירותי החירום.</p>
@@ -131,6 +119,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+
 <script src="i18n.js"></script>
 <script>
   applyTranslations();
