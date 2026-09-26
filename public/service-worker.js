@@ -5,7 +5,7 @@
 // API תמיד הולכות ישירות לרשת. שמירת טיוטות אופליין (visit_reports) מטופלת בנפרד
 // ב-app.js (תור-סנכרון מפורש ב-localStorage), לא כאן.
 
-const CACHE_VERSION = "home-care-crm-shell-v3";
+const CACHE_VERSION = "home-care-crm-shell-v4";
 
 const APP_SHELL = [
   "index.html",
@@ -26,10 +26,17 @@ const APP_SHELL = [
   "icon-512.png",
 ];
 
+// לא קוראים ל-skipWaiting() אוטומטית כאן: worker חדש נשאר ב-waiting עד שהעמוד
+// (app.js) מבקש ממנו במפורש להשתלט — כדי שלשונית פתוחה עם JS ישן בזיכרון לא
+// תופעל לפתע נגד cache חדש באמצע session. ר' הערת "אין activation אגרסיבי" ב-app.js.
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_VERSION).then((cache) => cache.addAll(APP_SHELL))
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {

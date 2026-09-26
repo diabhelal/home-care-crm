@@ -3,9 +3,55 @@ const supabaseClient = window.supabase.createClient(window.SUPABASE_URL, window.
 
 // PWA: רישום ה-service worker (מעטפת אפליקציה אופליין בלבד — ר' הערה ב-service-worker.js
 // לגבי למה נתוני Supabase לעולם לא נכנסים למטמון הזה).
+//
+// מדיניות עדכון: לא activation אגרסיבי (skipWaiting אוטומטי) שיכול ליצור אי-תאמה
+// בין HTML/JS ישן שכבר בזיכרון של לשונית פתוחה לבין cache חדש. במקום זה: banner
+// "גרסה חדשה זמינה" גלוי כשיש worker חדש ב-waiting, והמשתמש/ת בוחר/ת מתי לרענן —
+// visibility of system status אמיתי, לא ניחוש/hard-refresh ידני.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch((err) => {
+    // reload על controllerchange מותר אך ורק אחרי שהמשתמש/ת בעצמם ביקשו עדכון
+    // (לחצו על כפתור הבאנר) — controllerchange יכול לירות גם בביקור ראשון רגיל
+    // (בלי SW קודם בכלל), ורענון אוטומטי אז היה בדיוק ה-activation האגרסיבי שרצינו
+    // למנוע. ר' bug שנתפס ע"י טסט my-work-pagination.spec.js.
+    let updateRequested = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!updateRequested) return;
+      updateRequested = false;
+      location.reload();
+    });
+
+    navigator.serviceWorker.register("service-worker.js").then((reg) => {
+      const promptUpdate = (worker) => {
+        let banner = document.getElementById("sw-update-banner");
+        if (!banner) {
+          banner = document.createElement("div");
+          banner.id = "sw-update-banner";
+          banner.className = "predictive-offline-banner";
+          banner.setAttribute("role", "status");
+          banner.innerHTML = `<span>🔄 גרסה חדשה זמינה</span> <button type="button" id="sw-update-btn" style="margin-inline-start:10px; text-decoration:underline; background:none; border:none; color:inherit; font:inherit; cursor:pointer; min-height:24px;">רענון עכשיו</button>`;
+          document.body.prepend(banner);
+        }
+        banner.style.display = "block";
+        document.getElementById("sw-update-btn").onclick = () => {
+          updateRequested = true;
+          worker.postMessage({ type: "SKIP_WAITING" });
+        };
+      };
+
+      if (reg.waiting) promptUpdate(reg.waiting);
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          // "installed" + כבר יש controller = worker חדש מחליף גרסה קיימת (לא ההתקנה
+          // הראשונה) — זה בדיוק המצב שדורש הודעה למשתמש/ת, לא activation שקט.
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            promptUpdate(newWorker);
+          }
+        });
+      });
+    }).catch((err) => {
       console.error("service worker registration failed", err);
     });
   });
@@ -66,9 +112,16 @@ function getQueuedDraftCount() {
 // "partial": הדוח (מדדים/סיכום) נשמר בהצלחה, אבל סימון ההזמנה כ"הושלם" נכשל —
 // נשאר בתור לניסיון חוזר (עם _markCompleted, לא מוסר) ולא נספר כ-synced מלא, כדי
 // שכישלון חלקי לא ייעלם בשקט כאילו הכול הצליח.
+// offlineQueueSyncing: true רק בזמן שסנכרון בפועל רץ (לא כשהתור פשוט ממתין) —
+// updateOfflineDraftBanner() קוראת בזה כדי להראות מצב-ביניים "מסנכרן..." שקוף,
+// בלי תשתית נוספת מעבר לדגל הזה.
+let offlineQueueSyncing = false;
+
 async function flushOfflineQueue() {
   const queue = getOfflineQueue();
   if (!queue.length) return { synced: 0, failed: 0, partial: 0 };
+  offlineQueueSyncing = true;
+  if (typeof document !== "undefined") updateOfflineDraftBanner();
   let synced = 0;
   let partial = 0;
   const stillPending = [];
@@ -99,6 +152,8 @@ async function flushOfflineQueue() {
     }
   }
   setOfflineQueue(stillPending);
+  offlineQueueSyncing = false;
+  if (typeof document !== "undefined") updateOfflineDraftBanner();
   return { synced, failed: stillPending.length, partial };
 }
 
@@ -380,8 +435,8 @@ async function prFetchPatient() {
   if (error) throw error;
   return data;
 }
-async function prFetchAllergies() {
-  const { data, error } = await supabaseClient.from("patient_allergies").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: false });
+async function prFetchAllergies(patientId = window.currentPatientState.patientId) {
+  const { data, error } = await supabaseClient.from("patient_allergies").select("*").eq("patient_id", patientId).order("created_at", { ascending: false });
   if (error) { console.error("patient_allergies", error); return []; }
   return data || [];
 }
@@ -538,7 +593,7 @@ function initPredictiveServiceHealthCheck() {
 function updateOfflineDraftBanner() {
   let banner = document.getElementById("offline-draft-banner");
   const count = getQueuedDraftCount();
-  if (!count) { if (banner) banner.style.display = "none"; return; }
+  if (!count && !offlineQueueSyncing) { if (banner) banner.style.display = "none"; return; }
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "offline-draft-banner";
@@ -546,8 +601,10 @@ function updateOfflineDraftBanner() {
     banner.setAttribute("role", "status");
     document.body.prepend(banner);
   }
-  banner.textContent = count === 1
-    ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
-    : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
+  banner.textContent = offlineQueueSyncing
+    ? "📶 מסנכרן דוחות ביקור שמורים מקומית..."
+    : count === 1
+      ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
+      : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
   banner.style.display = "block";
 }

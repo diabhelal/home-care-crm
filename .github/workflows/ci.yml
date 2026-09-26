@@ -42,7 +42,7 @@ jobs:
           node-version: "20"
       - run: npm install
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test tests/e2e/xss-escaping.spec.js tests/e2e/my-work-pagination.spec.js tests/e2e/booking-taken-slots.spec.js
+      - run: npx playwright test tests/e2e/xss-escaping.spec.js tests/e2e/my-work-pagination.spec.js tests/e2e/booking-taken-slots.spec.js tests/e2e/sw-update.spec.js
 
   # שני הספקים הנותרים כן נוגעים ב-DB חי (יוצרים הזמנות/דוחות אמיתיים) — דורשים
   # פרויקט Supabase ייעודי לבדיקות (secrets: E2E_STAFF_EMAIL/E2E_STAFF_PASSWORD,
