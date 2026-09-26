@@ -72,10 +72,13 @@ test("Service Worker: worker חדש לא משתלט אוטומטית על לשו
   navigations.length = 0; // מעכשיו סופרים רק ניווטים לא-מכוונים; ה-reload הידני למעלה כבר נספר
 
   // 3) מדמים דיפלוי חדש: קובץ SW משתנה בפועל על הדיסק (לא רק CACHE_VERSION —
-  // הדפדפן מזהה "worker חדש" לפי diff בייטים של הקובץ עצמו)
+  // הדפדפן מזהה "worker חדש" לפי diff בייטים של הקובץ עצמו). גרסה נגזרת בזמן
+  // ריצה (לא hardcoded) כדי שהטסט לא ישבר בכל bump עתידי של CACHE_VERSION.
   const swPath = path.join(tmpDir, "service-worker.js");
   const swContent = fs.readFileSync(swPath, "utf8");
-  fs.writeFileSync(swPath, swContent.replace("home-care-crm-shell-v4", "home-care-crm-shell-v4-TEST-NEXT"));
+  const currentVersion = swContent.match(/CACHE_VERSION = "([^"]+)"/)[1];
+  const nextVersion = currentVersion + "-TEST-NEXT";
+  fs.writeFileSync(swPath, swContent.replace(currentVersion, nextVersion));
 
   // 4) מכריחים בדיקת עדכון (בדפדפן אמיתי זה קורה אוטומטית בניווטים הבאים)
   await page.evaluate(async () => {
@@ -100,8 +103,8 @@ test("Service Worker: worker חדש לא משתלט אוטומטית על לשו
 
   // 8) אחרי הרענון: cache ישן נמחק, הגרסה החדשה פעילה
   const cacheKeys = await page.evaluate(() => caches.keys());
-  expect(cacheKeys).toContain("home-care-crm-shell-v4-TEST-NEXT");
-  expect(cacheKeys).not.toContain("home-care-crm-shell-v4");
+  expect(cacheKeys).toContain(nextVersion);
+  expect(cacheKeys).not.toContain(currentVersion);
 
   expect(errors).toEqual([]);
 });

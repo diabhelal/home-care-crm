@@ -77,7 +77,7 @@ async function openPatientRecord(patientId) {
 // servicePlans/clinicalNotes/documents/alerts/tasks) עברו ל-app.js — משותפים
 // עם employee.html, לא מוכפלים יותר.
 
-// ----- כותרת + באנר רגישויות -----
+// ----- כותרת + באנר רגישויות + באנר רשומות כפולות -----
 async function prRenderHeader() {
   const patient = await prCached("patient", prFetchPatient);
   const allergies = await prCached("allergies", prFetchAllergies);
@@ -89,6 +89,7 @@ async function prRenderHeader() {
   } else {
     banner.style.display = "none";
   }
+  await prRenderDuplicateBanner(patient);
   const age = calcAge(patient.date_of_birth);
   const fields = [
     ["שם מלא", patient.full_name],
@@ -110,6 +111,30 @@ async function prRenderHeader() {
     </div>
   `;
   document.getElementById("pr-edit-header-btn").addEventListener("click", prOpenEditHeaderModal);
+}
+
+// אין הרשמה/login במערכת — מטופל שמזמין ממכשיר/דפדפן אחר מקבל session אנונימי חדש
+// (patient_id חדש), גם אם הוא הקליד את אותם שם+ת.ז. בדיוק. לא מקשרים את זה אוטומטית
+// בצד המטופל (ת.ז. לבד היא לא הוכחת זהות — כל מי שיודע/מנחש אותה יוכל "להיכנס"
+// להיסטוריה של מישהו אחר). הפתרון הבטוח: הצוות (מאומת) רואה כאן אזהרה אם יש עוד
+// רשומת patients עם אותה ת.ז., ומתאם ידנית — בדיוק כמו פקידה במרפאה שמזהה "אה, כבר
+// יש לנו תיק על השם/ת.ז. הזו".
+async function prRenderDuplicateBanner(patient) {
+  const banner = document.getElementById("pr-duplicate-banner");
+  if (!patient.national_id) { banner.style.display = "none"; return; }
+  const { data, error } = await supabaseClient
+    .from("patients")
+    .select("id, full_name")
+    .eq("national_id", patient.national_id)
+    .neq("id", patient.id);
+  if (error || !data || data.length === 0) { banner.style.display = "none"; return; }
+  banner.style.display = "block";
+  banner.className = "pr-duplicate-banner";
+  banner.innerHTML = `⚠️ ת.ז. ${escapeHtml(patient.national_id)} מופיעה גם ברשומה נוספת (${data.length === 1 ? "תיק אחד נוסף" : data.length + " תיקים נוספים"}) — כנראה אותו מטופל/ת מהזמנה ממכשיר אחר. מומלץ לתאם ידנית: ` +
+    data.map((d) => `<button type="button" class="pr-duplicate-link" data-patient-id="${d.id}">${escapeHtml(d.full_name)}</button>`).join(", ");
+  banner.querySelectorAll(".pr-duplicate-link").forEach((btn) => {
+    btn.addEventListener("click", () => openPatientRecord(btn.dataset.patientId));
+  });
 }
 
 function prOpenEditHeaderModal() {
