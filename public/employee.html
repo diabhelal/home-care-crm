@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>בית חם — כניסת צוות רפואי</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Manrope:wght@700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#2f7d6e">
@@ -267,12 +267,20 @@
   let myWorkRiskByPatient = new Map();
   let myWorkHistoryLoaded = false;
 
+  // היסטוריה = כל מה שכבר לא ב"חלון הפעיל": ביקורים שעברו (לפני היום) *או* כל ביקור שאינו
+  // עוד status='scheduled' (הושלם/בוטל — גם של היום). בלי התנאי השני, ביקור שהושלם היום
+  // נעלם מהמסך לגמרי עד מחר (לא ב"חלון הפעיל" כי status<>'scheduled', ולא בהיסטוריה
+  // כי scheduled_at לא לפני היום) — ואי אפשר לפתוח אותו שוב לעריכת הדוח.
+  function myWorkHistoryFilter(todayStart) {
+    return `scheduled_at.lt.${todayStart.toISOString()},status.neq.scheduled`;
+  }
+
   async function loadMyWorkHistoryPage(historyEl, moreBtn) {
     const todayStart = startOfToday();
     const { data, error } = await supabaseClient
       .from("bookings")
       .select("*, patients(id, full_name, phone), visit_reports(*)")
-      .lt("scheduled_at", todayStart.toISOString())
+      .or(myWorkHistoryFilter(todayStart))
       .order("scheduled_at", { ascending: false })
       .range(myWorkHistoryOffset, myWorkHistoryOffset + MY_WORK_HISTORY_PAGE_SIZE - 1);
     if (error) {
@@ -315,7 +323,7 @@
       ({ data: risks } = await supabaseClient.from("current_patient_risk").select("*"));
       ({ data: tasks } = await supabaseClient.from("tasks").select("*, patients(full_name)").eq("status", "pending").order("due_at", { ascending: true }));
       ({ data: alerts } = await supabaseClient.from("alerts").select("*, patients(full_name)").eq("status", "open").order("severity", { ascending: false }));
-      ({ count: historyCount } = await supabaseClient.from("bookings").select("id", { count: "exact", head: true }).lt("scheduled_at", todayStart.toISOString()));
+      ({ count: historyCount } = await supabaseClient.from("bookings").select("id", { count: "exact", head: true }).or(myWorkHistoryFilter(todayStart)));
     } catch (err) {
       bookingsError = err;
     }

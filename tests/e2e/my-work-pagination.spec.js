@@ -21,10 +21,10 @@ async function gotoEmployeeAppAsStaff(page) {
   await page.addInitScript(() => {
     window.__bookingsHandler = () => ({
       select: (cols, opts) => {
-        if (opts && opts.count === "exact" && opts.head) return { lt: () => Promise.resolve({ count: 0, error: null }) };
+        if (opts && opts.count === "exact" && opts.head) return { or: () => Promise.resolve({ count: 0, error: null }) };
         return {
           eq: () => ({ or: () => ({ order: () => ({ limit: () => Promise.resolve({ data: [], error: null }) }) }) }),
-          lt: () => ({ order: () => ({ range: () => Promise.resolve({ data: [], error: null }) }) }),
+          or: () => ({ order: () => ({ range: () => Promise.resolve({ data: [], error: null }) }) }),
         };
       },
     });
@@ -82,10 +82,10 @@ test("העבודה שלי: ביקורי היום/מחר/בתהליך מוצגי�
     window.__historyPageCalls = 0;
     window.__bookingsHandler = () => ({
       select: (cols, opts) => {
-        if (opts && opts.count === "exact" && opts.head) return { lt: () => Promise.resolve({ count: ancientBookings.length, error: null }) };
+        if (opts && opts.count === "exact" && opts.head) return { or: () => Promise.resolve({ count: ancientBookings.length, error: null }) };
         return {
           eq: () => ({ or: () => ({ order: () => ({ limit: () => Promise.resolve({ data: activeBookings, error: null }) }) }) }),
-          lt: () => ({
+          or: () => ({
             order: () => ({
               range: (from, to) => {
                 window.__historyPageCalls++;

@@ -565,7 +565,7 @@ async function checkPredictiveServiceHealth() {
     banner.id = "predictive-offline-banner";
     banner.className = "predictive-offline-banner";
     banner.setAttribute("role", "status");
-    banner.textContent = "⚠️ שירות התחזית (predictive-service) לא זמין כרגע — תחזיות, מגמות ואבחון מקיף לא יעבדו עד שיופעל מקומית.";
+    banner.textContent = "⚠️ שירות התחזיות אינו זמין כרגע — תחזיות ומגמות לא יוצגו עד שהשירות יופעל.";
     banner.style.display = "none";
     document.body.prepend(banner);
   }
