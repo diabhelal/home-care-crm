@@ -568,7 +568,14 @@
       : friendlyErrorMessage(err);
   }
 
+  // שירות התחזית מקומי בלבד: בפריסה מאורחת (https) כתובת localhost לא נגישה מהדפדפן של
+  // המבקר — לא שולחים אליה בקשות בכלל (כמו checkPredictiveServiceHealth ב-app.js).
+  function predictiveServiceReachable() {
+    return isLocalHost() || !/localhost|127\.0\.0\.1/.test(window.PREDICTIVE_SERVICE_URL || "");
+  }
+
   async function maybeCreateAlert(patientId, riskLevel, trend, statusMessage, riskPredictionId) {
+    if (!predictiveServiceReachable()) return;
     let evaluation;
     try {
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/alerts/evaluate`, {
@@ -596,6 +603,10 @@
       .order("visit_date", { ascending: false }).limit(1);
     const previous = prevReports && prevReports[0] ? prevReports[0] : null;
 
+    if (!predictiveServiceReachable()) {
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">הערכת סיכון אוטומטית אינה זמינה בגרסת ההדגמה.</p>`;
+      return;
+    }
     let assessment;
     try {
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {

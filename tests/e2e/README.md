@@ -1,12 +1,13 @@
 # E2E — הפעלה
 
-יש כאן 5 קבצי בדיקה, משני סוגים:
+יש כאן 6 קבצי בדיקה, משני סוגים:
 
 **בטוחים — לא נוגעים ב-DB חי בכלל (supabaseClient ממוקק), רצים אוטומטית ב-CI בכל push:**
 - `xss-escaping.spec.js`
 - `my-work-pagination.spec.js`
 - `booking-taken-slots.spec.js`
 - `overhaul-regressions.spec.js` — רגרסיות מסריקת QA אחרי ה-design/UX overhaul (היסטוריית "העבודה שלי" כוללת ביקורים שהושלמו היום; באנר זמינות השירות לא מכסה את כפתורי ההדר)
+- `demo-journey.spec.js` — מסע ההדגמה המלא מקצה לקצה על fake supabase-js stateful (בלי DB חי): מטופל (דף בית -> צוות -> הזמנה -> אישור -> "ההזמנות שלי"), צוות (כניסה -> "העבודה שלי" -> התחלת ביקור -> דוח עם מדדים -> היסטוריה), מנהל (כניסה -> תור עבודה -> ביטול -> סטטוס "בוטל"). בודק גם באנר הדגמה, אפס שגיאות קונסול ואפס בקשות ל-localhost:8000. שומר צילומי מסך ל-`docs/demo-proof/`.
 - `sw-update.spec.js` — acceptance test אמיתי למחזור החיים של ה-Service Worker: worker חדש לא משתלט אוטומטית על לשונית פתוחה עם JS ישן בזיכרון (אין `skipWaiting` אוטומטי), מוצג באנר "גרסה חדשה זמינה" כשיש worker חדש ב-waiting, ורק לחיצה מפורשת מפעילה עדכון+רענון מבוקר. רץ על עותק זמני של `public/` (לא על הפרויקט האמיתי) כדי לדמות דיפלוי חדש בפועל (שינוי אמיתי בבייטים של `service-worker.js`).
 
 **נוגעים ב-DB חי — יוצרים הזמנות/דוחות אמיתיים, לא רצים אוטומטית בכוונה:**
@@ -26,12 +27,12 @@ npx playwright install chromium
 
 ## הרצה
 ```
-npm run test:e2e                                    # כל 5 הקבצים
+npm run test:e2e                                    # כל 6 הקבצים
 npx playwright test tests/e2e/xss-escaping.spec.js   # קובץ בודד
 ```
 
 ## ב-CI
-`.github/workflows/ci.yml` מפצל את זה לשני jobs: `e2e-safe` (3 הקבצים הבטוחים, רץ אוטומטית בכל push) ו-`e2e-live-db` (2 הקבצים שנוגעים ב-DB, `workflow_dispatch` ידני בלבד).
+`.github/workflows/ci.yml` מפצל את זה לשני jobs: `e2e-safe` (הקבצים הבטוחים, רץ אוטומטית בכל push) ו-`e2e-live-db` (2 הקבצים שנוגעים ב-DB, `workflow_dispatch` ידני בלבד).
 
 ## סטטוס — כנות לגבי מה שבוצע ומה שלא
 `booking.spec.js`/`visit-report.spec.js` נכתבו מול הקוד/ה-selectors האמיתיים בפרויקט (לא ניחוש) ועברו בדיקת syntax (`node --check`).

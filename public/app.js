@@ -251,7 +251,7 @@ const TREND_META = {
   stable: { arrow: "➡️", label: "יציב" },
   worsening: { arrow: "📈", label: "מחמיר" },
 };
-const RISK_DISCLAIMER = "כלי תמיכה בקבלת החלטות בלבד — אינו קביעת מצב חירום או אבחון רפואי.";
+const RISK_DISCLAIMER = "הערכת סיכון מבוססת כללים — הדגמה בלבד. כלי תמיכה בקבלת החלטות, אינו אבחון רפואי או קביעת מצב חירום.";
 
 // משפט תמציתי בעברית פשוטה למטפל/ת, נגזר אך ורק מרמת הסיכון והמגמה שכבר חושבו —
 // לא נתון חדש, רק ניסוח קריא של מה שכבר קיים ב-risk_level/trend.
@@ -558,6 +558,25 @@ function friendlyErrorMessage(err) {
 // במקום שכל כפתור (תחזית מגמה / אבחון מקיף / תצוגה חיה) יגלה בנפרד רק בלחיצה
 // שהשירות לא זמין, בודקים פעם אחת ברקע ומציגים באנר קבוע וברור בראש העמוד —
 // "no button may fail silently" ברמת העמוד כולו, לא רק ברמת כפתור בודד.
+// שמירה מרכזית: באתר מאורח שירות התחזית (localhost) לא קיים, ולכן קריאות אליו
+// מקבלות מיד 503 סינתטי במקום ERR_CONNECTION_REFUSED בקונסולה. קוד הקורא כבר
+// מטפל ב-!res.ok ומציג "השירות אינו זמין".
+(function guardPredictiveServiceFetch() {
+  if (typeof window === "undefined" || typeof window.fetch !== "function" || typeof Response === "undefined") return;
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    try {
+      const url = typeof input === "string" ? input : (input && input.url) || "";
+      const base = window.PREDICTIVE_SERVICE_URL || "";
+      const hostedOrigin = !["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+      if (base && hostedOrigin && /localhost|127\.0\.0\.1/.test(base) && url.startsWith(base)) {
+        return Promise.resolve(new Response(JSON.stringify({ detail: "predictive service unavailable in hosted demo" }), { status: 503, headers: { "Content-Type": "application/json" } }));
+      }
+    } catch (e) { /* נופלים ל-fetch המקורי */ }
+    return nativeFetch(input, init);
+  };
+})();
+
 function isLocalHost() {
   return ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 }
@@ -595,7 +614,7 @@ function showDemoBanner() {
   banner.setAttribute("role", "region");
   banner.setAttribute("aria-label", "הודעת הדגמה");
   banner.style.cssText = "background:var(--primary-light);color:var(--primary-dark);text-align:center;padding:10px 16px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);";
-  banner.append("גרסת הדגמה — אל תזינו מידע אישי או רפואי אמיתי. ");
+  banner.append("מערכת הדגמה — נתונים סינתטיים בלבד. אל תזינו מידע אישי או רפואי אמיתי. ");
   const link = document.createElement("a");
   link.href = "demo-notice.html";
   link.textContent = "פרטים";
