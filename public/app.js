@@ -558,7 +558,14 @@ function friendlyErrorMessage(err) {
 // במקום שכל כפתור (תחזית מגמה / אבחון מקיף / תצוגה חיה) יגלה בנפרד רק בלחיצה
 // שהשירות לא זמין, בודקים פעם אחת ברקע ומציגים באנר קבוע וברור בראש העמוד —
 // "no button may fail silently" ברמת העמוד כולו, לא רק ברמת כפתור בודד.
+function isLocalHost() {
+  return ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+}
+
+// שירות התחזית רץ מקומית בלבד. בפריסה מאורחת (https) הכתובת localhost לא נגישה
+// מהדפדפן של המבקר, ולכן אין טעם להציג לכל מבקר באנר "לא זמין" — מדלגים עליו.
 async function checkPredictiveServiceHealth() {
+  if (!isLocalHost() && /localhost|127\.0\.0\.1/.test(window.PREDICTIVE_SERVICE_URL || "")) return;
   let banner = document.getElementById("predictive-offline-banner");
   if (!banner) {
     banner = document.createElement("div");
@@ -580,7 +587,25 @@ async function checkPredictiveServiceHealth() {
   }
 }
 
+// באנר הדגמה: מוצג כשהאתר רץ במצב DEMO_MODE (config.js), אחרת לא.
+function showDemoBanner() {
+  if (!window.DEMO_MODE || document.getElementById("demo-banner")) return;
+  const banner = document.createElement("div");
+  banner.id = "demo-banner";
+  banner.setAttribute("role", "region");
+  banner.setAttribute("aria-label", "הודעת הדגמה");
+  banner.style.cssText = "background:var(--primary-light);color:var(--primary-dark);text-align:center;padding:10px 16px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);";
+  banner.append("גרסת הדגמה — אל תזינו מידע אישי או רפואי אמיתי. ");
+  const link = document.createElement("a");
+  link.href = "demo-notice.html";
+  link.textContent = "פרטים";
+  link.style.color = "inherit";
+  banner.append(link);
+  document.body.prepend(banner);
+}
+
 function initPredictiveServiceHealthCheck() {
+  showDemoBanner();
   checkPredictiveServiceHealth();
   updateOfflineDraftBanner();
   setInterval(() => { checkPredictiveServiceHealth(); updateOfflineDraftBanner(); }, 45000);

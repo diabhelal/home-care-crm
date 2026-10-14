@@ -15,6 +15,7 @@
 <body>
 
 <div id="staff-app" class="page" style="display:none;">
+  <a class="skip-link" href="#main-content">דלגו לתוכן הראשי</a>
   <header class="app-header">
     <div class="brand"><span class="logo">🩺</span> <span id="staff-app-title">צוות רפואי</span></div>
     <nav>
@@ -22,7 +23,7 @@
       <button class="btn btn-ghost" id="staff-logout-btn">התנתקות</button>
     </nav>
   </header>
-  <main style="max-width:1100px;">
+  <main id="main-content" tabindex="-1" style="max-width:1100px;">
     <h1 class="visually-hidden">האזור האישי לצוות — בית חם</h1>
     <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>

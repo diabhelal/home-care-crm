@@ -65,6 +65,7 @@ const I18N_STRINGS = {
     common: {
       brand: "בית חם", navMyBookings: "ההזמנות שלי", navReset: "התחלה מחדש", navNewBooking: "קביעת ביקור חדש",
       navServices: "השירותים שלנו", navHowItWorks: "איך זה עובד", navContact: "יצירת קשר",
+      skipToContent: "דלגו לתוכן הראשי", navMainLabel: "ניווט ראשי", navFooterLabel: "קישורי תחתית",
     },
     index: {
       title: "בית חם — טיפול רפואי עד הבית",
@@ -204,6 +205,7 @@ const I18N_STRINGS = {
     common: {
       brand: "Warm Home", navMyBookings: "My Bookings", navReset: "Start Over", navNewBooking: "Book a New Visit",
       navServices: "Our Services", navHowItWorks: "How It Works", navContact: "Contact Us",
+      skipToContent: "Skip to main content", navMainLabel: "Main navigation", navFooterLabel: "Footer links",
     },
     index: {
       title: "Warm Home — Home Medical Care",
@@ -343,6 +345,7 @@ const I18N_STRINGS = {
     common: {
       brand: "بيت دافئ", navMyBookings: "حجوزاتي", navReset: "البدء من جديد", navNewBooking: "حجز زيارة جديدة",
       navServices: "خدماتنا", navHowItWorks: "كيف يعمل", navContact: "تواصل معنا",
+      skipToContent: "انتقل إلى المحتوى الرئيسي", navMainLabel: "التنقل الرئيسي", navFooterLabel: "روابط التذييل",
     },
     index: {
       title: "بيت دافئ — رعاية طبية منزلية",

@@ -15,9 +15,10 @@
 </head>
 <body>
 <div class="page">
+  <a class="skip-link" href="#main-content" data-i18n="common.skipToContent">דלגו לתוכן הראשי</a>
   <header class="app-header">
     <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
-    <nav>
+    <nav aria-label="ניווט ראשי" data-i18n-aria-label="common.navMainLabel">
       <a href="#services" class="nav-anchor" data-i18n="common.navServices">השירותים שלנו</a>
       <a href="#how-it-works" class="nav-anchor" data-i18n="common.navHowItWorks">איך זה עובד</a>
       <a href="#contact" class="nav-anchor" data-i18n="common.navContact">יצירת קשר</a>
@@ -25,7 +26,7 @@
     </nav>
   </header>
 
-  <main class="landing">
+  <main id="main-content" tabindex="-1" class="landing">
     <section class="hero">
       <img class="hero-photo" src="images/hero-medical-check.jpg" data-i18n-alt="index.heroPhotoAlt" alt="איש צוות רפואי בודק לחץ דם למטופלת, בחיוך" width="1200" height="1000" loading="eager">
       <div class="hero-text">
@@ -125,11 +126,12 @@
       <span class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></span>
       <p data-i18n="index.footerTagline">טיפול רפואי מקצועי, ישירות לביתך.</p>
     </div>
-    <nav class="site-footer-links">
+    <nav class="site-footer-links" aria-label="קישורי תחתית" data-i18n-aria-label="common.navFooterLabel">
       <a href="#services" data-i18n="common.navServices">השירותים שלנו</a>
       <a href="my-bookings.html" data-i18n="common.navMyBookings">ההזמנות שלי</a>
       <a href="employee-login.html" data-i18n="index.footerStaffLogin">כניסת צוות רפואי</a>
       <a href="admin.html" data-i18n="index.footerAdminLogin">כניסת מנהל</a>
+      <a href="demo-notice.html">גרסת הדגמה</a>
     </nav>
     <p class="site-footer-note" data-i18n="index.footerNote">למקרה חירום – מד"א 101. הפרטים שתמסרו משמשים רק לתיאום הביקור ולא מועברים לגורם שלישי.</p>
   </footer>

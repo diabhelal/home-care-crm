@@ -439,7 +439,7 @@ async function prRenderVitalsTab(content) {
     } catch (err) { /* predictive-service לא זמין — מדלגים על הניתוח, המדידות הגולמיות כבר מוצגות למעלה */ }
   }
   baselineEl.innerHTML = rows.length
-    ? `<h3>בסיס אישי (Baseline)</h3><div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`
+    ? `<h3>בסיס אישי (Baseline)</h3><div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table"><thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`
     : `<p style="color:var(--text-muted);">אין עדיין מספיק היסטוריה לניתוח בסיס אישי.</p>`;
 }
 
@@ -551,7 +551,7 @@ async function prRenderMedsTab(content) {
       <div class="error-msg" id="pr-med-error" role="alert" aria-live="assertive"></div>
       <button class="btn btn-primary btn-sm" id="pr-med-add">תיעוד מתן</button>
     </div>
-    ${meds.length ? `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>תאריך</th><th>תרופה</th><th>מינון</th><th>נתיב</th><th>הערות</th></tr></thead><tbody>
+    ${meds.length ? `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table"><thead><tr><th>תאריך</th><th>תרופה</th><th>מינון</th><th>נתיב</th><th>הערות</th></tr></thead><tbody>
       ${meds.map((m) => `<tr><td>${formatDateHe(new Date(m.administered_at))} ${formatTimeHe(new Date(m.administered_at))}</td><td>${escapeHtml(m.medication_name)}</td><td>${escapeHtml(m.dose || "—")}</td><td>${ROUTE_LABELS[m.route] || "—"}</td><td>${escapeHtml(m.notes || "—")}</td></tr>`).join("")}
     </tbody></table></div>` : `<div class="empty-state">לא תועדו טיפולים/תרופות</div>`}
   `;
@@ -729,7 +729,7 @@ async function prRenderPlanTab(content) {
 async function prRenderAppointmentsTab(content) {
   const bookings = await prCached("bookings", prFetchBookings);
   if (!bookings.length) { content.innerHTML = `<div class="empty-state">אין תורים</div>`; return; }
-  content.innerHTML = `<div style="overflow-x:auto;"><table class="admin-table"><thead><tr><th>תאריך</th><th>איש צוות</th><th>מטרה</th><th>סטטוס</th></tr></thead><tbody>
+  content.innerHTML = `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table"><thead><tr><th>תאריך</th><th>איש צוות</th><th>מטרה</th><th>סטטוס</th></tr></thead><tbody>
     ${bookings.map((b) => `<tr><td>${formatDateHe(new Date(b.scheduled_at))} ${formatTimeHe(new Date(b.scheduled_at))}</td><td>${escapeHtml(b.medical_staff?.full_name || "—")}</td><td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td><td>${STATUS_LABELS[b.status] || b.status}</td></tr>`).join("")}
   </tbody></table></div>`;
 }

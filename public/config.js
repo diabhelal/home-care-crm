@@ -6,3 +6,7 @@ window.SUPABASE_ANON_KEY = "sb_publishable_qHCGgd5ssfUAiUBdqu8Bzg_PFq4lq-Q";
 // admin.html וגם employee.html בנפרד (סיכון לסטייה בין השניים). שירות מקומי
 // בלבד (Python, מופעל ידנית) — לא זמין תמיד, ר' predictiveServiceHealthCheck ב-app.js.
 window.PREDICTIVE_SERVICE_URL = "http://localhost:8000";
+
+// מצב הדגמה: מציג באנר "אל תזינו מידע אמיתי" בכל עמוד. לכבות (false) רק כשיש
+// מדיניות פרטיות, תנאי שימוש והסכמה מדעת — ר' DEPLOY.md, "מה נשאר לשירות אמיתי".
+window.DEMO_MODE = true;

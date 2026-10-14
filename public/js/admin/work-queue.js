@@ -128,7 +128,7 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
     return `
       <details class="queue-group" ${qb.openByDefault ? "open" : ""}>
         <summary>${qb.icon} ${escapeHtml(qb.label)} <span class="queue-count">${rows.length}</span></summary>
-        <div style="overflow-x:auto;">
+        <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
           <table class="admin-table" style="min-width:0;">
             <thead><tr><th>מטופל</th><th>טלפון</th><th>איש צוות</th><th>מטרה</th><th>מועד</th><th>רמת סיכון</th><th>פעולות</th></tr></thead>
             <tbody data-bucket="${qb.key}"></tbody>

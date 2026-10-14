@@ -14,7 +14,7 @@
 </head>
 <body>
 
-<div id="login-screen" class="center-screen">
+<div id="login-screen" class="center-screen" role="main">
   <div class="card auth-card">
     <div class="logo-big">🩺</div>
     <h1>כניסת מנהל</h1>
@@ -36,7 +36,7 @@
   </div>
 </div>
 
-<div id="reset-password-screen" class="center-screen" style="display:none;">
+<div id="reset-password-screen" class="center-screen" role="main" style="display:none;">
   <div class="card auth-card">
     <div class="logo-big">🩺</div>
     <h1>איפוס סיסמה</h1>
@@ -54,6 +54,7 @@
 </div>
 
 <div id="admin-app" class="page" style="display:none;">
+  <a class="skip-link" href="#main-content">דלגו לתוכן הראשי</a>
   <header class="app-header">
     <div class="brand"><span class="logo">🩺</span> פאנל ניהול</div>
     <nav>
@@ -61,7 +62,7 @@
       <button class="btn btn-ghost" id="admin-logout-btn">התנתקות</button>
     </nav>
   </header>
-  <main style="max-width:1100px;">
+  <main id="main-content" tabindex="-1" style="max-width:1100px;">
     <h1 class="visually-hidden">פאנל ניהול — בית חם</h1>
     <div class="error-msg" id="app-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="app-success" role="status" aria-live="polite"></div>
@@ -117,7 +118,7 @@
           <button type="button" class="chip" id="contacts-filter-archived" aria-pressed="false">בארכיון</button>
         </div>
       </div>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
         <table class="admin-table" id="contacts-table">
           <thead><tr><th>תאריך</th><th>שם</th><th>טלפון</th><th>נושא</th><th>הודעה</th><th>סטטוס</th></tr></thead>
           <tbody id="contacts-tbody"></tbody>
@@ -130,7 +131,7 @@
         <h2>ניהול צוות רפואי</h2>
         <button class="btn btn-secondary" id="add-staff-btn">+ הוספת איש צוות</button>
       </div>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
         <table class="admin-table" id="staff-table">
           <thead>
             <tr>
@@ -144,7 +145,7 @@
 
     <section>
       <h2>מטופלים</h2>
-      <div style="overflow-x:auto;">
+      <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
         <table class="admin-table" id="patients-table">
           <thead><tr><th>שם</th><th>טלפון</th><th>כתובת</th><th>רקע רפואי</th><th>פעולות</th></tr></thead>
           <tbody id="patients-tbody"></tbody>
@@ -973,7 +974,7 @@
         return;
       }
       resultEl.innerHTML = `
-        <div style="overflow-x:auto;">
+        <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
           <table class="admin-table" style="min-width:0; margin-top:10px;">
             <thead><tr><th>מדד</th><th>תחזית ל-8 שעות</th><th>מגמה</th><th>שיטה</th></tr></thead>
             <tbody>${rows.join("")}</tbody>
