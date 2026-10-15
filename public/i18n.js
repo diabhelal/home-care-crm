@@ -69,7 +69,7 @@ const I18N_STRINGS = {
     },
     index: {
       title: "בית חם — טיפול רפואי עד הבית",
-      heroEyebrow: "טיפול רפואי עד הבית",
+      heroEyebrow: "🏠 פותרים לך את הבעיה בבית",
       heroTitle: "טיפול רפואי מקצועי, ישירות לביתך",
       heroSubtitle: "אחיות, רופאים, פיזיותרפיסטים ומטפלים סיעודיים מוסמכים — קובעים תוך דקות, בלי הרשמה ובלי סיסמה.",
       heroCta: "לתיאום ביקור",
@@ -209,7 +209,7 @@ const I18N_STRINGS = {
     },
     index: {
       title: "Warm Home — Home Medical Care",
-      heroEyebrow: "Medical care, at home",
+      heroEyebrow: "🏠 We solve the problem for you, at home",
       heroTitle: "Professional medical care, straight to your door",
       heroSubtitle: "Licensed nurses, doctors, physiotherapists and caregivers — book in minutes, no sign-up and no password.",
       heroCta: "Book a Visit",
@@ -349,7 +349,7 @@ const I18N_STRINGS = {
     },
     index: {
       title: "بيت دافئ — رعاية طبية منزلية",
-      heroEyebrow: "رعاية طبية حتى باب المنزل",
+      heroEyebrow: "🏠 نحلّ لك المشكلة، في المنزل",
       heroTitle: "رعاية طبية احترافية، مباشرة إلى بابك",
       heroSubtitle: "ممرضون وأطباء وأخصائيو علاج طبيعي ومقدمو رعاية مرخّصون — احجز خلال دقائق، دون تسجيل ودون كلمة مرور.",
       heroCta: "حجز زيارة",
