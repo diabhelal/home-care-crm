@@ -76,12 +76,12 @@
 
     <h3>מדדים רפואיים</h3>
     <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0 16px;">
-      <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" id="vr-systolic" placeholder="120"></div>
-      <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" id="vr-diastolic" placeholder="80"></div>
-      <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" id="vr-sugar" placeholder="100"></div>
-      <div class="field"><label for="vr-pulse">דופק (BPM)</label><input type="number" id="vr-pulse" placeholder="72"></div>
-      <div class="field"><label for="vr-temp">חום גוף (°C)</label><input type="number" step="0.1" id="vr-temp" placeholder="36.6"></div>
-      <div class="field"><label for="vr-o2">סטורציה (%)</label><input type="number" id="vr-o2" placeholder="98"></div>
+      <div class="field"><label for="vr-systolic">ל"ד סיסטולי</label><input type="number" inputmode="numeric" id="vr-systolic" placeholder="120"></div>
+      <div class="field"><label for="vr-diastolic">ל"ד דיאסטולי</label><input type="number" inputmode="numeric" id="vr-diastolic" placeholder="80"></div>
+      <div class="field"><label for="vr-sugar">סוכר (mg/dL)</label><input type="number" inputmode="numeric" id="vr-sugar" placeholder="100"></div>
+      <div class="field"><label for="vr-pulse">דופק (BPM)</label><input type="number" inputmode="numeric" id="vr-pulse" placeholder="72"></div>
+      <div class="field"><label for="vr-temp">חום גוף (°C)</label><input type="number" inputmode="decimal" step="0.1" id="vr-temp" placeholder="36.6"></div>
+      <div class="field"><label for="vr-o2">סטורציה (%)</label><input type="number" inputmode="numeric" id="vr-o2" placeholder="98"></div>
     </div>
     <div id="vr-risk-panel"></div>
 
@@ -104,7 +104,7 @@
     </div>
 
     <div class="error-msg" id="visit-report-modal-error" role="alert" aria-live="assertive"></div>
-    <div class="actions-row">
+    <div class="actions-row vr-actions">
       <button class="btn btn-ghost" id="visit-report-modal-cancel">ביטול</button>
       <button class="btn btn-primary" id="visit-report-modal-save">שמירה</button>
     </div>
@@ -183,20 +183,69 @@
   function startOfToday() { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
   function endOfToday() { const d = new Date(); d.setHours(23, 59, 59, 999); return d; }
 
+  // ללא approval_status (שורות legacy) = מאושר. requested = ממתין לאישור מנהל (אין התחלת ביקור).
+  function isBookingApproved(b) { return !b.approval_status || b.approval_status === "confirmed"; }
+  function bookingAddress(b) { return String(b.visit_address || b.patients?.address || "").trim(); }
+  function telHref(phone) {
+    const raw = String(phone || "").trim();
+    const digits = raw.replace(/\D/g, "");
+    if (!digits) return "";
+    return "tel:" + (raw.startsWith("+") ? "+" : "") + digits;
+  }
+  function wazeHref(address) { return "https://waze.com/ul?q=" + encodeURIComponent(address) + "&navigate=yes"; }
+  function checkedInLabel(b) {
+    if (!b.checked_in_at) return "";
+    const d = new Date(b.checked_in_at);
+    return isNaN(d) ? "" : "התחיל ב-" + formatTimeHe(d);
+  }
+  // patient_id -> [{substance, severity}] עבור המטופלים המוצגים בלבד (שאילתה אחת מקובצת)
+  let myWorkAllergiesByPatient = new Map();
+  async function loadAllergiesForBookings(list) {
+    const ids = [...new Set(list.map((b) => b.patient_id).filter(Boolean))];
+    myWorkAllergiesByPatient = new Map();
+    if (!ids.length) return;
+    try {
+      const { data, error } = await supabaseClient.from("patient_allergies").select("patient_id, substance, severity").in("patient_id", ids);
+      if (error) { console.error("patient_allergies", error); return; }
+      (data || []).forEach((a) => {
+        if (!myWorkAllergiesByPatient.has(a.patient_id)) myWorkAllergiesByPatient.set(a.patient_id, []);
+        myWorkAllergiesByPatient.get(a.patient_id).push(a);
+      });
+    } catch (e) { console.error("patient_allergies", e); }
+  }
+
   function myWorkBookingRowHtml(b, riskByPatient) {
     const date = new Date(b.scheduled_at);
-    const report = (b.visit_reports && b.visit_reports[0]) || null;
+    const address = bookingAddress(b);
+    const phone = b.patients?.phone || "";
+    const tel = telHref(phone);
+    const allergies = myWorkAllergiesByPatient.get(b.patient_id) || [];
+    const pending = b.status === "scheduled" && !isBookingApproved(b);
+    const showFieldActions = b.status === "scheduled" && !pending;
+    const disabledBtn = (label, why) =>
+      `<span class="btn btn-secondary btn-sm field-action-disabled" role="link" aria-disabled="true" title="${escapeHtml(why)}">${escapeHtml(label)} <small>(${escapeHtml(why)})</small></span>`;
+    const navBtn = address
+      ? `<a class="btn btn-secondary btn-sm" data-field-action="navigate" href="${escapeHtml(wazeHref(address))}" target="_blank" rel="noopener noreferrer">ניווט</a>`
+      : disabledBtn("ניווט", "אין כתובת");
+    const callBtn = tel
+      ? `<a class="btn btn-secondary btn-sm" data-field-action="call" href="${escapeHtml(tel)}">התקשרות</a>`
+      : disabledBtn("התקשרות", "אין טלפון");
     return `
-      <div class="pr-card" style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-        <div>
+      <div class="pr-card my-work-card" data-booking-card="${b.id}">
+        <div class="my-work-card-main">
           <strong>${escapeHtml(b.patients?.full_name || "—")}</strong>
-          <span style="color:var(--text-muted); font-size:13px;"> · ${escapeHtml(b.patients?.phone || "")}</span>
+          <span style="color:var(--text-muted); font-size:13px;"> · ${escapeHtml(phone)}</span>
           <div style="font-size:13px; color:var(--text-muted); margin-top:2px;">
-            ${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose} · ${formatDateHe(date)} ${formatTimeHe(date)}
+            ${escapeHtml(PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose || "")} · ${formatDateHe(date)} ${formatTimeHe(date)}
             ${riskBadgeHtml(riskByPatient.get(b.patient_id))}
           </div>
+          ${b.status === "scheduled" ? `<div class="my-work-address" style="font-size:14px; margin-top:4px;">${address ? escapeHtml(address) : `<span style="color:var(--text-muted);">אין כתובת לביקור</span>`}</div>` : ""}
+          ${allergies.length ? `<div class="my-work-allergies" style="font-size:14px; margin-top:4px; color:var(--danger);">אלרגיות: ${allergies.map((a) => escapeHtml(a.substance)).join(", ")}</div>` : ""}
+          ${pending ? `<div class="my-work-pending" style="font-size:14px; margin-top:4px; color:var(--text-muted);">ממתין לאישור מנהל</div>` : ""}
+          <div class="my-work-checkin-time" style="font-size:14px; margin-top:4px;">${escapeHtml(checkedInLabel(b))}</div>
         </div>
-        <div class="actions-row" data-booking-id="${b.id}" style="margin:0;"></div>
+        <div class="actions-row" data-booking-id="${b.id}" style="margin:0;">${showFieldActions ? navBtn + callBtn : ""}</div>
+        <div class="error-msg my-work-checkin-error" role="alert" style="flex-basis:100%;"></div>
       </div>
     `;
   }
@@ -206,11 +255,14 @@
       const b = bookingsById.get(Number(row.dataset.bookingId));
       if (!b) return;
       if (b.status === "scheduled") {
-        const startBtn = document.createElement("button");
-        startBtn.className = "btn btn-primary btn-sm";
-        startBtn.textContent = b.workflow_status === "in_progress" ? "המשך ביקור" : "התחלת ביקור";
-        startBtn.addEventListener("click", () => startMyVisit(b));
-        row.appendChild(startBtn);
+        if (isBookingApproved(b)) {
+          const startBtn = document.createElement("button");
+          startBtn.className = "btn btn-primary btn-sm";
+          startBtn.dataset.fieldAction = "start";
+          startBtn.textContent = b.workflow_status === "in_progress" ? "המשך ביקור" : "התחלת ביקור";
+          startBtn.addEventListener("click", () => startMyVisit(b, startBtn));
+          row.appendChild(startBtn);
+        }
       } else if (b.status !== "cancelled") {
         const report = (b.visit_reports && b.visit_reports[0]) || null;
         const reportBtn = document.createElement("button");
@@ -227,13 +279,31 @@
     });
   }
 
-  async function startMyVisit(b) {
-    if (b.workflow_status !== "in_progress") {
-      const { error } = await supabaseClient.from("bookings").update({ workflow_status: "in_progress" }).eq("id", b.id);
-      if (error) { showError(appError, friendlyErrorMessage(error)); return; }
-      b.workflow_status = "in_progress";
-    }
+  // התחלת ביקור: חותמת הזמן נקבעת בשרת (POST /staff/bookings/{id}/check-in), לא בדפדפן.
+  // כישלון = לא מסמנים כהתחיל ולא פותחים את הדוח; הכפתור נשאר לניסיון חוזר.
+  async function startMyVisit(b, btn) {
     const report = (b.visit_reports && b.visit_reports[0]) || null;
+    if (b.workflow_status === "in_progress" || b.checked_in_at) { openVisitReportModal(b, report); return; }
+    const card = btn ? btn.closest("[data-booking-card]") : null;
+    const errEl = card ? card.querySelector(".my-work-checkin-error") : null;
+    if (errEl) hideError(errEl);
+    if (btn) setButtonLoading(btn, true, "מתחיל...");
+    let res;
+    try {
+      res = await backendFetch(`/staff/bookings/${encodeURIComponent(b.id)}/check-in`, { method: "POST" });
+    } catch (err) {
+      if (btn) { setButtonLoading(btn, false); btn.textContent = "נסה שוב"; }
+      const kind = err && err.kind;
+      const msg = (kind === "forbidden" || kind === "conflict" || kind === "validation" || kind === "auth") && err.message
+        ? err.message
+        : "לא ניתן להתחיל את הביקור כרגע. בדוק את החיבור ונסה שוב.";
+      if (errEl) showError(errEl, msg); else showError(appError, msg);
+      return;
+    }
+    b.workflow_status = (res && res.workflow_status) || "in_progress";
+    b.checked_in_at = (res && res.checked_in_at) || b.checked_in_at || null;
+    if (btn) { setButtonLoading(btn, false); btn.textContent = "המשך ביקור"; }
+    if (card) card.querySelector(".my-work-checkin-time").textContent = checkedInLabel(b);
     openVisitReportModal(b, report);
   }
 
@@ -262,7 +332,7 @@
     const todayStart = startOfToday();
     const { data, error } = await supabaseClient
       .from("bookings")
-      .select("*, patients(id, full_name, phone), visit_reports(*)")
+      .select("*, patients(id, full_name, phone, address), visit_reports(*)")
       .or(myWorkHistoryFilter(todayStart))
       .order("scheduled_at", { ascending: false })
       .range(myWorkHistoryOffset, myWorkHistoryOffset + MY_WORK_HISTORY_PAGE_SIZE - 1);
@@ -298,7 +368,7 @@
     try {
       ({ data: bookings, error: bookingsError } = await supabaseClient
         .from("bookings")
-        .select("*, patients(id, full_name, phone), visit_reports(*)")
+        .select("*, patients(id, full_name, phone, address), visit_reports(*)")
         .eq("status", "scheduled")
         .or(`scheduled_at.gte.${todayStart.toISOString()},workflow_status.eq.in_progress`)
         .order("scheduled_at", { ascending: true })
@@ -322,9 +392,12 @@
     const now = new Date();
     const todayEnd = endOfToday();
     const scheduled = bookings; // כבר מסונן ל-status='scheduled' בשאילתה עצמה
-    const nextVisit = scheduled.filter((b) => new Date(b.scheduled_at) >= now).sort((a, c) => new Date(a.scheduled_at) - new Date(c.scheduled_at))[0] || null;
-    const todaysVisits = scheduled.filter((b) => { const d = new Date(b.scheduled_at); return d >= todayStart && d <= todayEnd && (!nextVisit || b.id !== nextVisit.id); });
-    const inProgress = scheduled.filter((b) => b.workflow_status === "in_progress" && (!nextVisit || b.id !== nextVisit.id) && !todaysVisits.some((t) => t.id === b.id));
+    // נדחו = לא מוצגים; ממתינים לאישור מוצגים בלי כפתור התחלה; "הבא" רק מבין המאושרים.
+    const visible = scheduled.filter((b) => b.approval_status !== "rejected");
+    const nextVisit = visible.filter((b) => isBookingApproved(b) && new Date(b.scheduled_at) >= now).sort((a, c) => new Date(a.scheduled_at) - new Date(c.scheduled_at))[0] || null;
+    const todaysVisits = visible.filter((b) => { const d = new Date(b.scheduled_at); return d >= todayStart && d <= todayEnd && (!nextVisit || b.id !== nextVisit.id); });
+    const inProgress = visible.filter((b) => b.workflow_status === "in_progress" && (!nextVisit || b.id !== nextVisit.id) && !todaysVisits.some((t) => t.id === b.id));
+    await loadAllergiesForBookings([nextVisit, ...todaysVisits, ...inProgress].filter(Boolean));
 
     let html = "";
 

@@ -1212,3 +1212,21 @@ h1, h2, h3 { color: var(--primary-dark); }
 .btn-primary:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
 .btn, .link-btn, input, select, textarea { min-height: 44px; }
 .site-footer { background: var(--surface); }
+
+/* My work (staff field actions) */
+.my-work-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.my-work-card-main { min-width: 0; overflow-wrap: anywhere; flex: 1 1 220px; }
+.my-work-card .actions-row { flex-wrap: wrap; gap: 8px; }
+.field-action-disabled { opacity: 0.55; cursor: not-allowed; display: inline-flex; align-items: center; gap: 4px; }
+.my-work-checkin-time:empty { display: none; }
+.my-work-checkin-error:empty { display: none; }
+/* Visit report: save/cancel stay reachable while scrolling the modal on a phone */
+#visit-report-modal .vr-actions {
+  position: sticky;
+  bottom: 0;
+  background: var(--surface);
+  padding-block: 10px;
+  margin-top: 10px;
+  border-top: 1px solid var(--border);
+  z-index: 1;
+}

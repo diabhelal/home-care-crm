@@ -127,6 +127,16 @@ test("מסע הדגמה מלא: מטופל מזמין -> צוות מתעד בי�
   await page.evaluate(async () => { await supabaseClient.auth.signOut(); sessionStorage.clear(); });
   await patientBooks(page, { name: PATIENT_B, nationalId: "100000026", slotIndex: 1 });
 
+  // ===== 1c. מנהל מאשר את הבקשה של א' (צוות רשאי להתחיל רק ביקור מאושר) =====
+  await page.evaluate(async () => { await supabaseClient.auth.signOut(); });
+  await page.goto(BASE + "/admin.html");
+  await page.fill("#admin-email", "admin@demo.test");
+  await page.fill("#admin-password", "demo-pass-123");
+  await page.click("#admin-login-btn");
+  await expect(page.locator("#work-queue")).toContainText(PATIENT_A);
+  await page.locator("#work-queue tbody tr", { hasText: PATIENT_A }).getByRole("button", { name: "אישור" }).click();
+  await expect(page.locator("#app-success")).toContainText("הבקשה אושרה");
+
   // ===== 2. צוות: כניסה -> העבודה שלי -> התחלת ביקור -> דוח עם מדדים -> היסטוריה =====
   await page.evaluate(async () => { await supabaseClient.auth.signOut(); });
   await page.goto(BASE + "/employee-login.html");

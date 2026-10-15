@@ -30,6 +30,8 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     byKey: new Map(),      // Idempotency-Key -> booking
     created: 0,
     availabilityCalls: [],
+    checkInFail: null,     // מספר סטטוס HTTP לכישלון check-in, או 'abort' לניתוק רשת
+    checkIns: 0,
   };
 
   await context.route(backendUrl + "/**", async (route) => {
@@ -105,6 +107,27 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
       if (key) ctl.byKey.set(key, view);
       if (ctl.dropResponseNext > 0) { ctl.dropResponseNext--; return route.abort("connectionreset"); }
       return json(201, view);
+    }
+
+    const ci = path.match(/^\/staff\/bookings\/(\d+)\/check-in$/);
+    if (req.method() === "POST" && ci) {
+      if (ctl.checkInFail === "abort") return route.abort("connectionreset");
+      if (ctl.checkInFail) return json(ctl.checkInFail, { code: "error", detail: "שגיאת בדיקה" });
+      const result = await inPage(({ id }) => {
+        const sess = JSON.parse(localStorage.getItem("__demo_session") || "null");
+        if (!sess) return { status: 401 };
+        const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+        const row = (db.bookings || []).find((b) => b.id === Number(id));
+        if (!row) return { status: 404, detail: "ההזמנה לא נמצאה" };
+        if (row.approval_status && row.approval_status !== "confirmed") return { status: 409, detail: "ההזמנה טרם אושרה" };
+        if (!row.checked_in_at) row.checked_in_at = new Date().toISOString();
+        row.workflow_status = "in_progress";
+        localStorage.setItem("__demo_db", JSON.stringify(db));
+        return { status: 200, row };
+      }, { id: ci[1] });
+      if (result.status !== 200) return json(result.status, { code: "error", detail: result.detail });
+      ctl.checkIns++;
+      return json(200, { ...result.row, display_state: "in_progress" });
     }
 
     const m = path.match(/^\/admin\/bookings\/(\d+)\/(approve|reject|reassign)$/);
