@@ -15,7 +15,8 @@ async function loadStaff() {
   tbody.innerHTML = `<tr><td colspan="10"><div class="loading-row"><span class="spinner spinner-dark"></span><span>טוען...</span></div></td></tr>`;
   let data, error;
   try {
-    ({ data, error } = await supabaseClient.from("medical_staff").select("*").order("id"));
+    // עמודות רגישות (ת"ז/אימייל/טלפון) לא נקראות ישירות מהטבלה — רק דרך פונקציית מנהל
+    ({ data, error } = await supabaseClient.rpc("admin_list_staff"));
   } catch (err) {
     error = err;
   }
