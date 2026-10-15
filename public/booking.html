@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2a7a78">
+<meta name="theme-color" content="#2f7d6e">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
@@ -26,13 +26,13 @@
   <main id="main-content" tabindex="-1">
     <h1 class="visually-hidden" data-i18n="booking.h1Hidden">קביעת תור — בית חם</h1>
     <div class="steps">
-      <div class="step done" data-i18n="staff.step1">1. בחירת צוות</div>
+      <div class="step done" data-i18n="staff.step1">1. בחירת אחות או אח</div>
       <div class="step active" aria-current="step" data-i18n="staff.step2">2. הזמנה ופרטים</div>
     </div>
 
     <div class="summary-box">
-      <div><span data-i18n="booking.staffLabel">איש/אשת צוות:</span> <span class="staff-name" id="staff-name"></span></div>
-      <a href="staff.html" data-i18n="booking.changeStaff">החלפת איש צוות</a>
+      <div><span data-i18n="booking.staffLabel">אחות או אח:</span> <span class="staff-name" id="staff-name"></span></div>
+      <a href="staff.html" data-i18n="booking.changeStaff">החלפת אחות או אח</a>
     </div>
 
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
@@ -84,7 +84,7 @@
 
     <div id="confirmation-panel" class="card" style="display:none;">
       <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
-      <p><span data-i18n="booking.staffLabel">איש/אשת צוות:</span> <strong id="confirmed-staff"></strong></p>
+      <p><span data-i18n="booking.staffLabel">אחות או אח:</span> <strong id="confirmed-staff"></strong></p>
       <p><span data-i18n="booking.confirmedPurposeLabel">מטרת הביקור:</span> <strong id="confirmed-purpose"></strong></p>
       <p><span data-i18n="booking.confirmedWhenLabel">מועד:</span> <strong id="confirmed-when"></strong></p>
       <p><span data-i18n="booking.confirmedAddressLabel">כתובת:</span> <strong id="confirmed-address"></strong></p>
@@ -128,9 +128,11 @@
     let selectedDate = null;   // Date object at local midnight
     let selectedSlot = null;   // Date object
 
-    // מטרת ביקור
+    // מטרת ביקור (preselect_purpose נקבע ע"י "הזמן שוב" ב-my-bookings.html)
+    let preselectPurpose = null;
+    try { preselectPurpose = sessionStorage.getItem("preselect_purpose"); } catch (e) {}
     const chipsEl = document.getElementById("purpose-chips");
-    Object.keys(I18N_STRINGS[getLang()].purposeLabels).forEach((key) => {
+    ((window.SERVICE_CONFIG && window.SERVICE_CONFIG.purposes) || Object.keys(I18N_STRINGS[getLang()].purposeLabels)).forEach((key) => {
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "chip";
@@ -144,7 +146,13 @@
         updateConfirmState();
       });
       chipsEl.appendChild(chip);
+      if (key === preselectPurpose) {
+        chip.classList.add("selected");
+        chip.setAttribute("aria-pressed", "true");
+        selectedPurpose = key;
+      }
     });
+    try { sessionStorage.removeItem("preselect_purpose"); } catch (e) {}
 
     // תאריכים - הימים הקרובים שאיש הצוות זמין בהם
     const dateListEl = document.getElementById("date-list");

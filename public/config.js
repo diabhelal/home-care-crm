@@ -10,3 +10,7 @@ window.PREDICTIVE_SERVICE_URL = "http://localhost:8000";
 // מצב הדגמה: מציג באנר "אל תזינו מידע אמיתי" בכל עמוד. לכבות (false) רק כשיש
 // מדיניות פרטיות, תנאי שימוש והסכמה מדעת — ר' DEPLOY.md, "מה נשאר לשירות אמיתי".
 window.DEMO_MODE = true;
+
+// השירותים שהעסק מציע בפועל כרגע (מקור יחיד, הפיך כשהצוות יגדל): רק אחיות/אחים.
+// להוספת תפקיד (למשל "doctor") או מטרת ביקור — מוסיפים כאן; פאנל מנהל/צוות לא מושפע.
+window.SERVICE_CONFIG = { roles: ["nurse"], purposes: ["checkup", "wound_care", "blood_test", "medication", "other"] };

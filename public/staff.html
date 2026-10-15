@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <script>(function(){try{var l=localStorage.getItem("appLanguage");if(l==="en"){document.documentElement.lang="en";document.documentElement.dir="ltr";}else if(l==="ar"){document.documentElement.lang="ar";document.documentElement.dir="rtl";}}catch(e){}})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title data-i18n="staff.title">בית חם — בחירת איש צוות</title>
+<title data-i18n="staff.title">בית חם — בחירת אחות או אח</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2a7a78">
+<meta name="theme-color" content="#2f7d6e">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
@@ -25,20 +25,31 @@
   </header>
   <main id="main-content" tabindex="-1">
     <div class="steps">
-      <div class="step active" aria-current="step" data-i18n="staff.step1">1. בחירת צוות</div>
+      <div class="step active" aria-current="step" data-i18n="staff.step1">1. בחירת אחות או אח</div>
       <div class="step" data-i18n="staff.step2">2. הזמנה ופרטים</div>
     </div>
-    <h1 id="page-title" data-i18n="staff.pageTitle">עם מי תרצו לקבוע ביקור?</h1>
-    <p class="subtitle" style="color:var(--text-muted); margin-bottom:8px;" data-i18n="staff.subtitle">בחרו איש צוות פנוי לפי תפקיד וזמינות</p>
+    <h1 id="page-title" data-i18n="staff.pageTitle">אצל איזו אחות או אח תרצו לקבוע ביקור?</h1>
+    <p class="subtitle" style="color:var(--text-muted); margin-bottom:8px;" data-i18n="staff.subtitle">בחרו אחות או אח פנויים לפי זמינות</p>
     <p id="role-filter-note" style="display:none; margin-bottom:20px;">
       <a href="staff.html" data-i18n="staff.showAllStaff">← הצגת כל אנשי הצוות</a>
     </p>
+    <div class="grid" id="staff-filters" style="margin-bottom:16px;">
+      <div class="field" id="role-field">
+        <label for="role-select" data-i18n="staff.roleFilterLabel">תפקיד</label>
+        <select id="role-select"></select>
+      </div>
+      <div class="field">
+        <label for="day-select" data-i18n="staff.dayFilterLabel">זמין ביום</label>
+        <select id="day-select"></select>
+      </div>
+    </div>
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
     <div id="staff-grid" class="grid"></div>
     <div id="empty-state" class="empty-state" style="display:none;" data-i18n="staff.emptyState">לא נמצאו אנשי צוות זמינים כרגע.</div>
   </main>
 </div>
 
+<script src="slot-calculation.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
@@ -56,20 +67,53 @@
     const grid = document.getElementById("staff-grid");
     const errorBox = document.getElementById("error-box");
     const params = new URLSearchParams(window.location.search);
-    const roleFilter = params.get("role");
+    const roleSelect = document.getElementById("role-select");
+    const daySelect = document.getElementById("day-select");
+    const emptyState = document.getElementById("empty-state");
+    const AVAIL_DAYS = 14;
+    const DAY_OPTIONS = 8; // היום, מחר, ועוד 6 ימים (סה"כ 8 ימים קדימה)
 
-    if (roleFilter) {
-      document.getElementById("page-title").textContent = tf("staff.roleFilterTitle", { role: roleLabel(roleFilter) });
-      document.getElementById("role-filter-note").style.display = "block";
+    const lang = () => LOCALE_BY_LANG[getLang()] || "he-IL";
+    const dayStart = (offset) => { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + offset); return d; };
+    function dayName(offset) {
+      if (offset === 0) return t("staff.today");
+      if (offset === 1) return t("staff.tomorrow");
+      return dayStart(offset).toLocaleDateString(lang(), { weekday: "long" });
     }
+
+    // סינון תפקיד: אותה התנהגות URL (?role=) כמו קודם
+    // רק תפקידים שהעסק מציע בפועל (SERVICE_CONFIG ב-config.js); כשיש תפקיד אחד — אין צורך בסינון
+    const offeredRoles = (window.SERVICE_CONFIG && window.SERVICE_CONFIG.roles) || Object.keys(I18N_STRINGS[getLang()].roleLabels);
+    const knownRoles = offeredRoles.slice();
+    let roleFilter = params.get("role") || "";
+    if (roleFilter && !knownRoles.includes(roleFilter)) roleFilter = "";
+    if (knownRoles.length <= 1) document.getElementById("role-field").style.display = "none";
+    roleSelect.innerHTML = `<option value="">${escapeHtml(t("staff.roleAll"))}</option>` +
+      knownRoles.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(roleLabel(r))}</option>`).join("");
+    roleSelect.value = roleFilter;
+
+    daySelect.innerHTML = `<option value="">${escapeHtml(t("staff.dayAny"))}</option>`;
+    for (let i = 0; i < DAY_OPTIONS; i++) {
+      const o = document.createElement("option");
+      o.value = String(i);
+      o.textContent = i < 2 ? dayName(i) : `${dayName(i)} ${formatDateLocalized(dayStart(i))}`;
+      daySelect.appendChild(o);
+    }
+
+    function applyRoleHeader() {
+      document.getElementById("page-title").textContent = (roleFilter && knownRoles.length > 1)
+        ? tf("staff.roleFilterTitle", { role: roleLabel(roleFilter) })
+        : t("staff.pageTitle");
+      document.getElementById("role-filter-note").style.display = (roleFilter && knownRoles.length > 1) ? "block" : "none";
+    }
+    applyRoleHeader();
 
     showLoadingRow(grid, t("staff.loadingStaff"));
 
     let staff, error;
     try {
-      let query = supabaseClient.from("medical_staff").select("*").order("role");
-      if (roleFilter) query = query.eq("role", roleFilter);
-      ({ data: staff, error } = await query);
+      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("*").order("role"));
+      if (!error && staff) staff = staff.filter((s) => offeredRoles.includes(s.role));
     } catch (err) {
       error = err;
     }
@@ -78,29 +122,104 @@
 
     if (error) {
       showError(errorBox, t("staff.errLoadingStaff") + friendlyErrorMessageLocalized(error));
+      document.getElementById("staff-filters").style.display = "none";
       return;
     }
     if (!staff || staff.length === 0) {
-      document.getElementById("empty-state").style.display = "block";
+      emptyState.style.display = "block";
+      document.getElementById("staff-filters").style.display = "none";
       return;
     }
 
-    staff.forEach((s) => {
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className = "staff-card";
-      card.innerHTML = `
-        <span class="role-badge">${roleLabel(s.role)}</span>
-        <div class="name">${escapeHtml(s.full_name)}</div>
-        <div class="spec">${escapeHtml(s.specialization || "")}</div>
-        <div class="avail">${formatAvailabilityLocalized(s)}</div>
-      `;
-      card.addEventListener("click", () => {
-        sessionStorage.setItem("selected_staff", JSON.stringify(s));
-        window.location.href = "booking.html";
+    // זמינות לפי איש צוות: Map(offset -> Date הפנוי הראשון) או undefined (טרם נטען / נכשל)
+    const availability = new Map();
+
+    function firstFreeSlot(s, offset, takenTimes) {
+      const d = dayStart(offset);
+      if (!(s.available_weekdays || []).includes(d.getDay())) return null;
+      if (!s.work_start_time || !s.work_end_time || !s.slot_duration_minutes) return null;
+      const free = computeAvailableSlots({
+        date: d, workStartTime: s.work_start_time, workEndTime: s.work_end_time,
+        slotDurationMinutes: s.slot_duration_minutes, takenTimes,
+      }).find((x) => x.available);
+      return free ? free.time : null;
+    }
+
+    async function loadAvailability(s) {
+      try {
+        const { data, error: err } = await supabaseClient.rpc("taken_slots", {
+          p_staff_id: s.id,
+          p_from: dayStart(0).toISOString(),
+          p_to: dayStart(AVAIL_DAYS).toISOString(),
+        });
+        if (err) return;
+        const taken = (data || []).map((b) => b.scheduled_at);
+        const m = new Map();
+        for (let i = 0; i < AVAIL_DAYS; i++) m.set(i, firstFreeSlot(s, i, taken));
+        availability.set(s.id, m);
+      } catch (e) { /* נכשל בשקט: בלי שורת זמינות */ }
+    }
+
+    function nextSlot(s) {
+      const m = availability.get(s.id);
+      if (!m) return undefined;
+      for (let i = 0; i < AVAIL_DAYS; i++) if (m.get(i)) return { offset: i, time: m.get(i) };
+      return null;
+    }
+
+    function matchesDay(s, dayVal) {
+      if (dayVal === "") return true;
+      const offset = Number(dayVal);
+      const m = availability.get(s.id);
+      if (m) return !!m.get(offset);
+      return (s.available_weekdays || []).includes(dayStart(offset).getDay()); // נפילה לימי עבודה
+    }
+
+    function render() {
+      grid.innerHTML = "";
+      const list = staff.filter((s) => (!roleFilter || s.role === roleFilter) && matchesDay(s, daySelect.value));
+      emptyState.style.display = list.length ? "none" : "block";
+      emptyState.textContent = list.length ? "" : t((roleFilter || daySelect.value) ? "staff.noMatch" : "staff.emptyState");
+      list.forEach((s) => {
+        const card = document.createElement("button");
+        card.type = "button";
+        card.className = "staff-card";
+        const ns = nextSlot(s);
+        let nextLine = "";
+        if (ns) {
+          nextLine = `<div class="avail next-avail">${escapeHtml(tf("staff.nextAvail", { when: dayName(ns.offset), time: formatTimeLocalized(ns.time) }))}</div>`;
+        } else if (ns === null) {
+          nextLine = `<div class="avail next-avail">${escapeHtml(t("staff.noAvail"))}</div>`;
+        }
+        card.innerHTML = `
+          <span class="role-badge">${roleLabel(s.role)}</span>
+          <div class="name">${escapeHtml(s.full_name)}</div>
+          <div class="spec">${escapeHtml(s.specialization || "")}</div>
+          <div class="avail">${formatAvailabilityLocalized(s)}</div>
+          ${nextLine}
+        `;
+        card.addEventListener("click", () => {
+          sessionStorage.setItem("selected_staff", JSON.stringify(s));
+          window.location.href = "booking.html";
+        });
+        grid.appendChild(card);
       });
-      grid.appendChild(card);
+    }
+
+    roleSelect.addEventListener("change", () => {
+      roleFilter = roleSelect.value;
+      const url = new URL(window.location.href);
+      if (roleFilter) url.searchParams.set("role", roleFilter); else url.searchParams.delete("role");
+      try { history.replaceState(null, "", url); } catch (e) {}
+      applyRoleHeader();
+      render();
     });
+    daySelect.addEventListener("change", render);
+
+    render();
+    // זמינות קרובה נטענת ברקע; כשל לא חוסם את הדף
+    await Promise.allSettled(staff.map(loadAvailability));
+    render();
   })();
 </script>
 </body>

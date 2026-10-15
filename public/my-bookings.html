@@ -9,7 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700&family=Inter:wght@400;600;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#2a7a78">
+<meta name="theme-color" content="#2f7d6e">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="icon" href="favicon-32.png" sizes="32x32">
 </head>
@@ -230,7 +230,7 @@
       try {
         ({ data: bookings, error } = await supabaseClient
           .from("bookings")
-          .select("*, medical_staff(full_name, role), visit_reports(*)")
+          .select("*, medical_staff(id, full_name, role, available_weekdays, work_start_time, work_end_time, slot_duration_minutes), visit_reports(*)")
           .eq("patient_id", user.id)
           .order("scheduled_at", { ascending: true }));
       } catch (err) {
@@ -299,6 +299,20 @@
             loadBookings();
           });
           item.querySelector(".item-actions").appendChild(cancelBtn);
+        }
+        if (!cancellable && b.medical_staff && b.staff_id != null) {
+          const rebookBtn = document.createElement("button");
+          rebookBtn.type = "button";
+          rebookBtn.className = "btn btn-secondary";
+          rebookBtn.textContent = t("myBookings.rebookButton");
+          rebookBtn.addEventListener("click", () => {
+            // אותו מנגנון כמו staff.html -> booking.html: selected_staff ב-sessionStorage
+            sessionStorage.setItem("selected_staff", JSON.stringify(b.medical_staff));
+            if (b.visit_purpose) sessionStorage.setItem("preselect_purpose", b.visit_purpose);
+            else sessionStorage.removeItem("preselect_purpose");
+            window.location.href = "booking.html";
+          });
+          item.querySelector(".item-actions").appendChild(rebookBtn);
         }
         const report = b.visit_reports && b.visit_reports[0];
         if (!cancellable && report) {

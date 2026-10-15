@@ -1,15 +1,15 @@
 :root {
-  --primary: #2a7a78;
-  --primary-dark: #1d5a58;
-  --primary-light: #e8f3f3;
+  --primary: #2f7d6e;
+  --primary-dark: #235c51;
+  --primary-light: #e6f1ee;
   --accent: #d98c3f;
   --accent-dark: #97622c;
   --accent-light: #fbead9;
-  --bg: #f6f9fa;
+  --bg: #f7f8f6;
   --surface: #ffffff;
-  --text: #1c2b2e;
-  --text-muted: #52646a;
-  --border: #d9e4e6;
+  --text: #1f2a28;
+  --text-muted: #5b6a67;
+  --border: #dfe6e3;
   --danger: #b3452f;
   --danger-light: #fbeae5;
   --success: #1d5a58; /* זהה ל-primary-dark — אותו ירוק "הצלחה" שכבר בשימוש ב-.success-msg */
@@ -765,10 +765,15 @@ section { margin-bottom: 48px; }
   display: block;
   font-family: var(--font-head);
   font-weight: 800;
-  font-size: 26px;
-  line-height: 1.25;
+  font-size: clamp(26px, 4.5vw, 38px);
+  line-height: 1.3;
   color: var(--accent-dark);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
+  padding-inline: 6px;
+  border-radius: 8px;
+  background: linear-gradient(to bottom, transparent 50%, var(--accent-light) 50%);
+  width: fit-content;
+  max-width: 100%;
 }
 .hero h1 {
   font-size: 38px;
@@ -947,7 +952,7 @@ section { margin-bottom: 48px; }
 
 @media (max-width: 560px) {
   .hero { padding: 28px 20px 28px; margin-top: 16px; border-radius: var(--radius); }
-  .hero-eyebrow { font-size: 20px; }
+  .hero-eyebrow { font-size: clamp(22px, 6vw, 28px); }
   .hero h1 { font-size: 28px; }
   .hero-subtitle { font-size: 17px; }
   html, body { font-size: 16px; }
