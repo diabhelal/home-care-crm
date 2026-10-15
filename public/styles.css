@@ -455,7 +455,7 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
 .section-title {
   margin: 32px 0 14px;
   padding-inline-start: 12px;
-  border-inline-start: 3px solid var(--primary);
+  border-inline-start: 3px solid var(--accent);
   font-size: 20px;
   font-weight: 700;
   color: var(--text);
@@ -637,7 +637,7 @@ section { margin-bottom: 48px; }
 #vr-risk-panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-inline-start: 4px solid var(--primary);
+  border-inline-start: 4px solid var(--accent);
   border-radius: var(--radius-sm);
   padding: 14px 16px;
   margin-bottom: 16px;
@@ -767,7 +767,7 @@ section { margin-bottom: 48px; }
   font-weight: 800;
   font-size: 26px;
   line-height: 1.25;
-  color: var(--primary-dark);
+  color: var(--accent-dark);
   margin-bottom: 10px;
 }
 .hero h1 {
@@ -1044,7 +1044,7 @@ section { margin-bottom: 48px; }
   transition: var(--transition);
 }
 .pr-tab-btn:hover { color: var(--text); }
-.pr-tab-btn.active { color: var(--primary-dark); border-block-end-color: var(--primary); font-weight: 700; }
+.pr-tab-btn.active { color: var(--primary-dark); border-block-end-color: var(--accent); font-weight: 700; }
 
 .pr-tab-content { min-height: 120px; }
 
