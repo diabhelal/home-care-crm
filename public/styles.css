@@ -859,7 +859,6 @@ section { margin-bottom: 48px; }
   color: inherit;
   transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
 }
-.service-desc { flex: 1; } /* דוחף את service-link לאותו גובה תחתון בכל הכרטיסים, בלי תלות באורך התיאור */
 .service-card:hover {
   border-color: var(--primary);
   box-shadow: var(--shadow-lg);
@@ -877,7 +876,7 @@ section { margin-bottom: 48px; }
   margin-bottom: 12px;
 }
 .service-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
-.service-desc { color: var(--text-muted); font-size: 15px; margin-bottom: 14px; }
+.service-desc { flex: 1; /* דוחף את service-link לאותו גובה תחתון בכל הכרטיסים, בלי תלות באורך התיאור */ color: var(--text-muted); font-size: 15px; margin-bottom: 14px; }
 .service-link { color: var(--primary); font-weight: 700; font-size: 15px; }
 
 .why-grid {
@@ -1153,6 +1152,7 @@ select.lang-switch:focus-visible { outline: 3px solid var(--primary); outline-of
   color: var(--text-muted);
   font-weight: 500;
   text-decoration: none;
+  padding: 0 12px;
 }
 .app-header nav a.nav-anchor:hover { color: var(--primary-dark); text-decoration: underline; }
 
@@ -1172,7 +1172,6 @@ select.lang-switch:focus-visible { outline: 3px solid var(--primary); outline-of
   padding: 8px 10px;
 }
 .app-header nav .btn-ghost:hover { color: var(--primary-dark); text-decoration: underline; }
-.app-header nav a.nav-anchor { padding: 0 12px; }
 @media (max-width: 700px) {
   .app-header nav a.nav-anchor { display: none; }
 }

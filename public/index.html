@@ -34,13 +34,6 @@
         <h1 data-i18n="index.heroTitle">טיפול רפואי מקצועי, ישירות לביתך</h1>
         <p class="hero-subtitle" data-i18n="index.heroSubtitle">אחיות ואחים מוסמכים מגיעים אליכם הביתה — בדיקות, טיפול בפצעים, בדיקות דם ומתן תרופות. קובעים תוך דקות, בלי הרשמה ובלי סיסמה.</p>
         <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.heroCta">לתיאום ביקור</a>
-        <p class="hero-emergency" data-i18n="index.heroEmergency">למקרה חירום רפואי פנו למד"א 101</p>
-        <ul class="hero-chips">
-          <li data-i18n="index.chipStaff">✓ צוות מוסמך</li>
-          <li data-i18n="index.chipInstant">✓ אישור מיידי</li>
-          <li data-i18n="index.chipNoSignup">✓ בלי הרשמה</li>
-        </ul>
-        <p class="hero-trust" id="hero-trust" style="display:none;"></p>
       </div>
     </section>
 
@@ -68,33 +61,6 @@
           <div class="how-step-text" data-i18n="index.howStep3Text">שם, טלפון וכתובת — וזהו, ההזמנה נקבעה</div>
         </div>
       </div>
-    </section>
-
-    <section class="why-us-band">
-      <h2 data-i18n="index.whyTitle">למה בית חם?</h2>
-      <div class="why-grid">
-        <div class="why-item">
-          <div class="why-icon">✅</div>
-          <div class="why-title" data-i18n="index.why1Title">צוות מוסמך ומנוסה</div>
-          <div class="why-text" data-i18n="index.why1Text">כל האחיות והאחים מורשים ובעלי ניסיון בטיפול ביתי</div>
-        </div>
-        <div class="why-item">
-          <div class="why-icon">⏱️</div>
-          <div class="why-title" data-i18n="index.why2Title">קביעת תור מיידית</div>
-          <div class="why-text" data-i18n="index.why2Text">בוחרים תאריך ושעה פנויים ומקבלים אישור מיידי</div>
-        </div>
-        <div class="why-item">
-          <div class="why-icon">🔒</div>
-          <div class="why-title" data-i18n="index.why3Title">בלי הרשמה מיותרת</div>
-          <div class="why-text" data-i18n="index.why3Text">מזמינים תוך דקה, הפרטים שלכם נשמרים רק אצלכם</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="cta-bottom">
-      <h2 data-i18n="index.ctaTitle">מוכנים להתחיל?</h2>
-      <p data-i18n="index.ctaText">בחרו אחות או אח, תאריך ושעה, ותוך דקות הביקור נקבע.</p>
-      <a href="staff.html" class="btn btn-primary hero-cta" data-i18n="index.heroCta">לתיאום ביקור</a>
     </section>
 
     <section class="contact-section" id="contact">
@@ -200,16 +166,6 @@
       `;
       grid.appendChild(card);
     });
-
-    // מספר אמיתי, לא מומצא: כמות אנשי הצוות הפעילים שכבר נשלפה למעלה (medical_staff_select_active
-    // כבר מסננת ל-is_active=true בצד השרת) — לא "500+ מטופלים מרוצים" שאין לנו דרך לדעת.
-    if (staff.length > 0) {
-      const trustEl = document.getElementById("hero-trust");
-      trustEl.textContent = staff.length === 1
-        ? t("index.heroTrustSingle")
-        : tf("index.heroTrustPlural", { count: staff.length });
-      trustEl.style.display = "block";
-    }
   })();
 
   // ===== יצירת קשר מדף הבית — לפני שיש בכלל הזמנה/תור =====

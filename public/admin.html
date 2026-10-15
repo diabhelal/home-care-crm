@@ -346,6 +346,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="js/shared/visit-report-shared.js"></script>
 <script src="js/admin/staff.js"></script>
 <script src="js/admin/patients.js"></script>
 <script src="js/admin/capacity.js"></script>
@@ -363,28 +364,6 @@
   // staffListCache/loadStaff/openStaffModal/deleteStaff/createStaffLogin עברו ל-
   // js/admin/staff.js (נטען לפני הסקריפט הזה — ר' תגית ה-script למעלה) — נגישים כאן
   // כשם חשוף בדיוק כמו קודם, כי סקריפטים קלאסיים חולקים scope עליון.
-
-  function flashSuccess(msg) {
-    appSuccess.classList.remove("warning");
-    appSuccess.textContent = msg;
-    appSuccess.classList.add("show");
-    setTimeout(() => appSuccess.classList.remove("show"), 2500);
-  }
-
-  // כמו flashSuccess אבל בצבע כתום-אזהרה (זהה ל-.predictive-offline-banner) — לשמירה
-  // שהצליחה אך לא הגיעה לשרת (תור אופליין), כדי שלא תיראה זהה לשמירה מאושרת.
-  function flashWarning(msg) {
-    appSuccess.classList.add("warning");
-    appSuccess.textContent = msg;
-    appSuccess.classList.add("show");
-    setTimeout(() => { appSuccess.classList.remove("show"); appSuccess.classList.remove("warning"); }, 4000);
-  }
-
-  function flashError(msg) {
-    appError.textContent = msg;
-    appError.classList.add("show");
-    setTimeout(() => appError.classList.remove("show"), 4000);
-  }
 
   async function isAdminSession() {
     const { data: { session } } = await supabaseClient.auth.getSession();
@@ -518,16 +497,13 @@
   let vrDrawing = false;
   let vrHasSignature = false;
 
+  // אחות-תאומה: employee.html vrCanvasPoint() — ההבדל מכוון: pointer events (עכבר+מגע+עט). לא ממוזג בכוונה.
   function vrCanvasPoint(e) {
     const rect = vrCanvas.getBoundingClientRect();
     return {
       x: (e.clientX - rect.left) * (vrCanvas.width / rect.width),
       y: (e.clientY - rect.top) * (vrCanvas.height / rect.height),
     };
-  }
-  function vrClearCanvas() {
-    vrCtx.clearRect(0, 0, vrCanvas.width, vrCanvas.height);
-    vrHasSignature = false;
   }
   vrCanvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
@@ -547,15 +523,7 @@
   window.addEventListener("pointerup", () => { vrDrawing = false; });
   document.getElementById("vr-signature-clear").addEventListener("click", vrClearCanvas);
 
-  function vrLoadSignature(dataUrl) {
-    vrClearCanvas();
-    if (!dataUrl) return;
-    const img = new Image();
-    img.onload = () => vrCtx.drawImage(img, 0, 0, vrCanvas.width, vrCanvas.height);
-    img.src = dataUrl;
-    vrHasSignature = true;
-  }
-
+  // אחות-תאומה: employee.html openVisitReportModal() — ההבדל מכוון: staffId מההזמנה, כולל שם איש צוות, ומנקה טיימר/תוצאות trend+comprehensive (למנהל בלבד). לא ממוזג בכוונה.
   function openVisitReportModal(booking, report) {
     // מונע תצוגת תחזית-סיכון "חיה" ישנה (מבוקש קודם, מטופל אחר) מלהידרס על פני
     // מה ש-loadAndRenderRisk טוען עכשיו עבור ההזמנה הנוכחית.
@@ -589,44 +557,7 @@
     loadAllergyBannerForVisitReport(booking.patient_id);
   }
 
-  // באנר רגישויות בתוך מודל דוח הביקור עצמו — כדי שאח/ות/מנהל לא יתעדו ביקור בלי
-  // לראות את רגישויות המטופל, גם בלי לפתוח את לשונית תיק המטופל. משתמש באותה
-  // שליפה (prFetchAllergies, app.js) ואותו סגנון (.pr-allergy-banner) כמו ה-
-  // באנר בתיק המטופל (patient-record.js prRenderHeader) — לא נבנה תיעוד חדש.
-  async function loadAllergyBannerForVisitReport(patientId) {
-    const banner = document.getElementById("vr-allergy-banner");
-    const allergies = await prFetchAllergies(patientId);
-    if (allergies.length) {
-      banner.style.display = "block";
-      banner.className = "pr-allergy-banner";
-      banner.innerHTML = "⚠️ רגישויות: " + allergies.map((a) => `${escapeHtml(a.substance)}${a.severity ? " (" + SEVERITY_LABELS[a.severity] + ")" : ""}`).join(", ");
-    } else {
-      banner.style.display = "none";
-    }
-  }
-
-  // רקע רפואי (background_conditions/smoking_status) שנשלף פעם אחת בפתיחת המודל,
-  // ומוזן לחישוב הסיכון (תצוגה חיה + השמירה בפועל) — ר' predictive-service/main.py
-  // compute_risk(): מדד "צהוב" עם רקע רלוונטי מוחמר ל"אדום". null עד שהשליפה מסתיימת,
-  // כדי לא לחשב סיכון עם רקע חלקי/שגוי.
-  let vrPatientContext = null;
-  async function loadPatientContextForRisk(patientId) {
-    vrPatientContext = null;
-    const { data, error } = await supabaseClient.from("patients").select("background_conditions, smoking_status").eq("id", patientId).maybeSingle();
-    if (error) { console.error("patient context for risk", error); vrPatientContext = { background_conditions: [], smoking_status: null }; return; }
-    vrPatientContext = { background_conditions: data?.background_conditions || [], smoking_status: data?.smoking_status || null };
-  }
-
-  async function loadCurrentRiskForPatient(patientId) {
-    const { data, error } = await supabaseClient
-      .from("current_patient_risk")
-      .select("*")
-      .eq("patient_id", patientId)
-      .maybeSingle();
-    if (error) { console.error("current_patient_risk", error); return null; }
-    return data;
-  }
-
+  // אחות-תאומה: employee.html renderRiskPanel() — ההבדל מכוון: רווחי whitespace שונים בתבנית ה-HTML. לא ממוזג בכוונה.
   function renderRiskPanel(currentRisk) {
     const panel = document.getElementById("vr-risk-panel");
     if (!currentRisk) {
@@ -655,6 +586,7 @@
     `;
   }
 
+  // אחות-תאומה: employee.html loadAndRenderRisk() — ההבדל מכוון: זהה בהתנהגות; ניסוח שונה בלבד. לא ממוזג בכוונה.
   async function loadAndRenderRisk(patientId) {
     document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">טוען רמת סיכון...</p>`;
     const currentRisk = await loadCurrentRiskForPatient(patientId);
@@ -719,6 +651,7 @@
     document.getElementById(id).addEventListener("input", scheduleLiveRiskPreview);
   });
 
+  // אחות-תאומה: employee.html recalculateRiskAfterSave() — ההבדל מכוון: ללא בדיקת predictiveServiceReachable (דמו) ועם בדיקת prevError ו-no_data מפורש. לא ממוזג בכוונה.
   async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
     const { data: prevReports, error: prevError } = await supabaseClient
       .from("visit_reports")
@@ -779,27 +712,6 @@
       expires_at: expiresAt.toISOString(),
       prediction_horizon_hours: assessment.prediction_horizon_hours,
     });
-  }
-
-  function collectVitalsFromForm() {
-    const num = (id) => {
-      const v = document.getElementById(id).value;
-      return v === "" ? null : Number(v);
-    };
-    return {
-      systolic_bp: num("vr-systolic"),
-      diastolic_bp: num("vr-diastolic"),
-      blood_sugar: num("vr-sugar"),
-      pulse: num("vr-pulse"),
-      temperature: num("vr-temp"),
-      oxygen_saturation: num("vr-o2"),
-    };
-  }
-
-  function predictiveServiceUnavailableMessage(err) {
-    return /failed to fetch|network|load failed/i.test(err?.message || "")
-      ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
-      : friendlyErrorMessage(err);
   }
 
   // ===== אבחון מקיף: Baseline / Anomaly detection (עם דעיכה בזמן) / Time-Series / ML =====
@@ -1076,17 +988,6 @@
     await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
     refreshOpenPatientRecordIfMatching(payload.patient_id);
   });
-
-  // תיק מטופל (הלשוניות) שומר קאש בזיכרון (window.currentPatientState) כדי לא לשלוף
-  // מחדש מ-Supabase בכל מעבר לשונית. שמירת דוח ביקור דרך המודל הישן (טבלת ההזמנות)
-  // כותבת ל-DB ישירות ולא עוברת דרך הקאש הזה — בלי הרענון הזה, לשונית "ביקורים"/
-  // "מדדים"/"סקירה" הייתה יכולה להראות מידע ישן וליצור רושם מוטעה ש"שום דבר לא נשמר".
-  function refreshOpenPatientRecordIfMatching(patientId) {
-    if (!window.currentPatientState || window.currentPatientState.patientId !== patientId) return;
-    prInvalidate("visitReports", "bookings", "currentRisk", "alerts", "tasks", "medications");
-    const activeBtn = document.querySelector(".pr-tab-btn.active");
-    if (activeBtn) prSwitchTab(activeBtn.dataset.tab);
-  }
 
   // ===== תיק מטופל (11 לשוניות + חיפוש + כותרת + מי דורש תשומת לב) ===== הועבר ל-
   // js/admin/patient-record.js (openPatientRecord/prSwitchTab/PR_TABS/loadAttentionDashboard/
