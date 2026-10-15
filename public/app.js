@@ -1096,3 +1096,16 @@ function startNewBookingWatcher({ scope, staffId } = {}) {
   window.__newBookingWatcher = { poll, stop };
   return window.__newBookingWatcher;
 }
+
+
+// תווית גרסה קטנה בתחתית העמוד (אבחון מטמון ישן).
+if (typeof document !== "undefined" && typeof window !== "undefined" && window.APP_BUILD) {
+  document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("build-tag")) return;
+    const el = document.createElement("div");
+    el.id = "build-tag";
+    el.textContent = "גרסה " + window.APP_BUILD;
+    el.style.cssText = "text-align:center;font-size:12px;color:var(--text-muted);padding:8px 0 16px;";
+    document.body.appendChild(el);
+  });
+}

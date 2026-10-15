@@ -180,6 +180,12 @@
       }
     });
     try { sessionStorage.removeItem("preselect_purpose"); } catch (e) {}
+    // לא נותנים למסלול להיתקע: אם לא נבחר שירות מראש (למשל הגעה מכפתור "לתיאום ביקור"),
+    // השירות הראשון ברשימה (בדיקה כללית) מסומן כברירת מחדל וניתן לשינוי בלחיצה.
+    if (!selectedPurpose) {
+      const firstChip = chipsEl.querySelector(".chip");
+      if (firstChip) firstChip.click();
+    }
 
     // תאריכים — עשרת הימים הקרובים (עם איש צוות מסוים: רק ימי העבודה שלו). הזמינות בפועל
     // (כולל מרווח נסיעה) מגיעה מהשרת לכל יום בנפרד; יום בלי שעות מציג "אין שעות פנויות".
@@ -275,16 +281,24 @@
     }
 
     let loadSlotsToken = 0;
+    // רענון שעות לאותו יום (למשל אחרי הקלדת כתובת) לא מחליף את הכפתורים אם הרשימה זהה:
+    // אחרת לחיצה על שעה שמתרחשת ברגע ההחלפה הולכת לאיבוד והמסלול "נתקע".
+    let renderedDate = null;
+    let renderedKey = null;
 
     async function loadSlots(date) {
       const requestToken = ++loadSlotsToken;
       const slotsSection = document.getElementById("slots-section");
       const noSlots = document.getElementById("no-slots");
       const slotGrid = document.getElementById("slot-grid");
+      const dateKey = localDateStr(date);
+      const sameDateRefresh = dateKey === renderedDate && slotGrid.children.length > 0;
       hideError(errorBox);
-      noSlots.style.display = "none";
-      slotsSection.style.display = "block";
-      showLoadingRow(slotGrid, t("booking.loadingSlots"));
+      if (!sameDateRefresh) {
+        noSlots.style.display = "none";
+        slotsSection.style.display = "block";
+        showLoadingRow(slotGrid, t("booking.loadingSlots"));
+      }
 
       // זמינות מהשרת (מקור האמת): כולל מרווח נסיעה והתנגשויות. בלי staff_id = כל הצוות המתאים.
       // הכתובת (אם הוזנה) מאפשרת לשרת לדעת מתי אין צורך במרווח נסיעה (אותה כתובת).
@@ -304,6 +318,10 @@
       // תאריך אחר כבר נבחר בזמן שהבקשה הזו הייתה באוויר — מתעלמים מהתוצאה המיושנת
       if (requestToken !== loadSlotsToken) return;
 
+      const newKey = error ? null : slots.map((sl) => sl.start).join("|");
+      if (sameDateRefresh && !error && newKey === renderedKey) return;   // אותן שעות — לא נוגעים בכפתורים
+      renderedDate = error ? null : dateKey;
+      renderedKey = newKey;
       slotGrid.innerHTML = "";
 
       if (error) {
@@ -357,7 +375,7 @@
       setStep(!selectedPurpose ? 0 : !(selectedDate && selectedSlot) ? 1 : 2);
       // חשיפה הדרגתית: טופס הפרטים האישיים מוצג רק אחרי שנבחרו מטרה/תאריך/שעה —
       // כדי שהמסך לא יציג עשרה שדות בבת אחת לפני שיש בכלל מה לאשר.
-      if (selectedPurpose && selectedDate && selectedSlot && !detailsRevealed) {
+      if (selectedDate && selectedSlot && !detailsRevealed) {   // פרטי המטופל מוצגים מיד אחרי בחירת שעה
         detailsRevealed = true;
         patientDetailsSection.style.display = "block";
         patientDetailsSection.scrollIntoView({ behavior: "smooth", block: "start" });

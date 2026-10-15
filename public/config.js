@@ -19,3 +19,6 @@ window.SERVICE_CONFIG = { roles: ["nurse"], purposes: ["checkup", "wound_care", 
 // ברירת מחדל רק בהרצה מקומית. בכל מארח אחר חובה להגדיר כתובת HTTPS מפורשת כאן —
 // אם היא ריקה, הזמנה מציגה "השירות אינו זמין" ולא כותבת כלום (אין נתיב כתיבה עוקף).
 window.BACKEND_URL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "http://localhost:8001" : "";
+
+// מזהה גרסה שמוצג בתחתית העמודים (קטן): מאפשר לראות מיד אם הדפדפן מגיש קבצים ישנים מהמטמון.
+window.APP_BUILD = "2026-10-15.40";
