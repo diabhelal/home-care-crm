@@ -20,8 +20,8 @@
   --shadow: 0 4px 16px rgba(31, 42, 40, 0.08);
   --shadow-lg: 0 14px 36px rgba(31, 42, 40, 0.14);
   --transition: 0.18s ease;
-  --font-body: "Heebo", "Inter", "Segoe UI", Arial, sans-serif;
-  --font-head: "Heebo", "Inter", "Segoe UI", Arial, sans-serif;
+  --font-body: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-head: "Manrope", "Segoe UI", Arial, sans-serif;
 }
 
 * { box-sizing: border-box; }
@@ -74,13 +74,13 @@ html, body {
   color: var(--text);
   font-family: var(--font-body);
   font-size: 18px;
-  line-height: 1.6;
+  line-height: 1.5;
   direction: rtl;
 }
 
 h1, h2, h3 { font-family: var(--font-head); margin: 0 0 8px; line-height: 1.15; letter-spacing: -0.01em; }
-h1 { font-size: 28px; font-weight: 700; }
-h2 { font-size: 24px; font-weight: 700; }
+h1 { font-size: 28px; font-weight: 800; }
+h2 { font-size: 22px; font-weight: 700; }
 h3 { font-size: 18px; font-weight: 700; }
 
 a { color: var(--primary); }
@@ -231,7 +231,7 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
   gap: 8px;
   min-height: 48px;
   padding: 14px 24px;
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
   font-family: var(--font-body);
   border-radius: var(--radius-sm);
@@ -765,8 +765,8 @@ section { margin-bottom: 48px; }
   display: block;
   font-family: var(--font-head);
   font-weight: 800;
-  font-size: clamp(26px, 4.5vw, 38px);
-  line-height: 1.3;
+  font-size: 26px;
+  line-height: 1.25;
   color: var(--accent-dark);
   margin-bottom: 12px;
   padding-inline: 6px;
@@ -776,12 +776,12 @@ section { margin-bottom: 48px; }
   max-width: 100%;
 }
 .hero h1 {
-  font-size: 38px;
+  font-size: 34px;
   margin: 0 0 12px;
   color: var(--primary-dark);
 }
 .hero-subtitle {
-  font-size: 18px;
+  font-size: 17px;
   line-height: 1.6;
   color: var(--text-muted);
   margin: 0 0 22px;
@@ -790,7 +790,7 @@ section { margin-bottom: 48px; }
   display: inline-flex;
   width: auto;
   padding: 16px 36px;
-  font-size: 18px;
+  font-size: 17px;
 }
 .hero-emergency {
   margin: 14px 0 0;
@@ -832,7 +832,7 @@ section { margin-bottom: 48px; }
 }
 .services-section h2, .why-us-band h2, .how-it-works h2 {
   text-align: center;
-  font-size: 24px;
+  font-size: 26px;
   margin-bottom: 28px;
 }
 
@@ -871,7 +871,7 @@ section { margin-bottom: 48px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 28px;
+  font-size: 26px;
   background: var(--primary-light);
   border-radius: var(--radius);
   margin-bottom: 12px;
@@ -892,7 +892,7 @@ section { margin-bottom: 48px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 21px;
   background: var(--primary-light);
   border: none;
   border-radius: 50%;
@@ -919,7 +919,7 @@ section { margin-bottom: 48px; }
   justify-content: center;
   font-weight: 700;
   font-family: var(--font-head);
-  font-size: 18px;
+  font-size: 14px;
   margin: 0 auto 14px;
 }
 .how-step-title { font-weight: 700; font-size: 17px; margin-bottom: 6px; }
@@ -952,7 +952,7 @@ section { margin-bottom: 48px; }
 
 @media (max-width: 560px) {
   .hero { padding: 28px 20px 28px; margin-top: 16px; border-radius: var(--radius); }
-  .hero-eyebrow { font-size: clamp(22px, 6vw, 28px); }
+  .hero-eyebrow { font-size: 20px; }
   .hero h1 { font-size: 28px; }
   .hero-subtitle { font-size: 17px; }
   html, body { font-size: 16px; }
