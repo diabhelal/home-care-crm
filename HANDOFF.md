@@ -1,6 +1,6 @@
 # HANDOFF — מצב הפרויקט ומה הלאה
 
-> לשיחה חדשה: `git clone https://github.com/diabhelal/home-care-crm` ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
+> לשיחה חדשה: `gh repo clone diabhelal/home-care-crm` (הריפו **פרטי** מ-2026-10-15; נדרש `gh auth login` או SSH) ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
 > עודכן: 2026-10-15. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
 
 ## איפה אנחנו
@@ -21,6 +21,9 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 
 ## הגדרות מקומיות שלא בריפו
 `.claude/settings.local.json` (הרשאות Claude Code, כולל הפעלת Supabase MCP) ו-`backend/.env` הם per-machine ולא נשמרים ב-git. בשיחה חדשה: לאשר/להפעיל את שרת ה-MCP של Supabase ולהוסיף הרשאה לכלי `apply_migration`/`execute_sql` רק אם צריך לשנות DB.
+
+## הגדרות GitHub (ריפו פרטי, תוכנית חינמית)
+מופעל: Dependabot alerts + security updates, סריקת סודות בכל ה-history ב-CI (`secret-scan`), `permissions: contents: read`. **לא זמין בתוכנית חינמית לריפו פרטי:** Secret scanning/Push protection של GitHub ו-Branch protection (נדרש GitHub Pro או ריפו ציבורי). ההגנה על סודות נשענת על ה-hook המקומי (`git config core.hooksPath .githooks`) ועל ה-CI.
 
 ## חוקים קבועים
 1. אין push/פריסה/שינוי DB בלי אישור מפורש (SQL: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים). `supabase config push` דורס את כל `[auth]`.
