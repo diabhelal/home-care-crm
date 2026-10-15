@@ -70,8 +70,9 @@ test("flush: הצלחה מאושרת — קריאה אחת ל-complete, התור
   const r = await ctx.flushOfflineQueue();
   assert.equal(r.synced, 1); assert.equal(r.failed, 0); assert.equal(r.partial, 0);
   assert.equal(ctx.getQueuedDraftCount(), 0);
-  assert.equal(backend.calls.length, 1);
-  const c = backend.calls[0];
+  const completes = backend.calls.filter((x) => /\/complete$/.test(x.url));
+  assert.equal(completes.length, 1);
+  const c = completes[0];
   assert.equal(c.url, "http://backend.test/staff/visits/1/complete");
   assert.equal(c.method, "POST");
   assert.equal(c.headers.Authorization, "Bearer tok-user-1");
@@ -81,6 +82,22 @@ test("flush: הצלחה מאושרת — קריאה אחת ל-complete, התור
   for (const k of ["patient_id", "staff_id", "booking_id", "_queuedAt"]) {
     assert.ok(!(k in c.body), k + " לא נשלח — הזהות מה-JWT בלבד");
   }
+});
+
+test("flush: הערכת סיכון נקראת רק אחרי השלמה מאושרת (בשרת), וכישלון שלה לא מחזיר את הטיוטה", async () => {
+  const { ctx, backend } = await createContext();
+  backend.respond = (url) => url.endsWith("/risk-assessment")
+    ? { status: 503, json: { code: "predictive_unavailable", detail: "x" } }
+    : { status: 200, json: { report: { id: 77 } } };
+  ctx.queueVisitReportDraft(draft(5));
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1); assert.equal(r.failed, 0);
+  assert.equal(ctx.getQueuedDraftCount(), 0);
+  assert.deepEqual(backend.calls.map((x) => x.url), [
+    "http://backend.test/staff/visits/5/complete",
+    "http://backend.test/visits/77/risk-assessment",
+  ]);
+  assert.equal(backend.calls[1].body, null);   // בלי ערכים מהלקוח
 });
 
 test("flush: אין כתיבה ישירה ל-Supabase (visit_reports/bookings)", async () => {

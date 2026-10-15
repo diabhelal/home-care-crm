@@ -10,7 +10,7 @@ from typing import Optional
 
 import httpx
 
-from .errors import SlotTakenError, conflict, forbidden, not_found
+from .errors import SlotTakenError, bad_request, conflict, forbidden, not_found
 from .models import Booking, Staff
 
 STAFF_COLS = ("id,full_name,role,available_weekdays,work_start_time,work_end_time,"
@@ -85,6 +85,8 @@ class SupabaseRepo:
             raise forbidden()
         if code == "55000":
             raise conflict("illegal_transition", "מצב ההזמנה אינו מאפשר פעולה זו")
+        if code in ("22023", "23514"):   # invalid parameter / check violation from RPCs
+            raise bad_request("invalid_value", "ערך לא תקין")
         if code == "P0002":
             raise not_found("ההזמנה לא נמצאה")
         resp.raise_for_status()
@@ -171,3 +173,37 @@ class SupabaseRepo:
         if not rows:  # RLS filtered the row out: nothing was written
             raise forbidden()
         return {k: rows[0].get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}
+
+    # -- clinical risk orchestration (all with the caller's JWT)
+    _VITALS = "systolic_bp,diastolic_bp,blood_sugar,pulse,temperature,oxygen_saturation"
+
+    def get_report_for_risk(self, report_id):
+        rows = self._get("/visit_reports", {
+            "id": f"eq.{report_id}",
+            "select": f"id,booking_id,patient_id,staff_id,visit_date,{self._VITALS}"})
+        return rows[0] if rows else None
+
+    def get_patient_risk_context(self, patient_id):
+        rows = self._get("/patients", {
+            "id": f"eq.{patient_id}",
+            "select": "date_of_birth,background_conditions,smoking_status"})
+        return rows[0] if rows else None
+
+    def get_previous_report(self, patient_id, exclude_report_id):
+        rows = self._get("/visit_reports", {
+            "patient_id": f"eq.{patient_id}", "id": f"neq.{exclude_report_id}",
+            "select": self._VITALS, "order": "visit_date.desc", "limit": "1"})
+        return rows[0] if rows else None
+
+    def list_patient_reports(self, patient_id):
+        return self._get("/visit_reports", {
+            "patient_id": f"eq.{patient_id}", "select": f"visit_date,{self._VITALS}",
+            "order": "visit_date.asc"})
+
+    def record_risk_prediction(self, report_id, attestation):
+        return self._rpc("record_risk_prediction",
+                         {"p_report_id": report_id, "p_assessment": attestation})
+
+    def record_auto_alert(self, patient_id, attestation):
+        return self._rpc("record_auto_alert",
+                         {"p_patient_id": patient_id, "p_assessment": attestation})

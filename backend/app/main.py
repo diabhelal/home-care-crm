@@ -15,6 +15,7 @@ from .geo import Geocoder, NoopGeocoder
 from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, ReassignIn, Staff,
                      VisitReportIn, booking_to_dict)
 from .repo import Repository
+from .risk import HttpPredictiveClient, PredictiveClient, RiskService
 from .service import BookingService
 from .state import display_state
 
@@ -28,7 +29,8 @@ def create_app(settings: Settings | None = None,
                verifier: TokenVerifier | None = None,
                repo_factory: Callable[[str], Repository] | None = None,
                geocoder: Geocoder | None = None,
-               clock: Callable[[], datetime] | None = None) -> FastAPI:
+               clock: Callable[[], datetime] | None = None,
+               predictive_client: PredictiveClient | None = None) -> FastAPI:
     cfg = settings or Settings.from_env()
     verifier = verifier or HS256Verifier(cfg.supabase_jwt_secret)
     geocoder = geocoder or NoopGeocoder()
@@ -36,6 +38,9 @@ def create_app(settings: Settings | None = None,
     if repo_factory is None:
         from .supabase_repo import SupabaseRepo
         repo_factory = lambda jwt: SupabaseRepo(cfg.supabase_url, cfg.supabase_anon_key, jwt)
+
+    predictive = predictive_client or HttpPredictiveClient(
+        cfg.predictive_service_url, cfg.predictive_timeout_seconds)
 
     app = FastAPI(title="home-care-crm backend")
     if cfg.allowed_origins:
@@ -50,6 +55,10 @@ def create_app(settings: Settings | None = None,
     class Ctx:
         def __init__(self, identity: Identity, svc: BookingService):
             self.identity, self.svc = identity, svc
+
+        @property
+        def risk(self) -> RiskService:
+            return RiskService(self.svc.repo, predictive, cfg.risk_attestation_secret, clock)
 
         def staff(self) -> Staff:
             s = self.svc.repo.get_staff_by_auth_user(self.identity.user_id)
@@ -120,6 +129,17 @@ def create_app(settings: Settings | None = None,
         staff = None if c.identity.is_admin else c.staff()
         return {"report": c.svc.set_clinical_outcome(
             c.identity, staff, report_id, body.clinical_outcome_8h)}
+
+    @app.post("/visits/{report_id}/risk-assessment")
+    def risk_assessment(report_id: int, c: Ctx = Depends(ctx)):
+        staff = None if c.identity.is_admin else c.staff()
+        return c.risk.assess_visit(c.identity, staff, report_id)
+
+    @app.post("/patients/{patient_id}/auto-alert")
+    def auto_alert(patient_id: str, c: Ctx = Depends(ctx)):
+        if not c.identity.is_admin:
+            c.staff()   # staff only (RLS further limits to assigned patients)
+        return c.risk.auto_alert(c.identity, patient_id)
 
     return app
 

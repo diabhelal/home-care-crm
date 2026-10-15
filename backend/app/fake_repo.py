@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from .errors import SlotTakenError
 from .models import Booking, Staff
+from .risk import VITAL_KEYS, verify_attestation
 
 
 class FakeRepo:
@@ -17,6 +18,12 @@ class FakeRepo:
         self._now = now or (lambda: datetime.now(timezone.utc))
         self.complete_calls = 0
         self.fail_complete = False
+        # clinical (see app/risk.py)
+        self.patients: dict[str, dict] = {}
+        self.predictions: list[dict] = []
+        self.alerts: list[dict] = []
+        self.attestation_secret: str | None = None
+        self.fail_record = False
 
     # staff
     def get_staff(self, staff_id): return self.staff.get(staff_id)
@@ -92,3 +99,62 @@ class FakeRepo:
         rep = self.get_visit_report(report_id)
         rep["clinical_outcome_8h"] = value
         return {k: rep.get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}
+
+    # ---- clinical risk orchestration
+    def get_report_for_risk(self, report_id):
+        return self.get_visit_report(report_id)
+
+    def get_patient_risk_context(self, patient_id):
+        return self.patients.get(patient_id)
+
+    def _vit(self, r):
+        return {k: r.get(k) for k in VITAL_KEYS}
+
+    def get_previous_report(self, patient_id, exclude_report_id):
+        rows = [r for r in self.reports.values()
+                if r["patient_id"] == patient_id and r["id"] != exclude_report_id]
+        rows.sort(key=lambda r: r.get("visit_date") or "", reverse=True)
+        return self._vit(rows[0]) if rows else None
+
+    def list_patient_reports(self, patient_id):
+        rows = [r for r in self.reports.values() if r["patient_id"] == patient_id]
+        rows.sort(key=lambda r: r.get("visit_date") or "")
+        return [{"visit_date": r.get("visit_date"), **self._vit(r)} for r in rows]
+
+    def _insert_alert(self, patient_id, pred_id, alert):
+        """Dedupe: an open alert of the same type for the patient blocks a new one."""
+        if not alert:
+            return None
+        if any(a["patient_id"] == patient_id and a["alert_type"] == alert["alert_type"]
+               and a["status"] == "open" for a in self.alerts):
+            return None
+        row = {"id": len(self.alerts) + 1, "patient_id": patient_id, "risk_prediction_id": pred_id,
+               "status": "open", **alert}
+        self.alerts.append(row)
+        return row
+
+    def record_risk_prediction(self, report_id, attestation):
+        if self.fail_record:
+            raise RuntimeError("simulated failure: nothing written")
+        v = verify_attestation(self.attestation_secret or "", attestation)
+        assert v["report_id"] == report_id
+        rep = self.get_visit_report(report_id)
+        existing = next((p for p in self.predictions if p["visit_report_id"] == report_id), None)
+        if existing:
+            return {"prediction": existing, "alert": None, "created": False}
+        pred = {"id": len(self.predictions) + 1, "patient_id": rep["patient_id"],
+                "visit_report_id": report_id, "risk_level": v["risk_level"], "trend": v["trend"],
+                "confidence": v["confidence"], "probability": v["probability"],
+                "prediction_horizon_hours": v["horizon_hours"], "model_version": v["model_version"],
+                "input_features": self._vit(rep), "created_by": v["uid"]}
+        alert = self._insert_alert(rep["patient_id"], pred["id"], v.get("alert"))
+        self.predictions.append(pred)   # prediction + alert land together
+        return {"prediction": pred, "alert": alert, "created": True}
+
+    def record_auto_alert(self, patient_id, attestation):
+        if self.fail_record:
+            raise RuntimeError("simulated failure: nothing written")
+        v = verify_attestation(self.attestation_secret or "", attestation)
+        assert v["patient_id"] == patient_id
+        alert = self._insert_alert(patient_id, None, v.get("alert"))
+        return {"alert": alert, "created": alert is not None}

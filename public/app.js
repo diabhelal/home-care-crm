@@ -145,6 +145,17 @@ async function submitVisitCompletion(payload) {
   });
 }
 
+// הערכת סיכון קלינית: נעשית אך ורק בשרת (backend קורא ל-predictive-service ושומר דרך פונקציית DB).
+// הדפדפן לא כותב ל-risk_predictions/alerts. נקראת *אחרי* השלמה מאושרת; כישלון כאן לעולם לא
+// מבטל או חוסם את הדוח שנשמר — רק הודעה.
+async function requestRiskAssessment(reportId) {
+  return backendFetch(`/visits/${encodeURIComponent(reportId)}/risk-assessment`, { method: "POST", timeoutMs: 20000 });
+}
+// התראה אוטומטית מ"אבחון מקיף" (השרת מחשב מחדש מהיסטוריית הדוחות — לא מקבל ערכים מהלקוח).
+async function requestAutoAlert(patientId) {
+  return backendFetch(`/patients/${encodeURIComponent(patientId)}/auto-alert`, { method: "POST", timeoutMs: 20000 });
+}
+
 // שגיאה שאחריה שומרים טיוטה מקומית ומנסים שוב אוטומטית (אין החלטה סופית של השרת).
 function isRetryableCompletionError(err) {
   const kind = err && err.kind;
@@ -212,8 +223,11 @@ async function flushOfflineQueueKey(queueKey) {
       continue;
     }
     try {
-      await submitVisitCompletion(draft);
+      const done = await submitVisitCompletion(draft);
       synced++; // תשובת הצלחה מאושרת — רק עכשיו הטיוטה יורדת מהתור
+      // הערכת סיכון אחרי השלמה מאושרת, בכל מקרה לא חוסמת: כישלון = בלי הערכה, הדוח נשמר.
+      const doneId = done && done.report && done.report.id;
+      if (doneId) { try { await requestRiskAssessment(doneId); } catch (riskErr) { /* הודעה בלבד בזרימה הרגילה */ } }
     } catch (err) {
       if (err && err.kind === "conflict" && await isBookingAlreadyCompleted(draft.booking_id)) { synced++; continue; }
       stillPending.push(draft);
@@ -694,6 +708,9 @@ async function backendFetch(path, { method = "GET", body, idempotencyKey, timeou
   const detail = data && typeof data.detail === "string" ? data.detail : null;
   const code = data && typeof data.code === "string" ? data.code : null;
   const extra = { status: res.status, code };
+  if (res.status === 503 && (code === "predictive_unavailable" || code === "risk_not_configured")) {
+    throw new BackendError("predictive_unavailable", detail || "שירות התחזית אינו זמין כרגע.", extra);
+  }
   if (res.status === 401) throw new BackendError("auth", "פג תוקף ההתחברות. נא לרענן את הדף ולנסות שוב.", extra);
   if (res.status === 403) throw new BackendError("forbidden", detail || "אין הרשאה לפעולה זו.", extra);
   if (res.status === 409) throw new BackendError("conflict", detail || "הפעולה מתנגשת בהזמנה קיימת.", extra);

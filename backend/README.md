@@ -28,6 +28,8 @@ uvicorn app.main:app --port 8001
 | POST | `/staff/bookings/{id}/check-in` | assigned staff or admin (server timestamp) |
 | PATCH | `/visits/{report_id}/clinical-outcome` | assigned staff of the report's booking, or admin; body `{clinical_outcome_8h: <enum>|null>}` |
 | POST | `/staff/visits/{booking_id}/complete` | assigned staff, or admin on behalf (report keeps the booking's staff_id) |
+| POST | `/visits/{report_id}/risk-assessment` | assigned staff of the report's booking, or admin; no body (all inputs server-side); 503 `predictive_unavailable` writes nothing; idempotent per report |
+| POST | `/patients/{patient_id}/auto-alert` | staff (assigned patient, via RLS) or admin; recomputes from stored reports (comprehensive-diagnosis alert) |
 
 Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition or slot taken
 ("המטפל אינו פנוי בשעה זו, אנא בחר משבצת זמן אחרת"), 422 validation.
@@ -43,6 +45,17 @@ Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition o
 | `OFFERED_PURPOSES` | allowed visit purposes | checkup,wound_care,blood_test,medication,other |
 | `ELIGIBLE_ROLES` | roles that may be booked | nurse |
 | `BUSINESS_TIMEZONE` | timezone of working hours | Asia/Jerusalem |
+| `PREDICTIVE_SERVICE_URL` | base URL of `predictive-service/` (called over HTTP only; unchanged service) | `http://localhost:8000` |
+| `PREDICTIVE_TIMEOUT_SECONDS` | per-call timeout to the predictive service | 5 |
+| `RISK_ATTESTATION_SECRET` | HMAC key (>=32 random bytes) shared with the DB row `server_secrets.risk_attestation_secret`; required for risk/alert writes | none (fail closed, 503) |
+
+## Clinical risk orchestration (`app/risk.py`)
+Separate from booking logic. The backend never re-implements thresholds/alert rules: it calls the
+existing predictive-service endpoints (`/predict/risk-assessment`, `/alerts/evaluate`, `/predict/medical-warning`)
+through a `PredictiveClient` (httpx; `FakePredictiveClient` in tests), signs the result and persists it with
+ONE SECURITY DEFINER function (`record_risk_prediction` / `record_auto_alert`, `supabase/proposed/006`).
+Browser inserts into `risk_predictions`/`alerts` are revoked by that migration. Predictive service down
+=> 503 and nothing is written (the visit report itself is never affected).
 
 ## Deployment requirements
 - Serve over HTTPS only; terminate TLS at the host/proxy.

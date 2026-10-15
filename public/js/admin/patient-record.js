@@ -839,8 +839,7 @@ async function prRenderDocumentsTab(content) {
 // ----- התראות ומשימות מעקב -----
 async function prAckAlert(alertId, btn) {
   setButtonLoading(btn, true, "מעדכן...");
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged", acknowledged_by: session?.user?.id || null, acknowledged_at: new Date().toISOString() }).eq("id", alertId);
+  const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged" }).eq("id", alertId);
   setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("alerts"); flashSuccess("ההתראה סומנה כטופלה"); prSwitchTab("alerts"); loadAttentionDashboard();
@@ -859,13 +858,11 @@ async function prCreateTask(alertId, btn) {
   const due = dueEl.value;
   if (!title || !due) { flashError("יש להזין כותרת ותאריך/שעה למשימה"); return; }
   setButtonLoading(btn, true, "יוצר...");
-  const { data: { session } } = await supabaseClient.auth.getSession();
   const { error } = await supabaseClient.from("tasks").insert({
     patient_id: window.currentPatientState.patientId,
     alert_id: alertId,
     title,
     due_at: new Date(due).toISOString(),
-    created_by: session?.user?.id || null,
   });
   setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
@@ -873,8 +870,7 @@ async function prCreateTask(alertId, btn) {
 }
 async function prCompleteTask(taskId, btn) {
   setButtonLoading(btn, true, "משלים...");
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  const { error } = await supabaseClient.from("tasks").update({ status: "completed", completed_by: session?.user?.id || null, completed_at: new Date().toISOString() }).eq("id", taskId);
+  const { error } = await supabaseClient.from("tasks").update({ status: "completed" }).eq("id", taskId);
   setButtonLoading(btn, false);
   if (error) { flashError(friendlyErrorMessage(error)); return; }
   prInvalidate("tasks"); flashSuccess("המשימה הושלמה"); prSwitchTab("alerts");
@@ -985,32 +981,16 @@ async function prRenderTimelineTab(content) {
   `).join("")}</div>`;
 }
 
-// ----- התראות: כלל יצירה (קורא ל-predictive-service, כותב ל-DB אם צריך) -----
-async function maybeCreateAlert(patientId, riskLevel, trend, statusMessage, riskPredictionId, triggerEvents) {
-  let evaluation;
+// ----- התראות: יצירה אוטומטית — בשרת בלבד (POST /patients/{id}/auto-alert) -----
+// הכללים נשארים ב-predictive-service (/alerts/evaluate); השרת מחשב מחדש מהיסטוריית הדוחות,
+// כותב דרך פונקציית DB חתומה, ומבצע דה-דופ מול התראה פתוחה מאותו סוג. אין insert ל-alerts מהדפדפן.
+async function requestAutoAlertAndRefresh(patientId) {
   try {
-    const res = await fetch(`${PREDICTIVE_SERVICE_URL}/alerts/evaluate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ risk_level: riskLevel, trend, status_message: statusMessage, trigger_events: triggerEvents || [] }),
-    });
-    if (!res.ok) return;
-    evaluation = await res.json();
-  } catch (err) { return; }
-  if (!evaluation.alert_type) return;
-
-  const { data: existing } = await supabaseClient.from("alerts").select("id").eq("patient_id", patientId).eq("alert_type", evaluation.alert_type).eq("status", "open").limit(1);
-  if (existing && existing.length) return; // כבר קיימת התראה פתוחה מאותו סוג — לא משכפלים
-
-  await supabaseClient.from("alerts").insert({
-    patient_id: patientId,
-    risk_prediction_id: riskPredictionId,
-    alert_type: evaluation.alert_type,
-    severity: evaluation.severity,
-    message: evaluation.message,
-  });
-  prInvalidate("alerts");
-  loadAttentionDashboard();
+    const out = await requestAutoAlert(patientId);
+    if (out && out.alert) { prInvalidate("alerts"); loadAttentionDashboard(); }
+  } catch (err) {
+    flashWarning(riskAssessmentErrorMessage(err));
+  }
 }
 
 // ----- "מי דורש תשומת לב עכשיו" -----

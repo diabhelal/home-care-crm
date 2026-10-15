@@ -97,6 +97,15 @@ function predictiveServiceUnavailableMessage(err) {
     ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000."
     : friendlyErrorMessage(err);
 }
+// הודעת משתמש לכישלון הערכת הסיכון (שלב נפרד, אחרי שהדוח כבר נשמר ואושר). הדוח נשאר שמור.
+function riskAssessmentErrorMessage(err) {
+  const kind = err && err.kind;
+  if (kind === "predictive_unavailable") {
+    return predictiveServiceUnavailableMessage({ message: "failed to fetch" }) + " דוח הביקור נשמר; הערכת הסיכון לא בוצעה.";
+  }
+  if (kind === "forbidden") return "אין הרשאה להעריך סיכון לדוח זה. דוח הביקור נשמר.";
+  return "דוח הביקור נשמר, אך הערכת הסיכון לא הושלמה. ניתן לנסות שוב מאוחר יותר.";
+}
 // תיק מטופל (הלשוניות) שומר קאש בזיכרון (window.currentPatientState) כדי לא לשלוף
 // מחדש מ-Supabase בכל מעבר לשונית. שמירת דוח ביקור דרך המודל הישן (טבלת ההזמנות)
 // כותבת ל-DB ישירות ולא עוברת דרך הקאש הזה — בלי הרענון הזה, לשונית "ביקורים"/

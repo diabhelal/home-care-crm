@@ -562,74 +562,23 @@
     renderRiskPanel(await loadCurrentRiskForPatient(patientId));
   }
 
-  // שירות התחזית מקומי בלבד: בפריסה מאורחת (https) כתובת localhost לא נגישה מהדפדפן של
-  // המבקר — לא שולחים אליה בקשות בכלל (כמו checkPredictiveServiceHealth ב-app.js).
-  function predictiveServiceReachable() {
-    return isLocalHost() || !/localhost|127\.0\.0\.1/.test(window.PREDICTIVE_SERVICE_URL || "");
-  }
-
-  async function maybeCreateAlert(patientId, riskLevel, trend, statusMessage, riskPredictionId) {
-    if (!predictiveServiceReachable()) return;
-    let evaluation;
+  // הערכת סיכון + התראה אוטומטית: בשרת בלבד (POST /visits/{id}/risk-assessment). הדפדפן לא כותב
+  // ל-risk_predictions/alerts. נקראת רק אחרי השלמה מאושרת; כשל = הודעה, הדוח נשאר שמור.
+  // אחות-תאומה: admin.html recalculateRiskAfterSave().
+  async function recalculateRiskAfterSave(patientId, savedReportId) {
+    let out;
     try {
-      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/alerts/evaluate`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ risk_level: riskLevel, trend, status_message: statusMessage, trigger_events: [] }),
-      });
-      if (!res.ok) return;
-      evaluation = await res.json();
-    } catch (err) { return; }
-    if (!evaluation.alert_type) return;
-    const { data: existing } = await supabaseClient.from("alerts").select("id").eq("patient_id", patientId).eq("alert_type", evaluation.alert_type).eq("status", "open").limit(1);
-    if (existing && existing.length) return;
-    await supabaseClient.from("alerts").insert({
-      patient_id: patientId, risk_prediction_id: riskPredictionId,
-      alert_type: evaluation.alert_type, severity: evaluation.severity, message: evaluation.message,
-    });
-    prInvalidate("alerts");
-  }
-
-  // אחות-תאומה: admin.html recalculateRiskAfterSave() — ההבדל מכוון: בודק predictiveServiceReachable (מצב דמו) ואינו בודק prevError. לא ממוזג בכוונה.
-  async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
-    const { data: prevReports } = await supabaseClient
-      .from("visit_reports")
-      .select("systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
-      .eq("patient_id", patientId).neq("id", savedReportId)
-      .order("visit_date", { ascending: false }).limit(1);
-    const previous = prevReports && prevReports[0] ? prevReports[0] : null;
-
-    if (!predictiveServiceReachable()) {
-      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">הערכת סיכון אוטומטית אינה זמינה בגרסת ההדגמה.</p>`;
-      return;
-    }
-    let assessment;
-    try {
-      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8, patient_context: vrPatientContext }),
-      });
-      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
-      assessment = await res.json();
+      out = await requestRiskAssessment(savedReportId);
     } catch (err) {
-      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      const msg = riskAssessmentErrorMessage(err);
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${escapeHtml(msg)}</p>`;
+      flashWarning(msg);
       return;
     }
-    if (assessment.risk_level === "no_data") { renderRiskPanel(null); return; }
-
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const predictedAt = new Date();
-    const expiresAt = new Date(predictedAt.getTime() + assessment.prediction_horizon_hours * 3600 * 1000);
-    const { data: insertedRisk, error: insertError } = await supabaseClient.from("risk_predictions").insert({
-      patient_id: patientId, visit_report_id: savedReportId, predicted_at: predictedAt.toISOString(),
-      input_features: currentVitals, risk_level: assessment.risk_level, confidence: assessment.confidence,
-      prediction_horizon_hours: assessment.prediction_horizon_hours, expires_at: expiresAt.toISOString(),
-      model_version: assessment.model_version, trend: assessment.trend, probability: assessment.probability,
-      created_by: session?.user?.id || null,
-    }).select("id").single();
-    if (insertError) console.error("risk_predictions insert", insertError);
-    else maybeCreateAlert(patientId, assessment.risk_level, assessment.trend, assessment.status_message, insertedRisk?.id);
-
-    renderRiskPanel({ risk_level: assessment.risk_level, trend: assessment.trend, predicted_at: predictedAt.toISOString(), expires_at: expiresAt.toISOString(), prediction_horizon_hours: assessment.prediction_horizon_hours });
+    if (!out || out.risk_level === "no_data" || !out.prediction) { renderRiskPanel(null); return; }
+    const p = out.prediction;
+    renderRiskPanel({ risk_level: p.risk_level, trend: p.trend, predicted_at: p.predicted_at, expires_at: p.expires_at, prediction_horizon_hours: p.prediction_horizon_hours });
+    if (out.alert) prInvalidate("alerts");
   }
 
   document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
@@ -695,7 +644,7 @@
     visitReportModal.style.display = "none";
     flashSuccess("דוח הביקור נשמר וסומן כהושלם");
     loadMyBookings();
-    if (savedReport.id) await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
+    if (savedReport.id) { try { await recalculateRiskAfterSave(payload.patient_id, savedReport.id); } catch (riskErr) { console.error("risk step", riskErr); } }
     refreshOpenPatientRecordIfMatching(payload.patient_id);
   });
 
@@ -1120,8 +1069,7 @@
 
   async function prAckAlert(alertId, btn) {
     setButtonLoading(btn, true, "מעדכן...");
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged", acknowledged_by: session?.user?.id || null, acknowledged_at: new Date().toISOString() }).eq("id", alertId);
+    const { error } = await supabaseClient.from("alerts").update({ status: "acknowledged" }).eq("id", alertId);
     setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("alerts"); flashSuccess("ההתראה סומנה כטופלה"); prSwitchTab("alerts");
@@ -1140,10 +1088,9 @@
     const due = dueEl.value;
     if (!title || !due) { flashError("יש להזין כותרת ותאריך/שעה למשימה"); return; }
     setButtonLoading(btn, true, "יוצר...");
-    const { data: { session } } = await supabaseClient.auth.getSession();
     const { error } = await supabaseClient.from("tasks").insert({
       patient_id: window.currentPatientState.patientId, alert_id: alertId, title,
-      due_at: new Date(due).toISOString(), created_by: session?.user?.id || null,
+      due_at: new Date(due).toISOString(),
     });
     setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
@@ -1151,8 +1098,7 @@
   }
   async function prCompleteTask(taskId, btn) {
     setButtonLoading(btn, true, "משלים...");
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const { error } = await supabaseClient.from("tasks").update({ status: "completed", completed_by: session?.user?.id || null, completed_at: new Date().toISOString() }).eq("id", taskId);
+    const { error } = await supabaseClient.from("tasks").update({ status: "completed" }).eq("id", taskId);
     setButtonLoading(btn, false);
     if (error) { flashError(friendlyErrorMessage(error)); return; }
     prInvalidate("tasks"); flashSuccess("המשימה הושלמה"); prSwitchTab("alerts");

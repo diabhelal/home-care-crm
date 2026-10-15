@@ -22,6 +22,9 @@ class Settings:
     eligible_roles: tuple[str, ...] = ("nurse",)
     timezone: str = "Asia/Jerusalem"
     max_availability_days: int = 31
+    predictive_service_url: str = "http://localhost:8000"
+    predictive_timeout_seconds: float = 5.0
+    risk_attestation_secret: str = ""
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Settings":
@@ -36,4 +39,7 @@ class Settings:
             offered_purposes=_csv(e.get("OFFERED_PURPOSES", "")) or d.offered_purposes,
             eligible_roles=_csv(e.get("ELIGIBLE_ROLES", "")) or d.eligible_roles,
             timezone=e.get("BUSINESS_TIMEZONE", d.timezone),
+            predictive_service_url=e.get("PREDICTIVE_SERVICE_URL", d.predictive_service_url),
+            predictive_timeout_seconds=float(e.get("PREDICTIVE_TIMEOUT_SECONDS", d.predictive_timeout_seconds)),
+            risk_attestation_secret=e.get("RISK_ATTESTATION_SECRET", ""),
         )

@@ -215,6 +215,9 @@ test("מסע מובייל מלא: בקשה -> אישור מנהל -> צוות (�
   // אפס כתיבה ישירה של הדפדפן ל-bookings/visit_reports בכל המסע
   const writes = await page.evaluate(() => JSON.parse(localStorage.getItem("__write_log") || "[]"));
   expect(writes.filter((w) => w.table === "bookings" || w.table === "visit_reports")).toEqual([]);
+  // הערכת הסיכון אחרי הסנכרון נעשית בשרת בלבד: אפס כתיבה ישירה ל-risk_predictions/alerts
+  expect(writes.filter((w) => w.table === "risk_predictions" || w.table === "alerts")).toEqual([]);
+  await expect.poll(() => ctl.risks.length).toBe(1);
 
   // ===== 8. המטופל רואה "הושלם" =====
   await useSession(page, patientSession);

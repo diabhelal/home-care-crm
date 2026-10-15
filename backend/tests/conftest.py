@@ -10,6 +10,7 @@ from app.errors import unauthorized
 from app.fake_repo import FakeRepo
 from app.main import create_app
 from app.models import Staff
+from app.risk import FakePredictiveClient
 
 TZ = ZoneInfo("Asia/Jerusalem")
 NOW = datetime(2026, 10, 14, 9, 0, tzinfo=timezone.utc)
@@ -47,9 +48,13 @@ def world():
         "admin": claims("a1", admin=True),
         "staff1": claims("staff-1"), "staff2": claims("staff-2"),
     })
-    app = create_app(Settings(travel_buffer_minutes=30), verifier=v,
-                     repo_factory=lambda jwt: repo, clock=lambda: NOW)
-    return type("W", (), {"repo": repo, "client": TestClient(app), "verifier": v})()
+    repo.attestation_secret = "-".join(["throwaway", "attestation", "value"])
+    predictive = FakePredictiveClient()
+    app = create_app(Settings(travel_buffer_minutes=30, risk_attestation_secret="-".join(["throwaway", "attestation", "value"])),
+                     verifier=v, repo_factory=lambda jwt: repo, clock=lambda: NOW,
+                     predictive_client=predictive)
+    return type("W", (), {"repo": repo, "client": TestClient(app), "verifier": v,
+                          "predictive": predictive})()
 
 
 def H(token, key=None):

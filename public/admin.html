@@ -653,67 +653,24 @@
     document.getElementById(id).addEventListener("input", scheduleLiveRiskPreview);
   });
 
-  // אחות-תאומה: employee.html recalculateRiskAfterSave() — ההבדל מכוון: ללא בדיקת predictiveServiceReachable (דמו) ועם בדיקת prevError ו-no_data מפורש. לא ממוזג בכוונה.
-  async function recalculateRiskAfterSave(patientId, savedReportId, currentVitals) {
-    const { data: prevReports, error: prevError } = await supabaseClient
-      .from("visit_reports")
-      .select("systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation")
-      .eq("patient_id", patientId)
-      .neq("id", savedReportId)
-      .order("visit_date", { ascending: false })
-      .limit(1);
-    if (prevError) { console.error("previous visit_report lookup", prevError); }
-    const previous = prevReports && prevReports[0] ? prevReports[0] : null;
-
-    let assessment;
+  // הערכת סיכון + התראה אוטומטית: בשרת בלבד (POST /visits/{id}/risk-assessment). הדפדפן לא כותב
+  // ל-risk_predictions/alerts. נקראת רק אחרי השלמה מאושרת; כשל = הודעה, הדוח נשאר שמור.
+  // אחות-תאומה: employee.html recalculateRiskAfterSave().
+  async function recalculateRiskAfterSave(patientId, savedReportId) {
+    let out;
     try {
-      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ current: currentVitals, previous, prediction_horizon_hours: 8, patient_context: vrPatientContext }),
-      });
-      if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
-      assessment = await res.json();
+      out = await requestRiskAssessment(savedReportId);
     } catch (err) {
-      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      const msg = riskAssessmentErrorMessage(err);
+      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${escapeHtml(msg)}</p>`;
+      flashWarning(msg);
       return;
     }
-
-    // אין מדדים בכלל בדוח הזה — לא יוצרים רשומת סיכון מפוברקת ("no_data" אינו ערך תקף
-    // בעמודת risk_level, ובכוונה: היעדר מדדים לא אמור להצטייר כ"ירוק").
-    if (assessment.risk_level === "no_data") {
-      renderRiskPanel(null);
-      return;
-    }
-
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    const predictedAt = new Date();
-    const expiresAt = new Date(predictedAt.getTime() + assessment.prediction_horizon_hours * 3600 * 1000);
-
-    const { data: insertedRisk, error: insertError } = await supabaseClient.from("risk_predictions").insert({
-      patient_id: patientId,
-      visit_report_id: savedReportId,
-      predicted_at: predictedAt.toISOString(),
-      input_features: currentVitals,
-      risk_level: assessment.risk_level,
-      confidence: assessment.confidence,
-      prediction_horizon_hours: assessment.prediction_horizon_hours,
-      expires_at: expiresAt.toISOString(),
-      model_version: assessment.model_version,
-      trend: assessment.trend,
-      probability: assessment.probability,
-      created_by: session?.user?.id || null,
-    }).select("id").single();
-    if (insertError) { console.error("risk_predictions insert", insertError); }
-    else maybeCreateAlert(patientId, assessment.risk_level, assessment.trend, assessment.status_message, insertedRisk?.id, []);
-
-    renderRiskPanel({
-      risk_level: assessment.risk_level,
-      trend: assessment.trend,
-      predicted_at: predictedAt.toISOString(),
-      expires_at: expiresAt.toISOString(),
-      prediction_horizon_hours: assessment.prediction_horizon_hours,
-    });
+    // אין מדדים בדוח: השרת לא יוצר רשומת סיכון מפוברקת.
+    if (!out || out.risk_level === "no_data" || !out.prediction) { renderRiskPanel(null); return; }
+    const p = out.prediction;
+    renderRiskPanel({ risk_level: p.risk_level, trend: p.trend, predicted_at: p.predicted_at, expires_at: p.expires_at, prediction_horizon_hours: p.prediction_horizon_hours });
+    if (out.alert) { prInvalidate("alerts"); loadAttentionDashboard(); }
   }
 
   // ===== אבחון מקיף: Baseline / Anomaly detection (עם דעיכה בזמן) / Time-Series / ML =====
@@ -837,7 +794,7 @@
       if (!res.ok) throw new Error(`שירות התחזית החזיר שגיאה (${res.status})`);
       const data = await res.json();
       renderComprehensiveResult(data);
-      maybeCreateAlert(patientId, data.current_risk.level, data.trend, data.status_message, null, data.trigger_events);
+      requestAutoAlertAndRefresh(patientId);
     } catch (err) {
       resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
     } finally {
@@ -968,7 +925,7 @@
     visitReportModal.style.display = "none";
     flashSuccess("דוח הביקור נשמר וסומן כהושלם");
     loadBookings();
-    if (savedReport.id) await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
+    if (savedReport.id) { try { await recalculateRiskAfterSave(payload.patient_id, savedReport.id); } catch (riskErr) { console.error("risk step", riskErr); } }
     refreshOpenPatientRecordIfMatching(payload.patient_id);
   });
 

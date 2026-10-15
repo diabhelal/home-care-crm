@@ -130,3 +130,24 @@ def test_clinical_outcome_rls_filtered_is_forbidden():
     with pytest.raises(DomainError) as e:
         repo.set_clinical_outcome(3, "none")
     assert e.value.status == 403
+
+
+def test_risk_rpcs_use_caller_jwt_and_params():
+    calls = []
+    def h(req):
+        calls.append((req.url.path, json.loads(req.content), req.headers["authorization"]))
+        return httpx.Response(200, json={"prediction": {"id": 1}, "alert": None, "created": True})
+    repo = make(h)
+    att = {"payload": "{}", "sig": "00"}
+    repo.record_risk_prediction(7, att)
+    repo.record_auto_alert("pid", att)
+    assert calls[0] == ("/rest/v1/rpc/record_risk_prediction", {"p_report_id": 7, "p_assessment": att}, f"Bearer {JWT}")
+    assert calls[1][0] == "/rest/v1/rpc/record_auto_alert" and calls[1][1]["p_patient_id"] == "pid"
+
+
+def test_risk_rpc_permission_denied_maps_to_forbidden():
+    from app.errors import DomainError
+    repo = make(lambda r: httpx.Response(403, json={"code": "42501", "message": "x"}))
+    with pytest.raises(DomainError) as e:
+        repo.record_risk_prediction(1, {})
+    assert e.value.status == 403

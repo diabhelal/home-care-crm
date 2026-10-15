@@ -33,7 +33,7 @@ async function setup(browser, { bookings, visit_reports = [] }) {
 const booking = (o) => ({ id: 7, patient_id: "p-1", staff_id: 1, visit_purpose: "checkup", status: "scheduled",
   workflow_status: "assigned", approval_status: "confirmed", visit_address: "הרצל 5, חיפה", scheduled_at: inHours(1), ...o });
 const writes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem("__write_log") || "[]")
-  .filter((w) => w.table === "bookings" || w.table === "visit_reports"));
+  .filter((w) => ["bookings", "visit_reports", "risk_predictions", "alerts", "tasks"].includes(w.table)));
 
 test("מנהל מתחיל ביקור: check-in בשרת עם JWT, שעת שרת, אפס כתיבה ישירה", async ({ browser }) => {
   const { page, ctl, errors } = await setup(browser, { bookings: [booking({})] });

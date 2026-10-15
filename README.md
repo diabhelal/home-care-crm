@@ -88,6 +88,21 @@ There is currently a **single shared admin role** — see [RBAC status](#known-l
 - A small, separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
 - A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs JS and Python unit tests on every push/PR; there is no separate staging/production environment configuration at this time (see [Known Limitations](#known-limitations)).
 
+### Python backend for operational logic (`backend/`)
+
+Booking and visit-lifecycle writes go through a separate **FastAPI** service, not straight to the database:
+
+```
+browser ──(Bearer = Supabase session JWT)──▶ backend/ (FastAPI) ──(caller's JWT, RLS preserved)──▶ Supabase
+                                                  │
+                                                  └─ HTTP ─▶ predictive-service/ (rule-based clinical engine)
+```
+
+- **What it owns:** booking request validation + idempotency, availability with a fixed 30-minute travel buffer, staff eligibility and auto-assignment, admin approve / reject / reassign / cancel, server-generated check-in time, atomic visit completion, and the clinical-outcome update.
+- **What it does not do:** it never uses a `service_role` key, never trusts a user/staff id from the request body, and does not contain clinical formulas (those stay in `predictive-service/`).
+- **Database remains authoritative:** unique index + proposed trigger guards (`supabase/proposed/`) enforce slots, buffer, ownership and the approval state in SQL, so a direct PostgREST call cannot bypass them. Browser availability is advisory.
+- **Status:** implemented and tested locally (pytest + an isolated local PostgreSQL). The SQL in `supabase/proposed/` is **not applied to the live project** and the backend is **not hosted yet**. See `backend/README.md` and `docs/WORKPLAN.md`.
+
 ## Technology Stack
 
 | Layer | Technology |
@@ -96,7 +111,7 @@ There is currently a **single shared admin role** — see [RBAC status](#known-l
 | Frontend/DB client | [`supabase-js`](https://github.com/supabase/supabase-js) v2, loaded from a CDN `<script>` tag |
 | Database | PostgreSQL (managed by Supabase) |
 | Auth | Supabase Auth — anonymous sign-ins for patients, email/password for the admin account |
-| API layer | Supabase's auto-generated PostgREST Data API (no custom backend routes) |
+| API layer | Supabase PostgREST Data API for reads; **FastAPI backend (`backend/`) for booking and visit-lifecycle writes** |
 | Access control | PostgreSQL Row Level Security (RLS) policies |
 | Decision-support service | Python 3, [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), served by [Uvicorn](https://www.uvicorn.org/) |
 | Fonts | Google Fonts (Inter, Manrope) |
@@ -164,6 +179,20 @@ Endpoints that exist but have no current caller in the frontend (kept as working
 - `risk_predictions.probability` exists as a schema field reserved for a genuine future trained model, but is `null` in every row produced by the current rule-based logic — it is never fabricated.
 - `risk_predictions.confidence` is **not** a statistical/medical probability; it is the fraction of the six vitals that were actually supplied for that reading (a data-completeness score), documented as such directly on the database column.
 - No automatic alerting, paging, or "emergency" workflow exists anywhere — a risk badge is a passive, on-screen indicator that a human must look at; nothing pushes a notification to staff or patients.
+
+### What is machine learning and what is not
+
+| Mechanism | Location | Kind | Honest status |
+|---|---|---|---|
+| Per-vital risk level (green/yellow/red) and background-condition escalation | `main.py` `classify_*`, `compute_risk` | **Hand-written clinical rules** | Active. Generic thresholds, not validated for this project; see `CLINICAL_THRESHOLDS_FOR_REVIEW.md` |
+| Trend vs. previous visit | `compute_trend` | Rule (level comparison) | Active |
+| Personal baseline, sudden change, persistent abnormal, anomalies | `clinical_baseline.py` | **Descriptive statistics** (median, rate of change, fixed thresholds) | Active; no trained model |
+| Vital forecast | `main.py` `_linear_forecast`, `timeseries.py` | **Linear regression**; **ARIMA(1,1,0)** (statsmodels) when ≥ 8 measurements | Active; classical statistics, not a learned clinical model |
+| Capacity forecast | `/predict/capacity` | Arithmetic projection (growth rate) | Active |
+| Future-event classifiers (Logistic Regression / Decision Tree / Random Forest / KNN) | `ml_targets.py` | **Supervised ML (scikit-learn)** | **Architecture only — no model is trained** (`models/` is empty) because no labelled clinical-outcome data exists. Returns `model_available=false` rather than inventing a probability |
+| LSTM | `lstm_interface.py` | Placeholder | Not implemented (needs far more longitudinal data) |
+
+So the system today is a **rule-based decision-support tool with classical statistics**. It is not a trained ML product and must not be described as one. The risk panel is labelled "rule-based risk assessment — demonstration only".
 
 ## Security Architecture
 
@@ -299,6 +328,13 @@ Being transparent about what's *not* built, since the goal of this README is acc
 - **Background medical conditions are now used in risk scoring, but only as an escalation rule.** A Yellow vital is escalated to Red when a relevant background condition or smoking status is present (see `predictive-service/main.py`, `BACKGROUND_ESCALATION_VITALS`); it never touches an already-Green or already-Red vital, and it's still a hand-written rule, not a learned model.
 - **Guest identity is per-browser by default.** A patient cannot access their booking history from a different device or browser out of the box. Optional phone+OTP identity-linking infrastructure exists (`public/my-bookings.html`, Supabase Auth's anonymous-upgrade flow) so a patient *can* opt in to cross-device access, but it's inert today — no real SMS provider is configured (`[auth.sms] enable_signup = false` in `supabase/config.toml`), so the phone-linking UI is present but non-functional until one is wired up.
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.
+
+- **Backend not hosted / proposed SQL not applied.** The Python backend and `supabase/proposed/*.sql` exist and are tested locally, but are not deployed or applied to the live project; until then a direct PostgREST call can still bypass the new guards.
+- **Client-written clinical rows.** `risk_predictions` and `alerts` inserts (and acknowledgement fields) were browser-written; a server-side path is being added (see `docs/WORKPLAN.md`).
+- **Travel buffer is a constant (30 min)**, not computed travel time; proximity ranking needs staff/patient coordinates and a geocoder (a no-op geocoder is the default).
+- **Offline drafts live in `localStorage`** (namespaced per user, unencrypted). This is logical separation, not encryption.
+- **Completed visit reports are read-only** in the UI; corrections should be new clinical notes.
+- **Demo mode** (`DEMO_MODE` in `config.js`) shows a "synthetic data only" banner. Real patients additionally require a privacy policy, terms and informed consent under Israeli law, hosting with HTTPS, and a security review.
 
 ## Future Development / Roadmap
 
