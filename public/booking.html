@@ -209,6 +209,7 @@
           updateConfirmState();
           loadSlots(d);
         });
+        pill._date = d;
         dateListEl.appendChild(pill);
         dateButtons.push(pill);
       }
@@ -217,6 +218,43 @@
       }
     }
     renderDatePills();
+
+    // בודק מול השרת אילו ימים באמת יש בהם שעות פנויות: ימים ריקים (שישי/שבת/היום אחרי שעות
+    // העבודה) מסומנים כלא זמינים, והיום הראשון עם שעות נבחר אוטומטית. כשל בבדיקה לא חוסם —
+    // הכפתורים נשארים כפי שהם, ו-loadSlots יציג שגיאה ברורה בלחיצה.
+    let probeToken = 0;
+    async function probeDatePills() {
+      const token = ++probeToken;
+      const pills = dateButtons.slice();
+      if (!pills.length) return;
+      const counts = await Promise.all(pills.map(async (pill) => {
+        try {
+          const ds = localDateStr(pill._date);
+          const qs = new URLSearchParams({ start: ds, end: ds });
+          if (staff && staff.id != null) qs.set("staff_id", String(staff.id));
+          const res = await backendFetch("/availability?" + qs.toString());
+          return res && Array.isArray(res.slots) ? res.slots.length : null;
+        } catch (e) { return null; }
+      }));
+      if (token !== probeToken) return;
+      if (counts.every((c) => c === null)) return; // לא ניתן לברר — משאירים את הכפתורים כמו שהם
+      let firstWithSlots = null;
+      pills.forEach((pill, i) => {
+        if (counts[i] === 0) {
+          pill.disabled = true;
+          pill.classList.add("no-slots");
+          pill.setAttribute("aria-label", pill.textContent.trim() + " — " + t("booking.noSlotsShort"));
+        } else if (firstWithSlots === null) {
+          firstWithSlots = pill;
+        }
+      });
+      if (firstWithSlots === null) {
+        dateListEl.insertAdjacentHTML("beforeend", `<div class="empty-state">${t("booking.noDatesAvailable")}</div>`);
+        return;
+      }
+      if (!selectedDate) firstWithSlots.click();
+    }
+    probeDatePills();
 
     clearStaffBtn.addEventListener("click", () => {
       try { sessionStorage.removeItem("selected_staff"); } catch (e) {}
@@ -227,6 +265,7 @@
       document.getElementById("no-slots").style.display = "none";
       renderStaffSummary();
       renderDatePills();
+      probeDatePills();
       updateConfirmState();
     });
 

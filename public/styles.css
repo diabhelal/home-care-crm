@@ -1339,3 +1339,6 @@ p { line-height: 1.75; }
 @media (max-width: 860px) { .hero { grid-template-columns: 1fr; gap: 24px; } }
 .hero h1 { font-size: clamp(26px, 2.3vw, 32px); text-wrap: balance; }
 @media (max-width: 860px) { .hero h1 { font-size: 28px; } }
+
+/* ימים בלי שעות פנויות: מעומעמים ולא לחיצים */
+.date-pill.no-slots, .date-pill:disabled { opacity: 0.45; cursor: not-allowed; text-decoration: line-through; box-shadow: none; }

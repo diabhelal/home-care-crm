@@ -13,8 +13,11 @@ import httpx
 from .errors import SlotTakenError, bad_request, conflict, forbidden, not_found
 from .models import Booking, Staff
 
+# base_lat/base_lng are NOT selected: they are a staff member's private base location and
+# authenticated users have no column grant on them (proximity ranking is skipped until a
+# server-side, privacy-preserving source exists). Selecting them made every call 403.
 STAFF_COLS = ("id,full_name,role,available_weekdays,work_start_time,work_end_time,"
-              "slot_duration_minutes,is_active,auth_user_id,base_lat,base_lng")
+              "slot_duration_minutes,is_active,auth_user_id")
 
 
 def _dt(v: Optional[str]) -> Optional[datetime]:

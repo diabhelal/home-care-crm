@@ -7,7 +7,7 @@ from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from .auth import (HS256Verifier, TokenVerifier, extract_bearer,
+from .auth import (HS256Verifier, JWKSVerifier, SupabaseTokenVerifier, TokenVerifier, extract_bearer,
                    identity_from_claims, require_admin)
 from .config import Settings
 from .errors import DomainError, forbidden
@@ -32,7 +32,12 @@ def create_app(settings: Settings | None = None,
                clock: Callable[[], datetime] | None = None,
                predictive_client: PredictiveClient | None = None) -> FastAPI:
     cfg = settings or Settings.from_env()
-    verifier = verifier or HS256Verifier(cfg.supabase_jwt_secret)
+    if verifier is None:
+        jwks_url = f"{cfg.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json" if cfg.supabase_url else ""
+        verifier = SupabaseTokenVerifier(
+            HS256Verifier(cfg.supabase_jwt_secret) if cfg.supabase_jwt_secret else None,
+            JWKSVerifier(jwks_url) if jwks_url else None,
+        )
     geocoder = geocoder or NoopGeocoder()
     clock = clock or (lambda: datetime.now(timezone.utc))
     if repo_factory is None:
