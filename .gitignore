@@ -13,3 +13,6 @@ test-results/
 
 backend/.venv/
 .pytest_cache/
+
+# per-machine Claude Code settings/permissions (never shared)
+.claude/settings.local.json

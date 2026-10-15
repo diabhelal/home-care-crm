@@ -42,3 +42,14 @@ cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload 
 
 ## טסטים / CI
 `node --test tests/unit/*.test.js` (JS) + `pytest` (`predictive-service/`) רצים על כל push. Playwright ב-`tests/e2e/`: 3 ספקים ממוקקים (בלי DB חי) רצים אוטומטית; `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא אומתו בפועל (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים).
+
+## מצב נוכחי (אוקטובר 2026) — קרא לפני עבודה
+- **Backend תפעולי (Python/FastAPI) ב-`backend/`**: הזמנה, זמינות+מרווח נסיעה 30 דק', אישור/דחייה/שיבוץ/ביטול, check-in עם זמן שרת, השלמת ביקור אטומית, חיזוי סיכון והתראות. **הדפדפן לא כותב ישירות ל-`bookings`/`visit_reports`/`risk_predictions`/`alerts`** — הכול דרך `backendFetch` (`public/app.js`). **בלי ה-backend רץ אי אפשר להזמין** (הודעת כשל, בכוונה).
+- **SQL שהוחל על הפרויקט ב-2026-10-15** (001–007: עמודות אישור/כתובת/check-in, פונקציות, טריגרי הגנה על `bookings`, כתיבת חיזוי/התראה בשרת עם HMAC, כפיית זהות כותב). רשום ב-`supabase/migrations/` וב-`supabase/proposed/APPLIED.md`. סוד האטסטציה נמצא בטבלה `server_secrets` (לא ב-git) ובערך `RISK_ATTESTATION_SECRET` ב-`backend/.env` (מחוץ ל-git; לקרוא מה-DB דרך SQL editor כשמשחזרים סביבה).
+- **הרצה מקומית**: `cd public && python3 -m http.server 8080` ; `cd backend && source .venv/bin/activate && uvicorn app.main:app --port 8001 --env-file .env` (צור `.env` מ-`backend/.env.example`) ; שירות התחזית (אופציונלי) `cd predictive-service && uvicorn main:app --port 8000`.
+- **בדיקות**: `node --test tests/unit/*.test.js` ; `ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs npx playwright test` ; `cd backend && pytest -q --ignore=tests_db && pytest tests_db -q` (Postgres מקומי חד-פעמי, ללא Docker; `pip install -r requirements-dev.txt`).
+- **אסור**: להריץ `tests/e2e/booking.spec.js`/`visit-report.spec.js` מול ה-DB החי; לשנות נוסחאות ב-`predictive-service/`; להחליש RLS; לשים סוד ב-git (ה-hook ב-`.githooks/pre-commit` חוסם; לא עוקפים).
+- **Service Worker**: רשת-תחילה עם מטמון לאופליין; בכל שינוי בקבצי קליינט להעלות `CACHE_VERSION` ב-`public/service-worker.js` וגם `APP_BUILD` ב-`public/config.js` (מוצג בתחתית העמוד). אם דפדפן מגיש קבצים ישנים: `http://localhost:8080/reset.html`.
+- **צוות**: אחים/אחיות בלבד; `SERVICE_CONFIG` ב-`public/config.js` קובע תפקידים ושירותים שמוצגים.
+- **הערכת סיכון**: כללים קליניים + סטטיסטיקה קלאסית. **אין מודל ML מאומן.** מסומן "הדגמה" בממשק.
+- **מצב מעקב עבודה**: `HANDOFF.md` (מצב והמשך), `docs/WORKPLAN.md`, `docs/STAGING_PLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`.

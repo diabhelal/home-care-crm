@@ -1,42 +1,44 @@
 # HANDOFF — מצב הפרויקט ומה הלאה
 
-> קובץ מעבר בין שיחות. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
-> עודכן: 2026-10-15. **הכול מקומי: לא נדחף ל-GitHub (commits מקומיים בלבד), לא נפרס, ה-DB החי לא שונה.**
+> לשיחה חדשה: `git clone https://github.com/diabhelal/home-care-crm` ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
+> עודכן: 2026-10-15. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
 
 ## איפה אנחנו
-- **מוצר:** אב-טיפוס יציב להדגמה עם נתונים סינתטיים. לא מוכן למטופלים אמיתיים.
-- **צוות:** אחים בלבד (אין רופאים/פיזיותרפיסטים). `SERVICE_CONFIG` ב-`public/config.js` שולט במה שמוצג.
-- **עיצוב:** פלטה כחול כהה (`#0F172A`/`#1E3A8A`) + מנטה לפעולות (`#047857`), רקע `#F8FAFC`, פונט Inter/Manrope. הבעלים דחה שכתובים עיצוביים חוזרים; **לא לשנות עיצוב בלי תצוגה מקדימה ואישור**.
-- **DB חי (Supabase `qqeupktyadjxqoxkstnl`):** 16 מיגרציות רשומות, נתונים סינתטיים. **לא הוחל עליו כלום מ-`supabase/proposed/`.**
+- **מוצר:** אב-טיפוס יציב עם נתונים סינתטיים; **לא מוכן למטופלים אמיתיים** (חסרים: מסמכים משפטיים, אירוח backend עם HTTPS, MFA, בדיקת חדירה).
+- **DB חי (Supabase `qqeupktyadjxqoxkstnl`):** 23 מיגרציות רשומות (16 מקוריות + 001–007 שהוחלו ב-2026-10-15). שלושה ממצאים תוקנו לפני ההחלה: דליפת כתובות ב-`staff_busy_blocks`, `base_lat/lng` פרטי, ובלעת cascade ב-`clinical_notes`.
+- **הזמנה (אומת מקצה לקצה מול החי):** בחירת שירות (ברירת מחדל: בדיקה כללית) ← תאריך (ימים בלי שעות מעומעמים) ← שעה ← שם/ת"ז/טלפון/כתובת ← "התבקש וממתין לאישור" + מספר הזמנה. מנהל מאשר/דוחה/משבץ; אחות מתחילה ביקור (זמן שרת) ומשלימה (אטומי, גם אופליין).
+- **עיצוב:** Heebo, נייבי + מנטה (`--primary #1E3A8A`, CTA `#047857`), רקע `#F8FAFC`, משפט הפתיחה במרקר מלא. **לא לשנות עיצוב בלי תצוגה מקדימה ואישור של הבעלים** (היו כמה סבבים של דחייה).
 
-## ארכיטקטורה (בקצרה)
-- `public/` סטטי (HTML/CSS/JS). `backend/` FastAPI חדש לפעולות תפעוליות (הזמנה, זמינות+מרווח 30 דק', אישור/דחייה/שיבוץ/ביטול, check-in עם זמן שרת, השלמת ביקור אטומית, תוצאה קלינית, חיזוי סיכון והתראות).
-- `predictive-service/` נשאר כמות שהוא (כללים קליניים + רגרסיה/ARIMA; אין ML מאומן). **לא לשנות נוסחאות.**
-- הדפדפן לא כותב ל-`bookings`/`visit_reports`/`risk_predictions`/`alerts` (0 כתיבות ישירות, נבדק).
-- `supabase/proposed/001-007` = SQL מוצע (לא מופעל): עמודות אישור/כתובת/check-in, פונקציות check-in/complete, טריגרים שמגינים על `bookings`, כתיבת חיזוי/התראה בשרת עם HMAC, כפיית זהות כותב.
+## הרצה מקומית (3 תהליכים)
+```
+cd public && python3 -m http.server 8080
+cd backend && python3 -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt -r requirements-dev.txt
+cp .env.example .env   # למלא SUPABASE_URL, SUPABASE_ANON_KEY (publishable), ALLOWED_ORIGINS=http://localhost:8080, RISK_ATTESTATION_SECRET
+uvicorn app.main:app --port 8001 --env-file .env
+cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (חיזוי סיכון)
+```
+`RISK_ATTESTATION_SECRET` = הערך ב-`public.server_secrets` (name `risk_attestation_secret`); קוראים אותו ב-SQL editor. **להחליף לערך חדש לפני שימוש אמיתי** (הערך הנוכחי הופיע בשיחת עבודה).
 
-## בדיקות (מקומי)
-```
-node --test tests/unit/*.test.js
-ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs npx playwright test
-cd backend && source .venv/bin/activate && pytest -q --ignore=tests_db && pytest tests_db -q
-```
-אחרון ידוע: JS 29/29, Playwright 42/42, backend 132/132, DB מבודד 37/37, predictive 17/17.
+## הגדרות מקומיות שלא בריפו
+`.claude/settings.local.json` (הרשאות Claude Code, כולל הפעלת Supabase MCP) ו-`backend/.env` הם per-machine ולא נשמרים ב-git. בשיחה חדשה: לאשר/להפעיל את שרת ה-MCP של Supabase ולהוסיף הרשאה לכלי `apply_migration`/`execute_sql` רק אם צריך לשנות DB.
 
 ## חוקים קבועים
-1. **אסור להריץ** `tests/e2e/booking.spec.js` ו-`visit-report.spec.js` מול ה-DB החי.
-2. אין push, פריסה או שינוי ב-DB החי בלי אישור מפורש של הבעלים. SQL חדש: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים אישור.
-3. `supabase config push` דורס את כל מקטע `[auth]`: הגדרות Auth ידנית בדאשבורד.
-4. ה-hook ב-`.githooks/pre-commit` חוסם `secret = "..."`/`password: "..."`; לא עוקפים, בונים ערכי בדיקה בזמן ריצה.
-5. שינוי בקבצי קליינט ← להעלות `CACHE_VERSION` ב-`public/service-worker.js` (כעת v31+).
-6. לא להמציא טענות (24/7, "מוסמך" וכד'); הערכת הסיכון תמיד מסומנת "מבוססת כללים — הדגמה".
+1. אין push/פריסה/שינוי DB בלי אישור מפורש (SQL: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים). `supabase config push` דורס את כל `[auth]`.
+2. **אסור** להריץ `booking.spec.js`/`visit-report.spec.js` מול ה-DB החי.
+3. לא לשנות נוסחאות/סוכנים ב-`predictive-service/`. הערכת הסיכון מסומנת "מבוססת כללים — הדגמה".
+4. ה-hook ב-`.githooks/pre-commit` חוסם `secret = "..."`; לא עוקפים — בונים ערכי בדיקה בזמן ריצה.
+5. בכל שינוי קליינט: להעלות `CACHE_VERSION` (`public/service-worker.js`) ו-`APP_BUILD` (`public/config.js`).
+6. לפני שאומרים "תוקן": לבדוק בדפדפן אמיתי מול החי באותו מסלול שהמשתמש עושה (לא רק מוקים).
+
+## בדיקות (אחרון ידוע)
+JS 35/35 · Playwright 44/44 · backend 137/137 · DB מבודד 47/47 · predictive 17/17 · אימות SQL כולל rollback OK.
 
 ## נותר
-- [ ] להחיל `supabase/proposed/001-007` על **פרויקט staging נפרד** (ר' `docs/STAGING_PLAN.md`), להריץ מסע מלא על PostgREST אמיתי.
-- [ ] אירוח backend עם HTTPS, `BACKEND_URL`, CSP `connect-src`, CORS.
-- [ ] MFA ו-Leaked password protection (דאשבורד), ניקוי ~173 משתמשי אורח ישנים (מחיקה באישור).
-- [ ] משפטי: פרטיות, תנאי שימוש, הסכמה מדעת. בדיקת חדירה.
-- [ ] טיוטות עיצוב שלא בריפו: `docs/design-preview.html`, `docs/hero-options.html` (אפשר למחוק).
+- [ ] ניקוי נתוני בדיקה שיצרתי בפרויקט החי: הזמנות מבוטלות #49 ו-#51, שורות מטופל "בדיקת מערכת…" ומשתמשי אורח אנונימיים (~220) — **רק באישור**.
+- [ ] אירוח backend (HTTPS), `BACKEND_URL`, CSP `connect-src`, CORS.
+- [ ] MFA + Leaked password protection (דאשבורד), החלפת סוד האטסטציה.
+- [ ] משפטי: פרטיות, תנאי שימוש, הסכמה מדעת; בדיקת חדירה.
+- [ ] תזכורות לצוות כשהאתר סגור (אימייל/SMS) — דורש ספק חיצוני.
 
 ## פערים ידועים
-מחיקת התראות ועריכת כותרת משימה עדיין אפשריות (007 מצמצם). מרווח נסיעה קבוע, לא זמן נסיעה. טיוטות אופליין ב-`localStorage` ללא הצפנה.
+מרווח נסיעה קבוע (30 דק') ולא זמן נסיעה; קרבה לפי מיקום לא פעילה (קואורדינטות צוות פרטיות); טיוטות אופליין ב-`localStorage` ללא הצפנה; דוח שהושלם נעול לעריכה; מחיקת התראות ע"י מנהל אפשרית.

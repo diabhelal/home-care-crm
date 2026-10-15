@@ -65,7 +65,7 @@ Browser inserts into `risk_predictions`/`alerts` are revoked by that migration. 
 - Hosting is not decided yet.
 
 ## Database
-The SQL in `supabase/proposed/` is NOT applied; the backend needs it (new columns + RPCs) before it works against the real DB.
+The SQL in `supabase/proposed/001–007` was applied to the live project on 2026-10-15 (see `supabase/proposed/APPLIED.md`); a fresh Supabase project needs all `supabase/migrations/*.sql` applied in order.
 Known gap: until the frontend stops inserting bookings directly, a direct insert still gets `approval_status='confirmed'`.
 Geocoding is a no-op by default; implement `Geocoder` to enable proximity ranking.
 

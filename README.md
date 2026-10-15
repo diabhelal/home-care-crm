@@ -101,7 +101,7 @@ browser ──(Bearer = Supabase session JWT)──▶ backend/ (FastAPI) ──
 - **What it owns:** booking request validation + idempotency, availability with a fixed 30-minute travel buffer, staff eligibility and auto-assignment, admin approve / reject / reassign / cancel, server-generated check-in time, atomic visit completion, and the clinical-outcome update.
 - **What it does not do:** it never uses a `service_role` key, never trusts a user/staff id from the request body, and does not contain clinical formulas (those stay in `predictive-service/`).
 - **Database remains authoritative:** unique index + proposed trigger guards (`supabase/proposed/`) enforce slots, buffer, ownership and the approval state in SQL, so a direct PostgREST call cannot bypass them. Browser availability is advisory.
-- **Status:** implemented and tested locally (pytest + an isolated local PostgreSQL). The SQL in `supabase/proposed/` is **not applied to the live project** and the backend is **not hosted yet**. See `backend/README.md` and `docs/WORKPLAN.md`.
+- **Status:** implemented and tested (pytest + an isolated local PostgreSQL + a live end-to-end cycle). The SQL in `supabase/proposed/001–007` **was applied to the live Supabase project on 2026-10-15** (recorded in `supabase/migrations/`). The backend still has to be **run** (locally `uvicorn app.main:app --port 8001`) and is **not hosted** yet. See `backend/README.md` and `docs/WORKPLAN.md`.
 
 ## Technology Stack
 
@@ -329,7 +329,7 @@ Being transparent about what's *not* built, since the goal of this README is acc
 - **Guest identity is per-browser by default.** A patient cannot access their booking history from a different device or browser out of the box. Optional phone+OTP identity-linking infrastructure exists (`public/my-bookings.html`, Supabase Auth's anonymous-upgrade flow) so a patient *can* opt in to cross-device access, but it's inert today — no real SMS provider is configured (`[auth.sms] enable_signup = false` in `supabase/config.toml`), so the phone-linking UI is present but non-functional until one is wired up.
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.
 
-- **Backend not hosted / proposed SQL not applied.** The Python backend and `supabase/proposed/*.sql` exist and are tested locally, but are not deployed or applied to the live project; until then a direct PostgREST call can still bypass the new guards.
+- **Backend not hosted.** The Python backend works locally against the live Supabase project; booking from the site requires it to be running. A hosted deployment needs HTTPS, `BACKEND_URL` in `public/config.js`, the backend origin in the CSP `connect-src`, and CORS (`ALLOWED_ORIGINS`).
 - **Client-written clinical rows.** `risk_predictions` and `alerts` inserts (and acknowledgement fields) were browser-written; a server-side path is being added (see `docs/WORKPLAN.md`).
 - **Travel buffer is a constant (30 min)**, not computed travel time; proximity ranking needs staff/patient coordinates and a geocoder (a no-op geocoder is the default).
 - **Offline drafts live in `localStorage`** (namespaced per user, unencrypted). This is logical separation, not encryption.
