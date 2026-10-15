@@ -362,9 +362,15 @@ function bindClinicalOutcomeSelects(content, visits) {
       const savedEl = content.querySelector(`.pr-outcome-saved[data-visit-id="${visitId}"]`);
       hideError(errEl);
       const newVal = sel.value || null;
-      const { error } = await supabaseClient.from("visit_reports").update({ clinical_outcome_8h: newVal }).eq("id", visitId);
+      let error = null;
+      try {
+        await backendFetch(`/visits/${encodeURIComponent(visitId)}/clinical-outcome`, { method: "PATCH", body: { clinical_outcome_8h: newVal } });
+      } catch (err) { error = err; }
       if (error) {
-        showError(errEl, friendlyErrorMessage(error));
+        const kind = error.kind;
+        showError(errEl, (kind === "forbidden" || kind === "validation" || kind === "conflict" || kind === "auth") && error.message
+          ? error.message : "לא ניתן לשמור את התוצאה הקלינית כרגע. בדוק את החיבור ונסה שוב.");
+        sel.value = visits.find((r) => r.id === visitId)?.clinical_outcome_8h || "";
         return;
       }
       const v = visits.find((r) => r.id === visitId);

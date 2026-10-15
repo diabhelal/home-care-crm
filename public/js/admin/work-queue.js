@@ -92,13 +92,29 @@ function renderQueueStaffCell(td, b) {
   td.appendChild(changeBtn);
 }
 
+// התחלת ביקור: חותמת הזמן נקבעת בשרת (POST /staff/bookings/{id}/check-in, JWT של מנהל),
+// לא בדפדפן. כישלון = לא מסמנים כהתחיל ולא פותחים את הדוח.
 async function startVisit(b, btn) {
-  if (b.workflow_status !== "in_progress") {
+  if (b.workflow_status !== "in_progress" && !b.checked_in_at) {
     if (btn) setButtonLoading(btn, true, "מתחיל...");
-    const { error } = await supabaseClient.from("bookings").update({ workflow_status: "in_progress" }).eq("id", b.id);
+    let res;
+    try {
+      res = await backendFetch(`/staff/bookings/${encodeURIComponent(b.id)}/check-in`, { method: "POST" });
+    } catch (err) {
+      if (btn) setButtonLoading(btn, false);
+      const kind = err && err.kind;
+      const msg = (kind === "forbidden" || kind === "conflict" || kind === "validation" || kind === "auth") && err.message
+        ? err.message
+        : "לא ניתן להתחיל את הביקור כרגע. בדוק את החיבור ונסה שוב.";
+      showError(appError, msg);
+      return;
+    }
     if (btn) setButtonLoading(btn, false);
-    if (error) { showError(appError, friendlyErrorMessage(error)); return; }
-    b.workflow_status = "in_progress";
+    b.workflow_status = (res && res.workflow_status) || "in_progress";
+    b.checked_in_at = (res && res.checked_in_at) || null;
+    if (b.checked_in_at) {
+      flashSuccess("הביקור התחיל ב-" + new Date(b.checked_in_at).toLocaleTimeString("he-IL", { hour: "2-digit", minute: "2-digit" }));
+    }
     loadBookings();
   }
   const report = (b.visit_reports && b.visit_reports[0]) || null;

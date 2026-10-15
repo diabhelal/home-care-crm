@@ -171,12 +171,33 @@ class BookingService:
         return b
 
     def check_in(self, staff: Staff, booking_id: int) -> Booking:
-        b = self._own_booking(staff, booking_id)
+        return self._check_in(self._own_booking(staff, booking_id))
+
+    def check_in_admin(self, booking_id: int) -> Booking:
+        """Admin starts the visit on behalf of the assigned staff (same logic, same DB
+        function: owner-or-admin, server timestamp)."""
+        return self._check_in(self._require_booking(booking_id))
+
+    def _check_in(self, b: Booking) -> Booking:
+        booking_id = b.id
         if b.checked_in_at is not None and b.status == "scheduled":
             return b  # idempotent
         if b.status != "scheduled" or b.approval_status != "confirmed":
             raise conflict("illegal_transition", "לא ניתן לבצע צ'ק-אין להזמנה זו")
         return self.repo.check_in(booking_id)  # timestamp = DB now(), never client
+
+    # ---- clinical outcome (retrospective label on a visit report)
+    def set_clinical_outcome(self, who: Identity, staff: Optional[Staff], report_id: int,
+                             value: Optional[str]) -> dict:
+        """Assigned staff of the report's booking, or an admin. `staff` is None for admin."""
+        rep = self.repo.get_visit_report(report_id)
+        if rep is None:
+            raise not_found("דוח הביקור לא נמצא")
+        if not who.is_admin:
+            b = self.repo.get_booking(rep.get("booking_id"))
+            if staff is None or b is None or b.staff_id != staff.id:
+                raise forbidden("דוח הביקור אינו משויך אליך")
+        return self.repo.set_clinical_outcome(report_id, value)
 
     def complete(self, staff: Staff, booking_id: int, report: VisitReportIn) -> dict:
         return self._complete(self._own_booking(staff, booking_id), report)

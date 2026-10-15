@@ -43,3 +43,40 @@
 1. סקירה והחלה ידנית של `supabase/proposed/*.sql` (workflow המיגרציות; staging קודם).
 2. חיבור הדפדפן ל-API (בלוק 3 המשך) — נתיב נפילה לכתיבה הישירה הקיימת כל עוד ה-backend לא מאורח.
 3. פער ידוע: עד שה-frontend מנתב הזמנות דרך ה-backend, מטופל יכול להכניס ישירות שורה ל-`bookings` (default `approval_status='confirmed'`).
+
+## כתיבות ישירות שנותרו
+נכון ל-2026-10-15 (אחרי סגירת "התחלת ביקור" של מנהל ו-`clinical_outcome_8h`). נסרק: כל `supabaseClient.from(...).insert/update/upsert/delete`, `storage.upload`, `functions.invoke` ב-`public/`.
+
+**נסגר במשימה זו:** (1) `work-queue.js startVisit` ← `POST /staff/bookings/{id}/check-in` עם JWT של מנהל (פונקציית `check_in_visit` מקבלת בעלים-או-מנהל כמו `complete_visit`). (2) `visit_reports.update({clinical_outcome_8h})` ב-`employee.html` וב-`patient-record.js` ← `PATCH /visits/{report_id}/clinical-outcome` (צוות משויך או מנהל; ערך מול ה-CHECK; כתיבה עם ה-JWT של הקורא, RLS נשמר; 403/404/422).
+
+**(a) מחזור חיי הזמנה/ביקור: אפס כתיבות ישירות בדפדפן** (`bookings`, `visit_reports`). אומת ב-`__write_log` בבדיקות `admin-lifecycle`, `staff-field-actions`, `mobile-journey`.
+הערה: ברמת ה-DB מדיניות `staff_update_assigned_bookings` / `bookings_update_own` / `staff_full_access_own_visit_reports` עדיין מאפשרות כתיבה ל-PostgREST ישיר; הגנת זה היא `supabase/proposed/005_booking_write_guards.sql` (טריגרים) והיא טרם הוחלה.
+
+| # | קובץ:שורה | טבלה / פעולה | מי יכול | הגנה (RLS / guard) | סיווג |
+|---|---|---|---|---|---|
+| 1 | `public/index.html:191` | `patient_contacts` insert (פנייה מהאתר) | מטופל/אורח (anon-session) | `patient_insert_own_contacts`: `patient_id = auth.uid()` ו-`is_from_patient = true` | (c) |
+| 2 | `public/app.js:444` | `patients` upsert (פרטי מטופל בשלב אישור) | מטופל/אורח לשורה שלו | `patients_insert_own` / `patients_update_own` (`id = auth.uid()`); טריגר audit | (c) |
+| 3 | `public/my-bookings.html:254` | `service_plans` insert (בקשת תוכנית) | מטופל | `patient_insert_own_service_plans`: בעלים ו-`status='requested'` | (b) |
+| 4 | `public/my-bookings.html:308` | `patient_contacts` insert | מטופל | `patient_insert_own_contacts` | (c) |
+| 5 | `public/js/admin/contacts.js:127` / `:148` / `:163` | `patient_contacts` insert / update status / delete | מנהל | `admin_full_access_patient_contacts` | (b) |
+| 6 | `public/js/admin/staff.js:116` | `medical_staff` delete | מנהל | `admin_full_access_medical_staff` | (c) |
+| 7 | `public/js/admin/staff.js:199-200` | `medical_staff` update / insert | מנהל | `admin_full_access_medical_staff` (יצירת כניסה: Edge Function `create-staff-login`, ללא service_role בדפדפן) | (c) |
+| 8 | `public/js/admin/patients.js:84` | `patients` update (רקע, עישון) | מנהל | `admin_full_access_patients`; audit | (b) |
+| 9 | `public/js/admin/patient-record.js:156` | `patients` update (פרופיל) | מנהל (צוות: אין מדיניות update על `patients`, מסונן) | `admin_full_access_patients`; audit | (b) |
+| 10 | `public/js/admin/patient-record.js:515` | `patient_medical_history` upsert | מנהל | `admin_full_access_patient_medical_history`; audit | (b) |
+| 11 | `public/js/admin/patient-record.js:530` | `patient_allergies` insert | מנהל | `admin_full_access_patient_allergies`; audit | (b) |
+| 12 | `public/js/admin/patient-record.js:572`, `public/employee.html:1059` | `medication_events` insert | מנהל / צוות למטופל משויך | `admin_full_access_medication_events` / `staff_insert_assigned_medication_events` (`is_my_patient`) | (b) |
+| 13 | `public/js/admin/patient-record.js:617`, `:711`, `:649` | `service_plans` update status / insert; `service_plan_visits` upsert | מנהל | `admin_full_access_service_plans` / `_service_plan_visits`; audit על `service_plans` | (b) |
+| 14 | `public/js/admin/patient-record.js:771`, `public/employee.html:1101` | `clinical_notes` insert | מנהל / צוות משויך | `admin_insert_clinical_notes` / `staff_insert_assigned_clinical_notes` (append-only: אין update/delete) | (b) |
+| 15 | `public/js/admin/patient-record.js:814-817` | `patient-documents` storage upload + `patient_documents` insert | מנהל | `admin_full_access_patient_documents[_storage]` (bucket פרטי) | (b) |
+| 16 | `public/js/admin/patient-record.js:843`, `:850`, `public/employee.html:1124`, `:1131` | `alerts` update (acknowledged / resolved) | מנהל / צוות משויך | `admin_full_access_alerts` / `staff_update_assigned_alerts` | (b) |
+| 17 | `public/js/admin/patient-record.js:863`, `:877`, `public/employee.html:1144`, `:1155` | `tasks` insert / update (completed) | מנהל / צוות משויך | `admin_full_access_tasks` / `staff_insert|update_assigned_tasks` | (b) |
+| 18 | `public/js/admin/patient-record.js:1005`, `public/employee.html:585` | `alerts` insert (התראה אוטומטית מתוצאת `evaluate-alert`) | מנהל / צוות משויך | `admin_full_access_alerts` / `staff_insert_assigned_alerts` | **(b) מזויף** |
+| 19 | `public/admin.html:693`, `public/employee.html:622` | `risk_predictions` insert (תוצאת שירות התחזית) | מנהל / צוות משויך | `admin_full_access_risk_predictions` / `staff_insert_assigned_risk_predictions`; ל-`authenticated` רק select+insert (אין update/delete) | **(b) מזויף** |
+
+### סיכוני זיוף (b) והצעד הבא הבטוח (לא בוצע במשימה זו)
+- **`risk_predictions` (#19)**: `risk_level`, `confidence`, `expires_at`, `model_version`, `input_features`, `created_by` נשלחים מהדפדפן. כל איש צוות משויך (או מנהל) יכול להכניס דירוג סיכון שרירותי שייראה כתוצר המנוע, כולל `model_version` מזויף, ו-`current_patient_risk` מציג אותו. גם `input_features` לא חייב להתאים ל-`visit_report_id`.
+- **`alerts` insert (#18)**: `alert_type`/`severity`/`message`/`risk_prediction_id` מהלקוח; ניתן להוסיף התראת "קריטית" או להצמיד אותה לתחזית שאינה של המטופל.
+- **`tasks`/`alerts` update**: `completed_by`/`acknowledged_by`/`*_at` נקבעים בדפדפן (זמן לקוח, מזהה מהלקוח), ללא trigger שכופה `auth.uid()`/`now()`.
+- **צעד בטוח**: endpoint ב-backend (`POST /visits/{report_id}/risk` ו-`POST /patients/{id}/alerts/auto`) שקורא ל-predictive-service (או מחשב ב-backend), גוזר `created_by` מה-JWT, `predicted_at`/`expires_at` משעון השרת, `visit_report_id` מאומת מול הדוח והמטופל, וכותב דרך פונקציית `SECURITY DEFINER` (כמו `complete_visit`); אחר כך `revoke insert on risk_predictions from authenticated` ובדיקות `tests_db`. עבור `tasks`/`alerts` update: trigger additive שמציב `completed_by := auth.uid()`, `*_at := now()`. מיגרציה = workflow מאושר בלבד.
+- (a)/(c) ללא פער זיוף ממשי: כתיבות הבעלים מוגבלות ל-`auth.uid()`; `patient_contacts`/`service_plans` מאלצים `is_from_patient`/`status='requested'` ב-`with check`.

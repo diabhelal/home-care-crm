@@ -15,8 +15,10 @@ begin
   if not found then
     raise exception 'booking not found' using errcode = 'P0002';
   end if;
-  -- ownership: only the assigned staff member (identity from auth.uid(), never a parameter)
-  if b.staff_id is distinct from public.current_staff_id() then
+  -- owner (assigned staff) or an admin; identity comes from the verified JWT, never a parameter
+  -- (same rule as complete_visit in 003)
+  if b.staff_id is distinct from public.current_staff_id()
+     and not coalesce((((select auth.jwt()) -> 'app_metadata') ->> 'is_admin')::boolean, false) then
     raise exception 'not your booking' using errcode = '42501';
   end if;
   if b.status <> 'scheduled' or b.approval_status <> 'confirmed' then

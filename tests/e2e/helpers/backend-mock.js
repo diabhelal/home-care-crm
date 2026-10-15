@@ -17,7 +17,7 @@ async function overrideConfig(context, backendUrl = BACKEND) {
 const CORS = {
   "access-control-allow-origin": "*",
   "access-control-allow-headers": "Authorization, Content-Type, Idempotency-Key",
-  "access-control-allow-methods": "GET, POST, OPTIONS",
+  "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
 };
 
 async function installBackendMock(context, { backendUrl = BACKEND, configure = true } = {}) {
@@ -34,6 +34,8 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     checkIns: 0,
     completeFail: null,    // מספר סטטוס HTTP לכישלון complete, או 'abort' לניתוק רשת לפני עיבוד
     completes: [],         // גופי בקשות complete שעובדו בהצלחה (booking_id + body)
+    outcomeFail: null,     // מספר סטטוס HTTP לכישלון PATCH clinical-outcome, או 'abort'
+    outcomes: [],          // { report_id, value } שעובדו בהצלחה
     cancels: [],           // { scope: 'patient'|'admin', id } שעובדו בהצלחה
   };
 
@@ -122,9 +124,10 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
         const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
         const row = (db.bookings || []).find((b) => b.id === Number(id));
         if (!row) return { status: 404, detail: "ההזמנה לא נמצאה" };
+        const isAdmin = (sess.user.app_metadata || {}).is_admin === true;  // כמו ב-backend: מנהל מורשה (JWT בלבד)
         const me = (db.medical_staff || []).find((s) => s.auth_user_id === sess.user.id);
-        if (!me) return { status: 403, detail: "נדרשת הרשאת צוות" };
-        if (row.staff_id !== me.id) return { status: 403, detail: "ההזמנה אינה משויכת אליך" };
+        if (!isAdmin && !me) return { status: 403, detail: "נדרשת הרשאת צוות" };
+        if (!isAdmin && row.staff_id !== me.id) return { status: 403, detail: "ההזמנה אינה משויכת אליך" };
         if (row.approval_status && row.approval_status !== "confirmed") return { status: 409, detail: "ההזמנה טרם אושרה" };
         if (!row.checked_in_at) row.checked_in_at = new Date().toISOString();
         row.workflow_status = "in_progress";
@@ -134,6 +137,34 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
       if (result.status !== 200) return json(result.status, { code: "error", detail: result.detail });
       ctl.checkIns++;
       return json(200, { ...result.row, display_state: "in_progress" });
+    }
+
+    // ---- תוצאה קלינית בדיעבד — משקף PATCH /visits/{id}/clinical-outcome (צוות משויך או מנהל)
+    const oc = path.match(/^\/visits\/(\d+)\/clinical-outcome$/);
+    if (req.method() === "PATCH" && oc) {
+      if (ctl.outcomeFail === "abort") return route.abort("connectionreset");
+      if (ctl.outcomeFail) return json(ctl.outcomeFail, { code: "error", detail: "שגיאת בדיקה" });
+      const ALLOWED = ["none", "hypoglycemia", "severe_hyperglycemia", "respiratory_deterioration", "hemodynamic_deterioration"];
+      const result = await inPage(({ id, body, ALLOWED }) => {
+        const sess = JSON.parse(localStorage.getItem("__demo_session") || "null");
+        if (!sess) return { status: 401 };
+        const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+        const isAdmin = (sess.user.app_metadata || {}).is_admin === true;
+        const staff = (db.medical_staff || []).find((s) => s.auth_user_id === sess.user.id && s.is_active !== false);
+        if (!isAdmin && !staff) return { status: 403, detail: "נדרשת הרשאת צוות" };
+        const rep = (db.visit_reports || []).find((v) => v.id === Number(id));
+        if (!rep) return { status: 404, detail: "דוח הביקור לא נמצא" };
+        const bk = (db.bookings || []).find((b) => b.id === rep.booking_id);
+        if (!isAdmin && (!bk || bk.staff_id !== staff.id)) return { status: 403, detail: "דוח הביקור אינו משויך אליך" };
+        const v = body && body.clinical_outcome_8h;
+        if (v !== null && v !== undefined && !ALLOWED.includes(v)) return { status: 422, detail: "ערך לא תקין" };
+        rep.clinical_outcome_8h = v == null ? null : v;
+        localStorage.setItem("__demo_db", JSON.stringify(db));
+        return { status: 200, rep };
+      }, { id: oc[1], body, ALLOWED });
+      if (result.status !== 200) return json(result.status, { code: "error", detail: result.detail });
+      ctl.outcomes.push({ report_id: Number(oc[1]), value: body.clinical_outcome_8h ?? null });
+      return json(200, { report: { id: result.rep.id, booking_id: result.rep.booking_id, clinical_outcome_8h: result.rep.clinical_outcome_8h } });
     }
 
     // ---- ביטול (מטופל-בעלים / מנהל) — משקף backend/app/service.py cancel_own / cancel_admin

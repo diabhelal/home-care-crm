@@ -1,4 +1,8 @@
-from tests.conftest import H, local, req
+from datetime import timedelta
+
+from tests.conftest import H, NOW, local, req
+
+NOW_LATER = NOW + timedelta(hours=1)
 
 
 def test_missing_token_401(world):
@@ -432,3 +436,92 @@ def test_complete_cancelled_409(world):
     _cancel(world, bid)
     assert world.client.post(f"/staff/visits/{bid}/complete", json=REPORT,
                              headers=H("staff1")).status_code == 409
+
+
+# ---- admin check-in (same endpoint, JWT identity only)
+def test_checkin_by_admin_ok_server_time_and_idempotent(world):
+    from tests.conftest import NOW
+    bid = _confirmed(world)
+    r = world.client.post(f"/staff/bookings/{bid}/check-in",
+                          json={"checked_in_at": "1999-01-01T00:00:00Z"}, headers=H("admin"))
+    assert r.status_code == 200
+    assert r.json()["checked_in_at"] == NOW.isoformat()
+    assert r.json()["display_state"] == "in_progress"
+    assert world.repo.bookings[bid].staff_id == 1  # booking keeps its own staff
+
+
+def test_checkin_admin_then_staff_keeps_first_time(world):
+    bid = _confirmed(world)
+    first = world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("admin")).json()["checked_in_at"]
+    world.repo._now = lambda: NOW_LATER
+    again = world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("staff1"))
+    assert again.status_code == 200 and again.json()["checked_in_at"] == first
+
+
+def test_checkin_unassigned_staff_and_patient_403_nothing_written(world):
+    bid = _confirmed(world)
+    assert world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("staff2")).status_code == 403
+    assert world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("patient2")).status_code == 403
+    assert world.repo.bookings[bid].checked_in_at is None
+
+
+def test_checkin_admin_unapproved_409_and_missing_404(world):
+    bid = _new(world)
+    assert world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("admin")).status_code == 409
+    assert world.client.post("/staff/bookings/9999/check-in", headers=H("admin")).status_code == 404
+
+
+# ---- clinical outcome
+def _report(world):
+    bid = _confirmed(world)
+    world.client.post(f"/staff/visits/{bid}/complete", json=REPORT, headers=H("staff1"))
+    return bid  # report id == booking id in FakeRepo
+
+
+def _outcome(world, rid, who, val="hypoglycemia"):
+    return world.client.patch(f"/visits/{rid}/clinical-outcome",
+                              json={"clinical_outcome_8h": val}, headers=H(who))
+
+
+def test_outcome_assigned_staff_ok(world):
+    rid = _report(world)
+    r = _outcome(world, rid, "staff1")
+    assert r.status_code == 200 and r.json()["report"]["clinical_outcome_8h"] == "hypoglycemia"
+    assert world.repo.reports[rid]["clinical_outcome_8h"] == "hypoglycemia"
+
+
+def test_outcome_admin_ok_and_null_clears(world):
+    rid = _report(world)
+    assert _outcome(world, rid, "admin", "none").status_code == 200
+    assert _outcome(world, rid, "admin", None).status_code == 200
+    assert world.repo.reports[rid]["clinical_outcome_8h"] is None
+
+
+def test_outcome_other_staff_and_patient_403(world):
+    rid = _report(world)
+    assert _outcome(world, rid, "staff2").status_code == 403
+    assert _outcome(world, rid, "patient").status_code == 403
+    assert "clinical_outcome_8h" not in world.repo.reports[rid]
+
+
+def test_outcome_missing_report_404_and_bad_value_422(world):
+    rid = _report(world)
+    assert _outcome(world, 9999, "admin").status_code == 404
+    assert _outcome(world, rid, "admin", "made_up").status_code == 422
+    assert _outcome(world, rid, "admin", "").status_code == 422
+    assert "clinical_outcome_8h" not in world.repo.reports[rid]
+
+
+def test_outcome_requires_auth(world):
+    rid = _report(world)
+    assert world.client.patch(f"/visits/{rid}/clinical-outcome",
+                              json={"clinical_outcome_8h": "none"}).status_code == 401
+
+
+def test_outcome_body_cannot_smuggle_other_columns(world):
+    rid = _report(world)
+    r = world.client.patch(f"/visits/{rid}/clinical-outcome",
+                           json={"clinical_outcome_8h": "none", "staff_id": 2, "treatment_summary": "x"},
+                           headers=H("staff1"))
+    assert r.status_code == 200
+    assert world.repo.reports[rid]["staff_id"] == 1 and world.repo.reports[rid]["treatment_summary"] == "ok"

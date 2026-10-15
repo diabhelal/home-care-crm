@@ -25,7 +25,8 @@ uvicorn app.main:app --port 8001
 | GET | `/availability?start&end[&staff_id][&address]` | signed-in |
 | POST | `/bookings/{id}/cancel` | the booking's patient only (404 for anyone else; 409 when completed/checked-in; idempotent) |
 | POST | `/admin/bookings/{id}/approve` `/reject` `/reassign` `/cancel` | admin (`app_metadata.is_admin`); cancel: any non-completed booking, idempotent |
-| POST | `/staff/bookings/{id}/check-in` | assigned staff |
+| POST | `/staff/bookings/{id}/check-in` | assigned staff or admin (server timestamp) |
+| PATCH | `/visits/{report_id}/clinical-outcome` | assigned staff of the report's booking, or admin; body `{clinical_outcome_8h: <enum>|null>}` |
 | POST | `/staff/visits/{booking_id}/complete` | assigned staff, or admin on behalf (report keeps the booking's staff_id) |
 
 Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition or slot taken

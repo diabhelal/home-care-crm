@@ -84,3 +84,11 @@ class FakeRepo:
         self.reports[booking_id] = report
         self.bookings[booking_id] = b.with_(status="completed", workflow_status="assigned")
         return report
+
+    def get_visit_report(self, report_id):
+        return next((r for r in self.reports.values() if r["id"] == report_id), None)
+
+    def set_clinical_outcome(self, report_id, value):
+        rep = self.get_visit_report(report_id)
+        rep["clinical_outcome_8h"] = value
+        return {k: rep.get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}

@@ -193,3 +193,61 @@ def test_admin_can_cancel_any_scheduled_booking(db):
     as_user(db, d["admin"], admin=True)
     db.execute("update bookings set status='cancelled' where id=%s", (bid,))
     assert db.execute("select status from bookings where id=%s", (bid,)).fetchone()[0] == "cancelled"
+
+
+def _confirmed_booking(db, d):
+    as_user(db, d["pa"]); bid, _ = insert_booking(db, d["pa"], d["s1"], T0)
+    as_user(db, d["admin"], admin=True)
+    db.execute("update bookings set approval_status='confirmed' where id=%s", (bid,))
+    return bid
+
+
+def test_check_in_by_admin_allowed_keeps_first_time(db):
+    d = seed(db)
+    bid = _confirmed_booking(db, d)
+    as_user(db, d["admin"], admin=True)
+    first = db.execute("select checked_in_at from check_in_visit(%s)", (bid,)).fetchone()[0]
+    as_user(db, d["staff_user"])
+    second = db.execute("select checked_in_at from check_in_visit(%s)", (bid,)).fetchone()[0]
+    assert first is not None and first == second
+    assert db.execute("select staff_id from bookings where id=%s", (bid,)).fetchone()[0] == d["s1"]
+
+
+def test_check_in_by_patient_owner_still_rejected(db):
+    d = seed(db)
+    bid = _confirmed_booking(db, d)
+    as_user(db, d["pa"])
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        db.execute("select check_in_visit(%s)", (bid,))
+
+
+def _report_id(db, d):
+    bid = _confirmed_booking(db, d)
+    as_user(db, d["staff_user"])
+    return db.execute("select id from complete_visit(%s, '{\"treatment_summary\":\"x\"}'::jsonb)", (bid,)).fetchone()[0]
+
+
+def test_clinical_outcome_rls_owner_admin_and_check_constraint(db):
+    d = seed(db)
+    rid = _report_id(db, d)
+    other = new_uuid()
+    as_postgres(db)
+    db.execute("insert into auth.users(id) values (%s)", (other,))
+    db.execute("insert into medical_staff(full_name, role, slot_duration_minutes, auth_user_id) values ('אחות ג','nurse',60,%s)", (other,))
+    # owner staff
+    as_user(db, d["staff_user"])
+    db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
+    # admin
+    as_user(db, d["admin"], admin=True)
+    db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
+    # other staff: RLS filters the row, nothing changes
+    as_user(db, other)
+    db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
+    as_postgres(db)
+    assert db.execute("select clinical_outcome_8h from visit_reports where id=%s", (rid,)).fetchone()[0] == "hypoglycemia"
+    # constraint
+    as_user(db, d["admin"], admin=True)
+    db.execute("savepoint sp")
+    with pytest.raises(psycopg.errors.CheckViolation):
+        db.execute("update visit_reports set clinical_outcome_8h='bogus' where id=%s", (rid,))
+    db.execute("rollback to savepoint sp")

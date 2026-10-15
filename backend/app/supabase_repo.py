@@ -155,3 +155,19 @@ class SupabaseRepo:
 
     def complete_visit_atomic(self, booking_id, payload):
         return self._rpc("complete_visit", {"p_booking_id": booking_id, "p_payload": payload})
+
+    # -- visit reports
+    def get_visit_report(self, report_id):
+        rows = self._get("/visit_reports", {"id": f"eq.{report_id}",
+                                            "select": "id,booking_id,staff_id,clinical_outcome_8h"})
+        return rows[0] if rows else None
+
+    def set_clinical_outcome(self, report_id, value):
+        r = self._client.patch("/visit_reports", params={"id": f"eq.{report_id}"},
+                               json={"clinical_outcome_8h": value},
+                               headers={"Prefer": "return=representation"})
+        self._raise_for(r)
+        rows = r.json()
+        if not rows:  # RLS filtered the row out: nothing was written
+            raise forbidden()
+        return {k: rows[0].get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}

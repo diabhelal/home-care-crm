@@ -105,3 +105,28 @@ def test_db_errors_map_to_domain_errors():
         with pytest.raises(DomainError) as e:
             make(h).complete_visit_atomic(1, {})
         assert e.value.status == status
+
+
+def test_clinical_outcome_patch_uses_caller_jwt_and_only_that_column():
+    seen = {}
+    def h(req):
+        if req.method == "PATCH":
+            seen["req"] = req
+            return httpx.Response(200, json=[{"id": 3, "booking_id": 9, "clinical_outcome_8h": "none"}])
+        return httpx.Response(200, json=[])
+    repo = make(h)
+    out = repo.set_clinical_outcome(3, "none")
+    r = seen["req"]
+    assert str(r.url).startswith("https://x.supabase.co/rest/v1/visit_reports")
+    assert r.url.params["id"] == "eq.3"
+    assert json.loads(r.content) == {"clinical_outcome_8h": "none"}
+    assert r.headers["authorization"] == f"Bearer {JWT}"
+    assert out["clinical_outcome_8h"] == "none"
+
+
+def test_clinical_outcome_rls_filtered_is_forbidden():
+    from app.errors import DomainError
+    repo = make(lambda req: httpx.Response(200, json=[]))
+    with pytest.raises(DomainError) as e:
+        repo.set_clinical_outcome(3, "none")
+    assert e.value.status == 403

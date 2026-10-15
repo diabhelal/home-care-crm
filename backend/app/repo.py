@@ -26,3 +26,7 @@ class Repository(Protocol):
         """DB sets checked_in_at = now() (idempotent) and returns the booking."""
     def complete_visit_atomic(self, booking_id: int, payload: dict) -> dict:
         """ONE transaction: upsert visit_reports + bookings.status='completed'."""
+    def get_visit_report(self, report_id: int) -> Optional[dict]:
+        """RLS-scoped: a non-owner staff member simply does not see the row."""
+    def set_clinical_outcome(self, report_id: int, value: Optional[str]) -> dict:
+        """Writes ONLY clinical_outcome_8h, with the caller's JWT."""

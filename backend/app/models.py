@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime, time
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -80,6 +80,15 @@ class VisitReportIn(BaseModel):
     performed_dressing_change: bool = False
     performed_catheter_change: bool = False
     patient_signature_data: Optional[str] = None
+
+
+ClinicalOutcome = Literal["none", "hypoglycemia", "severe_hyperglycemia",
+                         "respiratory_deterioration", "hemodynamic_deterioration"]
+
+
+class ClinicalOutcomeIn(BaseModel):
+    """Mirrors visit_reports_clinical_outcome_8h_check. null = not yet recorded."""
+    clinical_outcome_8h: Optional[ClinicalOutcome] = None
 
 
 def booking_to_dict(b: Booking, display_state: str) -> dict:

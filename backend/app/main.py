@@ -12,7 +12,7 @@ from .auth import (HS256Verifier, TokenVerifier, extract_bearer,
 from .config import Settings
 from .errors import DomainError, forbidden
 from .geo import Geocoder, NoopGeocoder
-from .models import (Booking, BookingRequestIn, Identity, ReassignIn, Staff,
+from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, ReassignIn, Staff,
                      VisitReportIn, booking_to_dict)
 from .repo import Repository
 from .service import BookingService
@@ -40,7 +40,7 @@ def create_app(settings: Settings | None = None,
     app = FastAPI(title="home-care-crm backend")
     if cfg.allowed_origins:
         app.add_middleware(CORSMiddleware, allow_origins=list(cfg.allowed_origins),
-                           allow_methods=["GET", "POST"],
+                           allow_methods=["GET", "POST", "PATCH"],
                            allow_headers=["Authorization", "Content-Type", "Idempotency-Key"])
 
     @app.exception_handler(DomainError)
@@ -105,6 +105,8 @@ def create_app(settings: Settings | None = None,
 
     @app.post("/staff/bookings/{booking_id}/check-in")
     def check_in(booking_id: int, c: Ctx = Depends(ctx)):
+        if c.identity.is_admin:  # identity from the verified JWT only
+            return _view(c.svc.check_in_admin(booking_id))
         return _view(c.svc.check_in(c.staff(), booking_id))
 
     @app.post("/staff/visits/{booking_id}/complete")
@@ -112,6 +114,12 @@ def create_app(settings: Settings | None = None,
         if c.identity.is_admin:  # identity from the verified JWT only
             return {"report": c.svc.complete_admin(booking_id, body)}
         return {"report": c.svc.complete(c.staff(), booking_id, body)}
+
+    @app.patch("/visits/{report_id}/clinical-outcome")
+    def clinical_outcome(report_id: int, body: ClinicalOutcomeIn, c: Ctx = Depends(ctx)):
+        staff = None if c.identity.is_admin else c.staff()
+        return {"report": c.svc.set_clinical_outcome(
+            c.identity, staff, report_id, body.clinical_outcome_8h)}
 
     return app
 
