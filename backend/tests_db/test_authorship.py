@@ -146,3 +146,19 @@ def test_no_jwt_subject_is_unrestricted(db):
     r = db.execute("insert into medication_events(patient_id, medication_name, created_by) values (%s,'x',%s) returning created_by",
                    (d["pa"], forged)).fetchone()
     assert str(r[0]) == forged
+
+
+def test_deleting_a_patient_with_clinical_notes_still_cascades(db):
+    """BEFORE DELETE trigger on clinical_notes must not swallow the cascade (regression for 007)."""
+    from tests_db.conftest import as_postgres, as_user, new_uuid
+    as_postgres(db)
+    pat, admin = new_uuid(), new_uuid()
+    for u in (pat, admin):
+        db.execute("insert into auth.users(id) values (%s)", (u,))
+    db.execute("insert into patients(id, full_name) values (%s,'מטופל סינתטי')", (pat,))
+    as_user(db, admin, admin=True)
+    db.execute("insert into clinical_notes(patient_id, note_type, content) values (%s,'general','הערה')", (pat,))
+    as_postgres(db)   # patients are removed via auth.users ON DELETE CASCADE (service/SQL editor), not by API roles
+    db.execute("delete from auth.users where id=%s", (pat,))
+    assert db.execute("select count(*) from clinical_notes where patient_id=%s", (pat,)).fetchone()[0] == 0
+    assert db.execute("select count(*) from patients where id=%s", (pat,)).fetchone()[0] == 0

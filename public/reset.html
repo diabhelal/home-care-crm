@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>איפוס מטמון האתר</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="page">
+  <main style="max-width:560px;margin:64px auto;padding:0 20px;">
+    <h1>איפוס מטמון האתר</h1>
+    <p id="status" role="status">מנקה גרסאות ישנות שנשמרו בדפדפן…</p>
+    <p style="color:var(--text-muted);font-size:14px;">
+      הפעולה מוחקת רק את ה-Service Worker ואת מטמון הקבצים. טיוטות דוחות שטרם סונכרנו
+      (שמורות במכשיר) <strong>לא</strong> נמחקות.
+    </p>
+    <a class="btn btn-primary" id="go" href="index.html" style="display:none;">חזרה לאתר</a>
+  </main>
+</div>
+<script>
+(async function () {
+  var status = document.getElementById("status");
+  var removed = 0, cleared = 0;
+  try {
+    if ("serviceWorker" in navigator) {
+      var regs = await navigator.serviceWorker.getRegistrations();
+      for (var i = 0; i < regs.length; i++) { if (await regs[i].unregister()) removed++; }
+    }
+    if (window.caches) {
+      var keys = await caches.keys();
+      for (var j = 0; j < keys.length; j++) { if (await caches.delete(keys[j])) cleared++; }
+    }
+    status.textContent = "בוצע: הוסרו " + removed + " Service Workers ו-" + cleared + " מטמוני קבצים. טוען את האתר מחדש…";
+    setTimeout(function () { window.location.replace("index.html"); }, 1200);
+  } catch (e) {
+    status.textContent = "לא הצלחנו לאפס אוטומטית. ב-Chrome: כלי פיתוח ← Application ← Service Workers ← Unregister, ואז רענון קשיח.";
+  }
+  document.getElementById("go").style.display = "inline-flex";
+})();
+</script>
+</body>
+</html>

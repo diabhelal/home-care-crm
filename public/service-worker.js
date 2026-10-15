@@ -5,7 +5,7 @@
 // API תמיד הולכות ישירות לרשת. שמירת טיוטות אופליין (visit_reports) מטופלת בנפרד
 // ב-app.js (תור-סנכרון מפורש ב-localStorage), לא כאן.
 
-const CACHE_VERSION = "home-care-crm-shell-v36";
+const CACHE_VERSION = "home-care-crm-shell-v38";
 
 const APP_SHELL = [
   "index.html",
@@ -53,24 +53,32 @@ function isApiOrThirdParty(url) {
   return url.hostname.endsWith("supabase.co") || url.hostname !== self.location.hostname;
 }
 
+// רשת תחילה: קבצי האתר תמיד נלקחים מהשרת כשיש חיבור, כך שלעולם לא מוגשת גרסה מיושנת או
+// מעורבת (HTML ישן + JS חדש). המטמון הוא רשת ביטחון לאופליין בלבד (עבודה בשטח בלי קליטה),
+// וגם כשהרשת איטית מאוד (מעל NETWORK_TIMEOUT_MS) — כדי שהאתר לא "יתקע".
+const NETWORK_TIMEOUT_MS = 6000;
+
+function fetchWithTimeout(request, ms) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(request, { signal: ctrl.signal, cache: "no-cache" }).finally(() => clearTimeout(timer));
+}
+
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET" || isApiOrThirdParty(url)) {
-    return; // Supabase/predictive-service/CDN — תמיד ישירות לרשת, לא מיורט כאן
+    return; // Supabase/backend/predictive-service/CDN — תמיד ישירות לרשת, לא מיורט כאן
   }
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const network = fetch(event.request)
-        .then((response) => {
-          if (response && response.ok) {
-            const copy = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => cached); // אין רשת — נופלים חזרה למטמון אם קיים
-      return cached || network;
-    })
+    fetchWithTimeout(event.request, NETWORK_TIMEOUT_MS)
+      .then((response) => {
+        if (response && response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+        }
+        return response;
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached || Response.error()))
   );
 });

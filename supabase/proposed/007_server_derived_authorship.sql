@@ -155,6 +155,11 @@ as $$
 declare
   v_role text;
 begin
+  -- DELETE only happens through the patient's ON DELETE CASCADE (authenticated has no DELETE
+  -- grant on clinical_notes). Returning NEW here would be NULL and silently skip the cascade.
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
   if auth.uid() is null then
     return new;
   end if;
