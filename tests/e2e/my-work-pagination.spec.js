@@ -11,7 +11,7 @@
 const { test, expect } = require("@playwright/test");
 
 async function gotoEmployeeAppAsStaff(page) {
-  await page.route("**/@supabase/supabase-js@2", (route) => {
+  await page.route("**/@supabase/supabase-js@*", (route) => {
     route.fulfill({
       contentType: "application/javascript",
       body: "window.supabase = { createClient: () => window.__fakeSupabaseClient };",

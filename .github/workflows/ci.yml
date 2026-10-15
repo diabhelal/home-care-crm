@@ -5,7 +5,27 @@ on:
   pull_request:
   workflow_dispatch:
 
+# least privilege: the default GITHUB_TOKEN may only read repository contents
+permissions:
+  contents: read
+
 jobs:
+  secret-scan:
+    name: Secret scan (whole history)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan every commit for credentials
+        run: |
+          set -euo pipefail
+          pattern='sb_secret_[A-Za-z0-9_-]{10,}|-----BEGIN [A-Z ]*PRIVATE KEY-----|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{30,}|xox[baprs]-[A-Za-z0-9-]{10,}|(sk|rk)_(live|test)_[A-Za-z0-9]{16,}|eyJhbGciOi[A-Za-z0-9_-]{30,}\.[A-Za-z0-9_-]{20,}'
+          if git grep -I -n -E "$pattern" $(git rev-list --all) -- . ':!package-lock.json' | head -5 | grep .; then
+            echo "Possible committed secret found (see above)"; exit 1
+          fi
+          echo "no credential patterns in history"
+
   unit-tests-js:
     name: JS unit tests (slot calculation)
     runs-on: ubuntu-latest

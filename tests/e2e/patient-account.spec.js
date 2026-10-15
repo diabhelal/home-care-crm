@@ -204,7 +204,7 @@ async function setup(browser) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
   const problems = { consoleErrors: [], pageErrors: [], localhost8000: [], supabaseNetwork: [] };
 
-  await context.route("**/@supabase/supabase-js@2", (route) =>
+  await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) =>
     route.fulfill({ contentType: "text/css", body: "" }));

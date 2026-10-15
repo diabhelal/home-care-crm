@@ -58,7 +58,7 @@ function fakeSource() {
 
 async function newPage(browser) {
   const context = await browser.newContext({ serviceWorkers: "block" });
-  await context.route("**/@supabase/supabase-js@2", (r) => r.fulfill({ contentType: "application/javascript", body: fakeSource() }));
+  await context.route("**/@supabase/supabase-js@*", (r) => r.fulfill({ contentType: "application/javascript", body: fakeSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (r) => r.fulfill({ contentType: "text/css", body: "" }));
   const page = await context.newPage();
   const errors = [];

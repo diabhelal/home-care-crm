@@ -17,7 +17,7 @@ const ADMIN_SESSION = { user: { id: "admin-user-1", is_anonymous: false, app_met
 
 async function setup(browser) {
   const context = await browser.newContext({ viewport: VIEWPORT, serviceWorkers: "block", locale: "he-IL" });
-  await context.route("**/@supabase/supabase-js@2", (route) =>
+  await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
   const ctl = await installBackendMock(context);

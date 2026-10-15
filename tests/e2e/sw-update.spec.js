@@ -27,7 +27,7 @@ function startStaticServer(dir, port) {
 }
 
 async function mockSupabaseCdn(page) {
-  await page.route("**/@supabase/supabase-js@2", (route) => {
+  await page.route("**/@supabase/supabase-js@*", (route) => {
     route.fulfill({
       contentType: "application/javascript",
       body: `window.supabase = { createClient: () => ({

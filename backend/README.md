@@ -81,3 +81,6 @@ double booking, ownership, atomic completion, address privacy, RLS/column grants
     pip install -r requirements-dev.txt
     pytest tests_db -q        # database behaviour
     pytest -q --ignore=tests_db   # API/service unit tests
+
+## Reproducible install
+`requirements.lock.txt` is the exact set of versions the tests were last verified with: `pip install -r requirements.lock.txt`.

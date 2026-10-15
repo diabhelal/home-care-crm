@@ -9,7 +9,7 @@ const BASE = "http://demo.localhost:8080";
 
 async function setup(browser, viewport = { width: 1000, height: 800 }) {
   const context = await browser.newContext({ viewport, serviceWorkers: "block" });
-  await context.route("**/@supabase/supabase-js@2", (route) =>
+  await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
   const backend = await installBackendMock(context);

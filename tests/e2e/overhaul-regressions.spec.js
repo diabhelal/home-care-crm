@@ -7,7 +7,7 @@ const { test, expect } = require("@playwright/test");
 // ביקור שהושלם היום לא נכנס לאף אחד מהשניים, ואי אפשר היה לפתוח אותו שוב לעריכת הדוח.
 // התיקון: ההיסטוריה = scheduled_at < היום *או* status <> 'scheduled'.
 test("העבודה שלי: שאילתת ההיסטוריה (ושאילתת הספירה) כוללת גם ביקורים שאינם status=scheduled של היום", async ({ page }) => {
-  await page.route("**/@supabase/supabase-js@2", (route) => {
+  await page.route("**/@supabase/supabase-js@*", (route) => {
     route.fulfill({
       contentType: "application/javascript",
       body: "window.supabase = { createClient: () => window.__fakeSupabaseClient };",

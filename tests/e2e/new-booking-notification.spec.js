@@ -180,7 +180,7 @@ function fakeSupabaseSource() {
 
 async function setup(browser, { seedBookings }) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
-  await context.route("**/@supabase/supabase-js@2", (route) =>
+  await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
   const errors = [];

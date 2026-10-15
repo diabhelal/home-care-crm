@@ -8,7 +8,7 @@ const { fakeSupabaseSource } = require("./helpers/fake-supabase");
 test("booking.html: זמינות מה-backend עם staff_id/start/end נכונים; משבצת שלא הוחזרה לא מוצגת", async ({ page }) => {
   let availabilityUrl = null;
   // Supabase ממוקק: בלי יצירת משתמשי אורח בפרויקט החי
-  await page.route("**/@supabase/supabase-js@2", (route) =>
+  await page.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await page.route("**/config.js", async (route) => {
     const res = await route.fetch();
