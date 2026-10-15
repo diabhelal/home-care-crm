@@ -740,11 +740,11 @@ section { margin-bottom: 48px; }
    נערמות זו מעל זו במובייל. */
 .hero {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.3fr 1fr;
   align-items: center;
-  gap: 32px;
+  gap: 40px;
   text-align: start;
-  padding: 40px 32px;
+  padding: 56px 48px;
   margin-top: 24px;
   background: linear-gradient(135deg, #e6f1ee, #f1f8f5);
   border: 1px solid var(--border);
@@ -753,8 +753,8 @@ section { margin-bottom: 48px; }
 .hero-photo {
   width: 100%;
   height: 100%;
-  min-height: 260px;
-  max-height: 380px;
+  min-height: 320px;
+  max-height: 440px;
   object-fit: cover;
   border-radius: var(--radius);
   filter: saturate(0.85);
@@ -765,32 +765,36 @@ section { margin-bottom: 48px; }
   display: block;
   font-family: var(--font-head);
   font-weight: 800;
-  font-size: 26px;
-  line-height: 1.25;
+  font-size: clamp(26px, 3.1vw, 36px);
+  line-height: 1.2;
   color: var(--accent-dark);
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   padding-inline: 6px;
   border-radius: 8px;
   background: linear-gradient(to bottom, transparent 50%, var(--accent-light) 50%);
   width: fit-content;
+  text-wrap: balance;
   max-width: 100%;
 }
 .hero h1 {
-  font-size: 34px;
-  margin: 0 0 12px;
+  font-size: clamp(26px, 2.9vw, 34px);
+  text-wrap: balance;
+  margin: 0 0 16px;
   color: var(--primary-dark);
 }
 .hero-subtitle {
-  font-size: 17px;
+  font-size: 19px;
   line-height: 1.6;
   color: var(--text-muted);
-  margin: 0 0 22px;
+  margin: 0 0 30px;
 }
 .hero-cta {
   display: inline-flex;
   width: auto;
-  padding: 16px 36px;
-  font-size: 17px;
+  padding: 18px 48px;
+  min-height: 58px;
+  font-size: 20px;
+  border-radius: 12px;
 }
 .hero-emergency {
   margin: 14px 0 0;
@@ -951,9 +955,10 @@ section { margin-bottom: 48px; }
 
 @media (max-width: 560px) {
   .hero { padding: 28px 20px 28px; margin-top: 16px; border-radius: var(--radius); }
-  .hero-eyebrow { font-size: 20px; }
+  .hero-eyebrow { font-size: 26px; }
   .hero h1 { font-size: 28px; }
   .hero-subtitle { font-size: 17px; }
+  .hero-cta { width: 100%; font-size: 18px; padding: 16px 24px; }
   html, body { font-size: 16px; }
   main { padding: 20px 14px 48px; }
   .card { padding: 22px; }
