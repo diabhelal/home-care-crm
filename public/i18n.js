@@ -125,7 +125,7 @@ const I18N_STRINGS = {
       fillAllFields: "נא למלא שם מלא, תעודת זהות, טלפון וכתובת לביקור.",
       invalidId: "תעודת זהות צריכה להכיל בין 5 ל-9 ספרות.",
       savingBooking: "שומר הזמנה...",
-      slotTaken: "מצטערים, השעה הזו נתפסה זה עתה. נא לבחור שעה אחרת.",
+      slotTaken: "המטפל אינו פנוי בשעה זו, אנא בחר משבצת זמן אחרת",
       errSavingBooking: "שגיאה בשמירת ההזמנה: ",
       confirmedTitle: "ההזמנה נקבעה בהצלחה!",
       confirmedPurposeLabel: "מטרת הביקור:", confirmedWhenLabel: "מועד:", confirmedAddressLabel: "כתובת:",

@@ -63,6 +63,21 @@ if ("serviceWorker" in navigator) {
 // חוזר (או בטעינת עמוד הבאה). שימושי בשטח כשאחות מאבדת קליטה תוך כדי ביקור.
 const OFFLINE_QUEUE_KEY = "visitReportOfflineQueue";
 
+// הפרדת טיוטות בין משתמשים: כל משתמש מחובר שומר ב-localStorage במפתח משלו
+// (visitReportOfflineQueue:<auth uid>), כך שמשתמש אחר באותו דפדפן לא רואה ולא מסנכרן
+// את הטיוטות שלו. זו הפרדה לוגית בלבד — localStorage אינו מוצפן וניתן לקריאה ע"י
+// כל מי שיש לו גישה לפרופיל הדפדפן — ולא הגנת מידע מלאה. המפתח הישן (ללא uid) נשאר
+// נקרא לצורך סנכרון (RLS מחליט מי רשאי לכתוב) ונמחק רק לאחר שמירה מוצלחת.
+let offlineQueueOwnerId = null;
+
+function setOfflineQueueOwner(uid) {
+  offlineQueueOwnerId = uid || null;
+}
+
+function offlineQueueKey() {
+  return offlineQueueOwnerId ? `${OFFLINE_QUEUE_KEY}:${offlineQueueOwnerId}` : OFFLINE_QUEUE_KEY;
+}
+
 function isNetworkError(err) {
   const msg = err?.message || String(err);
   return /failed to fetch|network|load failed|networkerror/i.test(msg);
@@ -80,17 +95,18 @@ function offlineQueueFlushMessage(synced, partial) {
   return `${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`;
 }
 
-function getOfflineQueue() {
+function getOfflineQueue(key = offlineQueueKey()) {
   try {
-    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
+    return JSON.parse(localStorage.getItem(key) || "[]");
   } catch (e) {
     return [];
   }
 }
 
-function setOfflineQueue(queue) {
+function setOfflineQueue(queue, key = offlineQueueKey()) {
   try {
-    localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
+    if (!queue.length && key !== OFFLINE_QUEUE_KEY) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(queue));
   } catch (e) {
     console.error("offline queue save failed", e);
   }
@@ -118,7 +134,19 @@ function getQueuedDraftCount() {
 let offlineQueueSyncing = false;
 
 async function flushOfflineQueue() {
-  const queue = getOfflineQueue();
+  const ownKey = offlineQueueKey();
+  const own = await flushOfflineQueueKey(ownKey);
+  // טיוטות ממפתח ישן (לפני הפרדת משתמשים): מנסים לסנכרן, אך רק מה שנשמר בפועל נמחק
+  // ממנו. משתמש שאינו הבעלים נכשל ב-RLS והטיוטה נשארת במקומה, ללא אובדן וללא העברה.
+  if (ownKey !== OFFLINE_QUEUE_KEY && getOfflineQueue(OFFLINE_QUEUE_KEY).length) {
+    const legacy = await flushOfflineQueueKey(OFFLINE_QUEUE_KEY);
+    return { synced: own.synced + legacy.synced, failed: own.failed + legacy.failed, partial: own.partial + legacy.partial };
+  }
+  return own;
+}
+
+async function flushOfflineQueueKey(queueKey) {
+  const queue = getOfflineQueue(queueKey);
   if (!queue.length) return { synced: 0, failed: 0, partial: 0 };
   offlineQueueSyncing = true;
   if (typeof document !== "undefined") updateOfflineDraftBanner();
@@ -151,10 +179,24 @@ async function flushOfflineQueue() {
       stillPending.push(draft); // עדיין אין רשת
     }
   }
-  setOfflineQueue(stillPending);
+  setOfflineQueue(stillPending, queueKey);
   offlineQueueSyncing = false;
   if (typeof document !== "undefined") updateOfflineDraftBanner();
   return { synced, failed: stillPending.length, partial };
+}
+
+// מעקב אחרי המשתמש המחובר: קובע לאיזה מפתח נכתבות/נקראות הטיוטות. התנתקות לא מוחקת
+// טיוטות שטרם נשמרו (אובדן מידע) — היא רק מפסיקה להציג ולסנכרן אותן למשתמש אחר.
+if (typeof supabaseClient !== "undefined" && supabaseClient.auth && typeof supabaseClient.auth.getSession === "function") {
+  supabaseClient.auth.getSession()
+    .then(({ data }) => { setOfflineQueueOwner(data && data.session && data.session.user ? data.session.user.id : null); })
+    .catch(() => {});
+  if (typeof supabaseClient.auth.onAuthStateChange === "function") {
+    supabaseClient.auth.onAuthStateChange((_event, session) => {
+      setOfflineQueueOwner(session && session.user ? session.user.id : null);
+      if (typeof document !== "undefined" && typeof updateOfflineDraftBanner === "function") updateOfflineDraftBanner();
+    });
+  }
 }
 
 window.addEventListener("online", async () => {
@@ -576,6 +618,40 @@ function friendlyErrorMessage(err) {
     return nativeFetch(input, init);
   };
 })();
+
+// ===== שמירה על כפתור "תחזית מגמת מדדים": מעט היסטוריה = הודעה ברורה, לפני כל קריאה =====
+// המאזין רשום בשלב ה-capture ברמת ה-document, ולכן רץ לפני ה-handler של הכפתור עצמו
+// (ב-admin.html). כשיש פחות מ-3 מדידות היסטוריות עוצרים את ההמשך ומציגים הודעה —
+// לא כשל שקט ולא קריאה מיותרת לשירות התחזית.
+const TREND_MIN_HISTORY = 3;
+const TREND_LOW_DATA_MESSAGE = "אנליזה בשלב איסוף נתונים. נדרשות לפחות 3 מדידות היסטוריות להצגת גרף החיזוי הרפואי";
+if (typeof document !== "undefined" && typeof document.addEventListener === "function") document.addEventListener("click", async (e) => {
+  const btn = e.target && e.target.closest ? e.target.closest("#vr-check-trend-btn") : null;
+  if (!btn || btn.dataset.trendChecked === "1") return;
+  const modal = document.getElementById("visit-report-modal");
+  const patientId = modal && modal.dataset ? modal.dataset.patientId : null;
+  const resultEl = document.getElementById("vr-trend-result");
+  if (!patientId || !resultEl || typeof supabaseClient === "undefined") return;
+  e.stopImmediatePropagation();
+  e.preventDefault();
+  try {
+    const { data, error } = await supabaseClient.from("visit_reports").select("id").eq("patient_id", patientId);
+    if (error) throw error;
+    if ((data || []).length < TREND_MIN_HISTORY) {
+      resultEl.textContent = "";
+      const p = document.createElement("p");
+      p.setAttribute("role", "status");
+      p.style.color = "var(--text-muted)";
+      p.textContent = TREND_LOW_DATA_MESSAGE;
+      resultEl.appendChild(p);
+      return;
+    }
+  } catch (err) {
+    // אי אפשר לברר כמה מדידות יש — לא חוסמים, נותנים ל-handler הרגיל לטפל (כולל הודעת שגיאה)
+  }
+  btn.dataset.trendChecked = "1";
+  try { btn.click(); } finally { delete btn.dataset.trendChecked; }
+}, true);
 
 function isLocalHost() {
   return ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);

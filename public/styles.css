@@ -1,24 +1,24 @@
 :root {
-  --primary: #2f7d6e;
-  --primary-dark: #235c51;
-  --primary-light: #e6f1ee;
-  --accent: #d98c3f;
-  --accent-dark: #97622c;
-  --accent-light: #fbead9;
-  --bg: #f7f8f6;
+  --primary: #1e3a8a;
+  --primary-dark: #0f172a;
+  --primary-light: #eaf0fb;
+  --accent: #059669;
+  --accent-dark: #047857;
+  --accent-light: #d1fae5;
+  --bg: #f8fafc;
   --surface: #ffffff;
-  --text: #1f2a28;
-  --text-muted: #5b6a67;
-  --border: #dfe6e3;
+  --text: #334155;
+  --text-muted: #64748b;
+  --border: #e2e8f0;
   --danger: #b3452f;
   --danger-light: #fbeae5;
-  --success: #1d5a58; /* זהה ל-primary-dark — אותו ירוק "הצלחה" שכבר בשימוש ב-.success-msg */
+  --success: #1e3a8a; /* זהה ל-primary-dark — אותו ירוק "הצלחה" שכבר בשימוש ב-.success-msg */
   --radius: 16px;
   --radius-sm: 10px;
   --radius-lg: 28px;
-  --shadow-sm: 0 2px 8px rgba(31, 42, 40, 0.06);
-  --shadow: 0 4px 16px rgba(31, 42, 40, 0.08);
-  --shadow-lg: 0 14px 36px rgba(31, 42, 40, 0.14);
+  --shadow-sm: 0 4px 6px -1px rgba(15, 23, 42, 0.04);
+  --shadow: 0 6px 14px -2px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 14px 36px rgba(15, 23, 42, 0.16);
   --transition: 0.18s ease;
   --font-body: "Inter", "Segoe UI", Arial, sans-serif;
   --font-head: "Manrope", "Segoe UI", Arial, sans-serif;
@@ -246,7 +246,7 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
 .btn-primary:hover { background: var(--primary-dark); box-shadow: var(--shadow); }
 .btn-full { width: 100%; }
 .btn-secondary { background: var(--primary-light); color: var(--primary-dark); }
-.btn-secondary:hover { background: #d6e8e8; }
+.btn-secondary:hover { background: #dbe6f9; }
 .btn-danger { background: var(--danger-light); color: var(--danger); }
 .btn-danger:hover { background: #f4d9d0; }
 .btn-ghost { background: transparent; color: var(--text-muted); border: 1.5px solid var(--border); }
@@ -746,7 +746,7 @@ section { margin-bottom: 48px; }
   text-align: start;
   padding: 56px 48px;
   margin-top: 24px;
-  background: linear-gradient(135deg, #e6f1ee, #f1f8f5);
+  background: linear-gradient(135deg, #eaf0fb, #f8fafc);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
 }
@@ -909,7 +909,7 @@ section { margin-bottom: 48px; }
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 24px;
 }
-.how-step { text-align: center; padding: 16px; }
+.how-step { text-align: center; padding: 20px; }
 .how-step-num {
   width: 40px;
   height: 40px;
@@ -1198,3 +1198,17 @@ select.lang-switch:focus-visible { outline: 3px solid var(--primary); outline-of
 main:focus { outline: none; }
 details > summary { cursor: pointer; padding-block: 11px; }
 #demo-banner a { display: inline-block; min-height: 44px; line-height: 44px; padding-inline: 8px; }
+
+/* ===== פלטה מסחרית: כחול כהה (מבנה) + מנטה/אמרלד (פעולות). אדום/צהוב/ירוק קליניים שמורים לסיכון בלבד ===== */
+.app-header { background: var(--primary-dark); border-bottom-color: transparent; box-shadow: 0 4px 6px -1px rgba(15, 23, 42, 0.18); }
+.app-header .brand { color: #fff; }
+.app-header .brand .logo { background: var(--accent); color: #fff; }
+.app-header nav a:not(.btn), .app-header nav .btn-ghost, .app-header nav a.nav-anchor { color: #fff; }
+.app-header nav a:not(.btn):hover, .app-header nav .btn-ghost:hover, .app-header nav a.nav-anchor:hover { color: #a7f3d0; }
+h1, h2, h3 { color: var(--primary-dark); }
+/* לבן על #047857 = 5.5:1 (עובר AA); #059669 לבן = 3.8:1 ולא עובר לטקסט רגיל */
+.btn-primary { background: var(--accent-dark); color: #fff; font-weight: 700; }
+.btn-primary:hover { background: #065f46; color: #fff; }
+.btn-primary:focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+.btn, .link-btn, input, select, textarea { min-height: 44px; }
+.site-footer { background: var(--surface); }

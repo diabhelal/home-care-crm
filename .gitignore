@@ -10,3 +10,6 @@ __pycache__/
 predictive-service/models/*.joblib
 keys.txt
 test-results/
+
+backend/.venv/
+.pytest_cache/
