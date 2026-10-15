@@ -11,7 +11,7 @@ from .errors import (SlotTakenError, bad_request, conflict, forbidden,
 from .geo import Geocoder
 from .models import Booking, BookingRequestIn, Identity, Staff, VisitReportIn
 from .repo import Repository
-from .state import ensure_transition
+from .state import cancel_decision, ensure_transition
 
 
 class BookingService:
@@ -146,6 +146,23 @@ class BookingService:
         except SlotTakenError:
             raise slot_taken()
 
+    # ---- cancel
+    def cancel_own(self, who: Identity, booking_id: int) -> Booking:
+        """Patient cancels their own booking. Another patient's booking is reported as
+        not found (no existence leak)."""
+        b = self.repo.get_booking(booking_id)
+        if b is None or b.patient_id != who.user_id:
+            raise not_found("ההזמנה לא נמצאה")
+        return self._cancel(b, "patient")
+
+    def cancel_admin(self, booking_id: int) -> Booking:
+        return self._cancel(self._require_booking(booking_id), "admin")
+
+    def _cancel(self, b: Booking, actor: str) -> Booking:
+        if cancel_decision(actor, b.status, b.checked_in_at is not None) == "noop":
+            return b
+        return self.repo.update_booking(b.id, {"status": "cancelled"})
+
     # ---- staff
     def _own_booking(self, staff: Staff, booking_id: int) -> Booking:
         b = self._require_booking(booking_id)
@@ -162,8 +179,15 @@ class BookingService:
         return self.repo.check_in(booking_id)  # timestamp = DB now(), never client
 
     def complete(self, staff: Staff, booking_id: int, report: VisitReportIn) -> dict:
-        b = self._own_booking(staff, booking_id)
+        return self._complete(self._own_booking(staff, booking_id), report)
+
+    def complete_admin(self, booking_id: int, report: VisitReportIn) -> dict:
+        """Admin completes on behalf of the assigned staff member (the DB function allows
+        owner-or-admin; the report keeps the booking's own staff_id)."""
+        return self._complete(self._require_booking(booking_id), report)
+
+    def _complete(self, b: Booking, report: VisitReportIn) -> dict:
         if b.approval_status != "confirmed":
             raise conflict("illegal_transition", "ההזמנה לא אושרה")
         ensure_transition("status", b.status, "completed")
-        return self.repo.complete_visit_atomic(booking_id, report.model_dump())
+        return self.repo.complete_visit_atomic(b.id, report.model_dump())

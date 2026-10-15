@@ -1,13 +1,9 @@
-// טסטי יחידה ל-Offline Draft Queue (queueVisitReportDraft/flushOfflineQueue/
-// offlineQueueFlushMessage, public/app.js) — במיוחד כישלון חלקי: upsert(visit_reports)
-// מצליח אבל update(bookings.status='completed') נכשל, ולא נבלע בשקט כ"synced".
+// טסטי יחידה ל-Offline Draft Queue (queueVisitReportDraft/flushOfflineQueue, public/app.js).
+// הסנכרון עובד רק דרך ה-backend: POST /staff/visits/{booking_id}/complete (backendFetch).
+// אין עוד כתיבה ישירה ל-visit_reports/bookings. טיוטה נמחקת *רק* אחרי תשובת הצלחה מאושרת.
 //
-// public/app.js לא נכתב כמודול CommonJS (משתמשים בו כ-<script> קלאסי שחולק scope
-// עם שאר הדפים, ר' הערות ארכיטקטורה ב-js/admin/*.js) — אי אפשר require() אותו
-// ישירות (window is not defined, ואין module.exports). כדי לבדוק אותו בלי לשנות
-// את המבנה שלו, מריצים את קוד המקור שלו בתוך vm context עם window/navigator/
-// localStorage/supabaseClient מדומים: הצהרות function (לא const) בקוד המקור
-// נדבקות ל-context object בדיוק כמו global function declaration בדפדפן.
+// public/app.js הוא <script> קלאסי (ללא module.exports), לכן מריצים אותו בתוך vm context עם
+// window/localStorage/supabaseClient/fetch מדומים. הצהרות function נדבקות ל-context.
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const vm = require("node:vm");
@@ -15,16 +11,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const APP_JS_SOURCE = fs.readFileSync(path.join(__dirname, "../../public/app.js"), "utf8");
-
-// עצמים שנוצרים בתוך vm context אחר (App.js רץ שם) מקבלים Object.prototype שונה
-// מזה של ה-realm של הטסט עצמו — assert.deepEqual/deepStrictEqual מתייחס לזה כ"לא
-// reference-equal" גם כששני האובייקטים זהים מבחינה מבנית (בעיה ידועה של Node vm).
-// משווים שדה-שדה במקום, כדי להישאר עם node:assert/strict הרגיל בלי תלות חדשה.
-function assertFlushResult(result, expected, message) {
-  assert.equal(result.synced, expected.synced, message);
-  assert.equal(result.failed, expected.failed, message);
-  assert.equal(result.partial, expected.partial, message);
-}
 
 function createLocalStorageShim() {
   let store = {};
@@ -36,118 +22,182 @@ function createLocalStorageShim() {
   };
 }
 
-// fakeDb.visitReportsUpsertResult / bookingsUpdateResult נקבעים מחדש בכל טסט כדי
-// לדמות הצלחה/כישלון בכל שלב; fakeDb.calls עוקב אחרי כל קריאה בפועל (לבדיקת
-// "ניסיון חוזר בלי כפילויות" — כמה פעמים כל טבלה נקראה בפועל).
-function createContext() {
-  const fakeDb = {
-    visitReportsUpsertResult: { error: null },
-    bookingsUpdateResult: { error: null },
+// backend.respond(url, init) => {status, json} | throws (רשת). backend.calls עוקב אחרי כל בקשה.
+async function createContext({ userId = "user-1" } = {}) {
+  const backend = {
     calls: [],
+    respond: () => ({ status: 200, json: { report: { id: 1 } } }),
   };
-  const fakeSupabaseClient = {
+  const bookingsRead = { status: "scheduled", throws: false };
+  const supabaseClient = {
+    auth: {
+      getSession: () => Promise.resolve({ data: { session: { access_token: "tok-" + userId, user: { id: userId } } } }),
+      onAuthStateChange: () => {},
+    },
     from(table) {
-      if (table === "visit_reports") {
-        return {
-          upsert: (payload, opts) => {
-            fakeDb.calls.push({ table: "visit_reports", payload, opts });
-            return Promise.resolve(fakeDb.visitReportsUpsertResult);
-          },
-        };
-      }
-      if (table === "bookings") {
-        return {
-          update: (fields) => ({
-            eq: (col, val) => {
-              fakeDb.calls.push({ table: "bookings", fields, col, val });
-              return Promise.resolve(fakeDb.bookingsUpdateResult);
-            },
-          }),
-        };
-      }
-      throw new Error("unexpected table in test: " + table);
+      if (table !== "bookings") throw new Error("unexpected table in test: " + table);
+      return { select: () => ({ eq: () => ({ maybeSingle: () => {
+        if (bookingsRead.throws) return Promise.reject(new Error("Failed to fetch"));
+        return Promise.resolve({ data: { status: bookingsRead.status }, error: null });
+      } }) }) };
     },
   };
+  const fetchMock = async (url, init) => {
+    const call = { url, method: init.method, headers: init.headers, body: init.body ? JSON.parse(init.body) : null };
+    backend.calls.push(call);
+    const r = backend.respond(url, call); // may throw => network error
+    return { ok: r.status >= 200 && r.status < 300, status: r.status, json: async () => r.json };
+  };
   const ctx = vm.createContext({
-    console,
-    window: { addEventListener: () => {}, supabase: { createClient: () => fakeSupabaseClient } },
+    console, fetch: fetchMock, AbortController, setTimeout, clearTimeout,
+    window: { addEventListener: () => {}, BACKEND_URL: "http://backend.test", supabase: { createClient: () => supabaseClient } },
     navigator: { onLine: true },
     localStorage: createLocalStorageShim(),
   });
   vm.runInContext(APP_JS_SOURCE, ctx, { filename: "public/app.js" });
-  return { ctx, fakeDb };
+  await new Promise((r) => setImmediate(r)); // getSession() resolves => queue owner set
+  return { ctx, backend, bookingsRead };
 }
 
-test("flushOfflineQueue: הצלחה מלאה (בלי markCompleted) — נספר synced, התור מתרוקן", async () => {
-  const { ctx } = createContext();
-  ctx.queueVisitReportDraft({ booking_id: 1, patient_id: "p1", treatment_summary: "טופל" });
-  const result = await ctx.flushOfflineQueue();
-  assertFlushResult(result, { synced: 1, failed: 0, partial: 0 });
+const draft = (id, extra = {}) => ({
+  booking_id: id, patient_id: "p" + id, staff_id: 7, treatment_summary: "טופל", systolic_bp: 120,
+  diastolic_bp: 80, patient_signature_data: "data:image/png;base64,AAA=", performed_injection: true, ...extra,
+});
+
+test("flush: הצלחה מאושרת — קריאה אחת ל-complete, התור מתרוקן, הזהות רק ב-Authorization", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(1));
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1); assert.equal(r.failed, 0); assert.equal(r.partial, 0);
+  assert.equal(ctx.getQueuedDraftCount(), 0);
+  assert.equal(backend.calls.length, 1);
+  const c = backend.calls[0];
+  assert.equal(c.url, "http://backend.test/staff/visits/1/complete");
+  assert.equal(c.method, "POST");
+  assert.equal(c.headers.Authorization, "Bearer tok-user-1");
+  assert.equal(c.body.treatment_summary, "טופל");
+  assert.equal(c.body.performed_injection, true);
+  assert.equal(c.body.patient_signature_data, "data:image/png;base64,AAA=");
+  for (const k of ["patient_id", "staff_id", "booking_id", "_queuedAt"]) {
+    assert.ok(!(k in c.body), k + " לא נשלח — הזהות מה-JWT בלבד");
+  }
+});
+
+test("flush: אין כתיבה ישירה ל-Supabase (visit_reports/bookings)", async () => {
+  const { ctx } = await createContext();
+  const client = ctx.window.supabase.createClient();
+  client.from = () => { throw new Error("direct DB access is forbidden in flush"); };
+  ctx.queueVisitReportDraft(draft(2));
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1);
+});
+
+test("flush: שגיאת רשת — הטיוטה נשארת; ניסיון חוזר אחרי שהרשת חוזרת מצליח וממחק", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(3));
+  backend.respond = () => { throw new TypeError("Failed to fetch"); };
+  const r1 = await ctx.flushOfflineQueue();
+  assert.equal(r1.synced, 0); assert.equal(r1.failed, 1); assert.equal(r1.errors.length, 0);
+  assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.equal(ctx.getOfflineQueue()[0].booking_id, 3);
+
+  backend.respond = () => ({ status: 200, json: { report: { id: 9 } } });
+  const r2 = await ctx.flushOfflineQueue();
+  assert.equal(r2.synced, 1);
   assert.equal(ctx.getQueuedDraftCount(), 0);
 });
 
-test("flushOfflineQueue: markCompleted מוגדר וגם visit_reports וגם bookings מצליחים — synced מלא", async () => {
-  const { ctx, fakeDb } = createContext();
-  ctx.queueVisitReportDraft({ booking_id: 2, patient_id: "p2", treatment_summary: "טופל", _markCompleted: true });
-  const result = await ctx.flushOfflineQueue();
-  assertFlushResult(result, { synced: 1, failed: 0, partial: 0 });
-  assert.equal(ctx.getQueuedDraftCount(), 0);
-  const bookingsCall = fakeDb.calls.find((c) => c.table === "bookings");
-  assert.ok(bookingsCall, "bookings.update היה אמור להיקרא");
-  assert.equal(bookingsCall.fields.status, "completed");
+test("flush: טיוטה נמחקת רק אחרי הצלחה — כשל 500 משאיר אותה", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(4));
+  backend.respond = () => ({ status: 500, json: { detail: "boom" } });
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
 });
 
-test("flushOfflineQueue: כישלון חלקי — visit_reports נשמר אך bookings.update נכשל, לא נספר synced ולא נעלם מהתור", async () => {
-  const { ctx, fakeDb } = createContext();
-  fakeDb.bookingsUpdateResult = { error: { message: "network-ish failure" } };
-  ctx.queueVisitReportDraft({ booking_id: 3, patient_id: "p3", treatment_summary: "טופל", _markCompleted: true });
-
-  const result = await ctx.flushOfflineQueue();
-  assertFlushResult(result, { synced: 0, failed: 1, partial: 1 }, "כישלון חלקי לא אמור להיספר כ-synced מלא");
-  assert.equal(ctx.getQueuedDraftCount(), 1, "הטיוטה אמורה להישאר בתור לניסיון חוזר");
-  const remaining = ctx.getOfflineQueue()[0];
-  assert.equal(remaining.booking_id, 3);
-  assert.equal(remaining._markCompleted, true, "_markCompleted צריך להישאר כדי שהניסיון הבא ישלים רק את זה");
-});
-
-test("flushOfflineQueue: ניסיון חוזר אחרי כישלון חלקי מצליח בלי ליצור כפילות בתור", async () => {
-  const { ctx, fakeDb } = createContext();
-  fakeDb.bookingsUpdateResult = { error: { message: "still down" } };
-  ctx.queueVisitReportDraft({ booking_id: 4, patient_id: "p4", treatment_summary: "טופל", _markCompleted: true });
-  await ctx.flushOfflineQueue();
+test("flush: 403 — הטיוטה נשארת והודעה ברורה מוחזרת", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(5));
+  backend.respond = () => ({ status: 403, json: { code: "forbidden", detail: "ההזמנה אינה משויכת אליך" } });
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0); assert.equal(r.failed, 1);
   assert.equal(ctx.getQueuedDraftCount(), 1);
-
-  fakeDb.bookingsUpdateResult = { error: null }; // "החיבור חזר"
-  const result2 = await ctx.flushOfflineQueue();
-  assertFlushResult(result2, { synced: 1, failed: 0, partial: 0 });
-  assert.equal(ctx.getQueuedDraftCount(), 0, "אין כפילות — הטיוטה היחידה סונכרנה וירדה מהתור");
-
-  const bookingsCalls = fakeDb.calls.filter((c) => c.table === "bookings" && c.val === 4);
-  assert.equal(bookingsCalls.length, 2, "bookings.update נקרא פעמיים (כישלון + הצלחה) על אותה הזמנה, לא נוצרו רשומות נוספות");
+  assert.equal(r.errors.length, 1);
+  assert.equal(r.errors[0].kind, "forbidden");
+  assert.match(r.errors[0].message, /אינה משויכת אליך/);
+  assert.match(r.errors[0].message, /נשמר במכשיר/);
 });
 
-test("flushOfflineQueue: שגיאת רשת אמיתית (upsert זורק) — נשאר בתור, לא נספר synced/partial", async () => {
-  const { ctx } = createContext();
-  ctx.queueVisitReportDraft({ booking_id: 5, patient_id: "p5", treatment_summary: "טופל" });
-
-  // מדמים throw (לא {error:...}) — בדיוק כמו TypeError: Failed to fetch באמת.
-  // window.supabase.createClient() תמיד מחזיר את אותו fakeSupabaseClient (singleton
-  // בהגדרת createContext), אז שינוי .from עליו כאן משפיע ישירות על מה ש-flushOfflineQueue
-  // (שמחזיק את אותו supabaseClient מה-const המקורי) יקבל.
-  ctx.window.supabase.createClient().from = (table) => {
-    if (table === "visit_reports") {
-      return { upsert: () => Promise.reject(new Error("Failed to fetch")) };
-    }
-    throw new Error("unexpected table in test: " + table);
-  };
-
-  const result = await ctx.flushOfflineQueue();
-  assertFlushResult(result, { synced: 0, failed: 1, partial: 0 });
+test("flush: 401 — הטיוטה נשארת עם הודעת התחברות", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(6));
+  backend.respond = () => ({ status: 401, json: { code: "unauthorized", detail: "x" } });
+  const r = await ctx.flushOfflineQueue();
   assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.equal(r.errors[0].kind, "auth");
+  assert.match(r.errors[0].message, /התחבר/);
 });
 
-test("queueVisitReportDraft: טיוטה חדשה לאותה הזמנה מחליפה את הקודמת, לא מצטברת כפילות", () => {
-  const { ctx } = createContext();
+test("flush: 409 — הטיוטה נשארת (גם כשאין אימות שההזמנה הושלמה)", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(7));
+  backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "ההזמנה לא אושרה" } });
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.equal(r.errors[0].kind, "conflict");
+  assert.match(r.errors[0].message, /ההזמנה לא אושרה/);
+});
+
+test("flush: 409 לאחר אובדן תשובה — ההזמנה כבר הושלמה בשרת (נקרא מה-DB) => הטיוטה יורדת", async () => {
+  const { ctx, backend, bookingsRead } = await createContext();
+  ctx.queueVisitReportDraft(draft(8));
+  backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "מעבר לא חוקי" } });
+  bookingsRead.status = "completed";
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1); assert.equal(ctx.getQueuedDraftCount(), 0);
+});
+
+test("flush: 409 ושגיאה בקריאת האימות — הטיוטה נשארת", async () => {
+  const { ctx, backend, bookingsRead } = await createContext();
+  ctx.queueVisitReportDraft(draft(9));
+  backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "x" } });
+  bookingsRead.throws = true;
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
+});
+
+test("flush: כשל חלקי בין טיוטות — מצליחה יורדת, כושלת נשארת", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(10));
+  ctx.queueVisitReportDraft(draft(11));
+  backend.respond = (url) => url.endsWith("/10/complete")
+    ? { status: 200, json: { report: { id: 1 } } }
+    : { status: 403, json: { code: "forbidden", detail: "אין הרשאה" } };
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1); assert.equal(r.failed, 1);
+  const left = ctx.getOfflineQueue();
+  assert.equal(left.length, 1); assert.equal(left[0].booking_id, 11);
+});
+
+test("flush: טיוטה ישנה עם _markCompleted=false לא נשלחת ולא נמחקת", async () => {
+  const { ctx, backend } = await createContext();
+  ctx.queueVisitReportDraft(draft(12, { _markCompleted: false }));
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(backend.calls.length, 0);
+  assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.equal(r.errors[0].kind, "unsupported");
+});
+
+test("submitVisitCompletion: זורק BackendError מסוג network כשאין רשת", async () => {
+  const { ctx, backend } = await createContext();
+  backend.respond = () => { throw new TypeError("Failed to fetch"); };
+  await assert.rejects(() => ctx.submitVisitCompletion(draft(13)), (e) => e.kind === "network");
+  assert.equal(ctx.isRetryableCompletionError({ kind: "network" }), true);
+  assert.equal(ctx.isRetryableCompletionError({ kind: "forbidden" }), false);
+});
+
+test("queueVisitReportDraft: טיוטה חדשה לאותה הזמנה מחליפה את הקודמת, לא מצטברת כפילות", async () => {
+  const { ctx } = await createContext();
   ctx.queueVisitReportDraft({ booking_id: 6, treatment_summary: "גרסה 1" });
   ctx.queueVisitReportDraft({ booking_id: 6, treatment_summary: "גרסה 2" });
   const queue = ctx.getOfflineQueue();
@@ -155,13 +205,10 @@ test("queueVisitReportDraft: טיוטה חדשה לאותה הזמנה מחלי�
   assert.equal(queue[0].treatment_summary, "גרסה 2");
 });
 
-test("offlineQueueFlushMessage: מנוסח נכון לכל שילוב synced/partial", () => {
-  const { ctx } = createContext();
+test("offlineQueueFlushMessage: מנוסח נכון לכל שילוב synced/partial", async () => {
+  const { ctx } = await createContext();
   assert.match(ctx.offlineQueueFlushMessage(3, 0), /3 דוחות/);
-  assert.doesNotMatch(ctx.offlineQueueFlushMessage(3, 0), /הושלם.*ממתין|ממתין.*הושלם/);
   assert.match(ctx.offlineQueueFlushMessage(0, 2), /2.*נשמרו/);
-  assert.match(ctx.offlineQueueFlushMessage(0, 2), /הושלם/);
   const both = ctx.offlineQueueFlushMessage(1, 1);
   assert.match(both, /1 דוחות/);
-  assert.match(both, /1 נשמרו/);
 });

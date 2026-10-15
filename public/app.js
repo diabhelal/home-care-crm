@@ -123,66 +123,124 @@ function getQueuedDraftCount() {
   return getOfflineQueue().length;
 }
 
-// מנסה לסנכרן את כל התור מול Supabase (upsert לפי booking_id — בטוח לקרוא שוב ושוב).
-// מחזירה {synced, failed, partial} כדי שהקורא יוכל להציג משוב מדויק למשתמש/ת.
-// "partial": הדוח (מדדים/סיכום) נשמר בהצלחה, אבל סימון ההזמנה כ"הושלם" נכשל —
-// נשאר בתור לניסיון חוזר (עם _markCompleted, לא מוסר) ולא נספר כ-synced מלא, כדי
-// שכישלון חלקי לא ייעלם בשקט כאילו הכול הצליח.
-// offlineQueueSyncing: true רק בזמן שסנכרון בפועל רץ (לא כשהתור פשוט ממתין) —
-// updateOfflineDraftBanner() קוראת בזה כדי להראות מצב-ביניים "מסנכרן..." שקוף,
-// בלי תשתית נוספת מעבר לדגל הזה.
+// ===== סנכרון התור: מסלול כתיבה יחיד =====
+// השלמת ביקור (דוח + סימון "הושלם") נכתבת אך ורק דרך ה-backend:
+//   POST /staff/visits/{booking_id}/complete  — אטומית, הזהות מה-JWT, חותמת זמן בשרת.
+// הדפדפן לא כותב ישירות ל-visit_reports/bookings. טיוטה נמחקת מהתור *רק* אחרי תשובת
+// הצלחה מאושרת מהשרת; כל כשל (רשת/401/403/409/422/5xx) משאיר אותה במכשיר.
+function visitCompletionBody(p) {
+  const keys = ["treatment_summary", "systolic_bp", "diastolic_bp", "blood_sugar", "pulse", "temperature",
+    "oxygen_saturation", "performed_blood_draw", "performed_injection", "performed_infusion",
+    "performed_dressing_change", "performed_catheter_change", "patient_signature_data"];
+  const body = {};
+  keys.forEach((k) => { if (p[k] !== undefined) body[k] = p[k]; });
+  return body;
+}
+
+// מחזירה את תשובת השרת ({report}); זורקת BackendError אחרת. לא נוגעת בתור.
+async function submitVisitCompletion(payload) {
+  return backendFetch(`/staff/visits/${encodeURIComponent(payload.booking_id)}/complete`, {
+    method: "POST",
+    body: visitCompletionBody(payload),
+  });
+}
+
+// שגיאה שאחריה שומרים טיוטה מקומית ומנסים שוב אוטומטית (אין החלטה סופית של השרת).
+function isRetryableCompletionError(err) {
+  const kind = err && err.kind;
+  return kind === "network" || kind === "timeout" || kind === "unconfigured" || kind === "server" || isNetworkError(err);
+}
+
+// הודעת משתמש ברורה לכישלון השלמת ביקור (לא-רשת). הטיוטה נשארת במכשיר.
+// queued=true: הטיוטה נשארת בתור במכשיר; false: הטופס נשאר פתוח על המסך.
+function visitCompletionErrorMessage(err, queued = true) {
+  const kind = err && err.kind;
+  const kept = queued ? " הדוח נשמר במכשיר ולא אבד." : " הדוח לא נשלח — הנתונים נשארו בטופס.";
+  if (kind === "forbidden") return (err.message || "אין הרשאה לשמור דוח לביקור זה.") + kept;
+  if (kind === "auth") return "פג תוקף ההתחברות — יש להתחבר מחדש." + kept;
+  if (kind === "conflict") return (err.message || "מצב ההזמנה אינו מאפשר שמירת דוח.") + kept;
+  if (kind === "validation") return (err.message || "הפרטים שהוזנו אינם תקינים.") + kept;
+  return "לא ניתן לשמור את הדוח כרגע." + kept;
+}
+
+// מחזירה {synced, failed, partial, errors}. partial תמיד 0 (השמירה אטומית בשרת) ונשמר
+// לתאימות. errors: [{booking_id, kind, status, message}] לכשלים שאינם רשת.
 let offlineQueueSyncing = false;
 
 async function flushOfflineQueue() {
   const ownKey = offlineQueueKey();
   const own = await flushOfflineQueueKey(ownKey);
   // טיוטות ממפתח ישן (לפני הפרדת משתמשים): מנסים לסנכרן, אך רק מה שנשמר בפועל נמחק
-  // ממנו. משתמש שאינו הבעלים נכשל ב-RLS והטיוטה נשארת במקומה, ללא אובדן וללא העברה.
+  // ממנו. משתמש שאינו הבעלים נכשל ב-403 והטיוטה נשארת במקומה, ללא אובדן וללא העברה.
   if (ownKey !== OFFLINE_QUEUE_KEY && getOfflineQueue(OFFLINE_QUEUE_KEY).length) {
     const legacy = await flushOfflineQueueKey(OFFLINE_QUEUE_KEY);
-    return { synced: own.synced + legacy.synced, failed: own.failed + legacy.failed, partial: own.partial + legacy.partial };
+    return {
+      synced: own.synced + legacy.synced, failed: own.failed + legacy.failed,
+      partial: own.partial + legacy.partial, errors: own.errors.concat(legacy.errors),
+    };
   }
   return own;
 }
 
+// 409 לאחר ניסיון חוזר: אם התשובה הקודמת אבדה, השרת כבר השלים. מאשרים מול ה-DB
+// (קריאה בלבד) שההזמנה אכן "הושלם" לפני שמסירים את הטיוטה.
+async function isBookingAlreadyCompleted(bookingId) {
+  try {
+    const { data, error } = await supabaseClient.from("bookings").select("status").eq("id", bookingId).maybeSingle();
+    return !error && !!data && data.status === "completed";
+  } catch (e) {
+    return false;
+  }
+}
+
 async function flushOfflineQueueKey(queueKey) {
   const queue = getOfflineQueue(queueKey);
-  if (!queue.length) return { synced: 0, failed: 0, partial: 0 };
+  if (!queue.length) return { synced: 0, failed: 0, partial: 0, errors: [] };
   offlineQueueSyncing = true;
   if (typeof document !== "undefined") updateOfflineDraftBanner();
   let synced = 0;
-  let partial = 0;
+  const errors = [];
   const stillPending = [];
+  let offline = false;
   for (const draft of queue) {
-    const { _queuedAt, _markCompleted, ...payload } = draft;
+    if (offline) { stillPending.push(draft); continue; }
+    if (draft._markCompleted === false) {
+      // טיוטת "שמירה בלי השלמה" ממצב ישן: אין מסלול שרת לשמירת דוח בלי השלמה. נשארת.
+      stillPending.push(draft);
+      errors.push({ booking_id: draft.booking_id, kind: "unsupported", status: 0,
+        message: "טיוטה ישנה שנשמרה בלי סימון הושלם — אינה נתמכת עוד. הטיוטה נשמרה במכשיר." });
+      continue;
+    }
     try {
-      const { error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" });
-      if (error) {
-        stillPending.push(draft); // שגיאת שרת אמיתית (למשל RLS/ולידציה) — לא רשת, לא ננסה בלולאה אינסופית בשקט
-        continue;
-      }
-      // אם "לסמן כהושלם" היה מסומן בזמן השמירה האופליין, משלימים את זה עכשיו —
-      // לא רק שומרים את המדדים, אלא מכבדים את מה שהאחות באמת ביקשה.
-      if (_markCompleted) {
-        const { error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id);
-        if (statusError) {
-          // הדוח עצמו כבר נשמר (upsert לפי booking_id — ניסיון חוזר לא יוצר כפילות),
-          // רק סימון "הושלם" נכשל. משאירים את אותה טיוטה בתור (עם _markCompleted) כדי
-          // שהניסיון הבא ישלים רק את זה — לא סופרים synced עד ששני החלקים הצליחו.
-          stillPending.push(draft);
-          partial++;
-          continue;
-        }
-      }
-      synced++;
+      await submitVisitCompletion(draft);
+      synced++; // תשובת הצלחה מאושרת — רק עכשיו הטיוטה יורדת מהתור
     } catch (err) {
-      stillPending.push(draft); // עדיין אין רשת
+      if (err && err.kind === "conflict" && await isBookingAlreadyCompleted(draft.booking_id)) { synced++; continue; }
+      stillPending.push(draft);
+      if (isRetryableCompletionError(err)) {
+        if (err.kind !== "server") offline = true;
+      } else {
+        errors.push({ booking_id: draft.booking_id, kind: (err && err.kind) || "unknown",
+          status: (err && err.status) || 0, message: visitCompletionErrorMessage(err) });
+      }
     }
   }
   setOfflineQueue(stillPending, queueKey);
   offlineQueueSyncing = false;
   if (typeof document !== "undefined") updateOfflineDraftBanner();
-  return { synced, failed: stillPending.length, partial };
+  return { synced, failed: stillPending.length, partial: 0, errors };
+}
+
+// מדווח תוצאת סנכרון לעמוד: הצלחות דרך onOfflineQueueFlushed, כשלים (403/409/401) דרך
+// onOfflineQueueError — כדי שמשתמש יראה הודעה ברורה ולא רק באנר שנשאר.
+function reportOfflineQueueResult(result) {
+  if (!result) return;
+  if (result.synced > 0 && typeof window.onOfflineQueueFlushed === "function") {
+    window.onOfflineQueueFlushed(result.synced, result.partial || 0);
+  }
+  if (result.errors && result.errors.length && typeof window.onOfflineQueueError === "function") {
+    window.onOfflineQueueError(result.errors[0].message, result.errors);
+  }
 }
 
 // מעקב אחרי המשתמש המחובר: קובע לאיזה מפתח נכתבות/נקראות הטיוטות. התנתקות לא מוחקת
@@ -200,11 +258,9 @@ if (typeof supabaseClient !== "undefined" && supabaseClient.auth && typeof supab
 }
 
 window.addEventListener("online", async () => {
-  const { synced, partial } = await flushOfflineQueue();
+  const result = await flushOfflineQueue();
   updateOfflineDraftBanner();
-  if ((synced > 0 || partial > 0) && typeof window.onOfflineQueueFlushed === "function") {
-    window.onOfflineQueueFlushed(synced, partial);
-  }
+  reportOfflineQueueResult(result);
 });
 
 const ROLE_LABELS = {

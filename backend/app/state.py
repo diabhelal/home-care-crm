@@ -42,6 +42,19 @@ def ensure_transition(kind: str, current: str, target: str) -> None:
         )
 
 
+def cancel_decision(actor: str, status: str, checked_in: bool = False) -> str:
+    """Cancellation rule. actor: 'patient' | 'admin'. Returns 'noop' (already cancelled,
+    idempotent) or 'cancel'; raises 409 when the booking cannot be cancelled."""
+    if status == "cancelled":
+        return "noop"
+    if status == "completed":
+        raise conflict("illegal_transition", "ביקור שהושלם לא ניתן לביטול")
+    ensure_transition("status", status, "cancelled")
+    if actor == "patient" and checked_in:
+        raise conflict("illegal_transition", "הביקור כבר החל ולא ניתן לבטלו")
+    return "cancel"
+
+
 def display_state(approval_status: str, status: str, workflow_status: str = "assigned",
                   checked_in: bool = False) -> str:
     """Patient-facing code: requested | confirmed | in_progress | completed |

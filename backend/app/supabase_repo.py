@@ -10,7 +10,7 @@ from typing import Optional
 
 import httpx
 
-from .errors import SlotTakenError
+from .errors import SlotTakenError, conflict, forbidden, not_found
 from .models import Booking, Staff
 
 STAFF_COLS = ("id,full_name,role,available_weekdays,work_start_time,work_end_time,"
@@ -77,8 +77,16 @@ class SupabaseRepo:
             body = resp.json()
         except ValueError:
             body = {}
-        if isinstance(body, dict) and body.get("code") == "23505":
+        code = body.get("code") if isinstance(body, dict) else None
+        if code == "23505":
             raise SlotTakenError()
+        # DB guards / RPC errors -> the same domain errors the service raises itself
+        if code == "42501" or resp.status_code in (401, 403):
+            raise forbidden()
+        if code == "55000":
+            raise conflict("illegal_transition", "מצב ההזמנה אינו מאפשר פעולה זו")
+        if code == "P0002":
+            raise not_found("ההזמנה לא נמצאה")
         resp.raise_for_status()
 
     def _get(self, path: str, params: dict) -> list[dict]:
@@ -137,7 +145,10 @@ class SupabaseRepo:
         r = self._client.patch("/bookings", params={"id": f"eq.{booking_id}"}, json=row,
                                headers={"Prefer": "return=representation"})
         self._raise_for(r)
-        return booking_from_row(r.json()[0])
+        rows = r.json()
+        if not rows:  # RLS filtered the row out: nothing was written
+            raise forbidden()
+        return booking_from_row(rows[0])
 
     def check_in(self, booking_id):
         return booking_from_row(self._rpc("check_in_visit", {"p_booking_id": booking_id}))

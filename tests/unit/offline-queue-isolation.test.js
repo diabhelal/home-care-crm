@@ -18,31 +18,29 @@ function sharedStorage() {
   };
 }
 
-// כל "טעינת עמוד" = context חדש עם אותו localStorage. rlsAllowedStaff מדמה RLS: רק
-// טיוטה ששייכת ל-staff_id הזה נשמרת, אחרת השרת מחזיר שגיאת הרשאה.
-function loadPage(storage, { userId, rlsAllowedStaff }) {
+// כל "טעינת עמוד" = context חדש עם אותו localStorage. השרת המדומה (backend) מחליט לפי
+// allowedStaff אם הטוקן/המשתמש רשאי להשלים את ההזמנה (403 אחרת) — כמו JWT + בעלות אמיתיים.
+function loadPage(storage, { userId, allowedUser, networkDown = false }) {
   const calls = [];
   const client = {
-    from(table) {
-      return {
-        upsert: (payload) => {
-          calls.push({ table, payload });
-          if (rlsAllowedStaff !== undefined && payload.staff_id !== rlsAllowedStaff) {
-            return Promise.resolve({ error: { message: "new row violates row-level security policy" } });
-          }
-          return Promise.resolve({ error: null });
-        },
-        update: () => ({ eq: () => Promise.resolve({ error: null }) }),
-      };
-    },
     auth: {
-      getSession: () => Promise.resolve({ data: { session: userId ? { user: { id: userId } } : null } }),
+      getSession: () => Promise.resolve({ data: { session: userId ? { access_token: "tok-" + userId, user: { id: userId } } : null } }),
       onAuthStateChange: () => {},
     },
+    from() { throw new Error("no direct DB access expected"); },
+  };
+  const fetchMock = async (url, init) => {
+    calls.push({ url, auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    if (networkDown) throw new TypeError("Failed to fetch");
+    const who = (init.headers.Authorization || "").replace("Bearer tok-", "");
+    if (allowedUser !== undefined && who !== allowedUser) {
+      return { ok: false, status: 403, json: async () => ({ code: "forbidden", detail: "ההזמנה אינה משויכת אליך" }) };
+    }
+    return { ok: true, status: 200, json: async () => ({ report: { id: 1 } }) };
   };
   const ctx = vm.createContext({
-    console,
-    window: { addEventListener: () => {}, supabase: { createClient: () => client } },
+    console, fetch: fetchMock, AbortController, setTimeout, clearTimeout,
+    window: { addEventListener: () => {}, BACKEND_URL: "http://backend.test", supabase: { createClient: () => client } },
     navigator: { onLine: true },
     localStorage: storage,
   });
@@ -86,11 +84,12 @@ test("סנכרון מוצלח מרוקן רק את התור של המשתמש ו
 test("טיוטה ממפתח ישן שנכשלת ב-RLS נשארת (לא אובדת, לא מועברת)", async () => {
   const storage = sharedStorage();
   storage.setItem("visitReportOfflineQueue", JSON.stringify([{ booking_id: 3, staff_id: 99, treatment_summary: "legacy" }]));
-  const b = loadPage(storage, { userId: "user-b", rlsAllowedStaff: 10 });
+  const b = loadPage(storage, { userId: "user-b", allowedUser: "user-a" });
   await tick();
   const result = await b.ctx.flushOfflineQueue();
   assert.equal(result.synced, 0);
   assert.equal(result.failed, 1);
+  assert.equal(result.errors[0].kind, "forbidden");
   const legacy = JSON.parse(storage.getItem("visitReportOfflineQueue"));
   assert.equal(legacy.length, 1, "הטיוטה הישנה נשארת במקומה");
 });
@@ -98,9 +97,40 @@ test("טיוטה ממפתח ישן שנכשלת ב-RLS נשארת (לא אובד
 test("טיוטה ממפתח ישן נמחקת רק אחרי שמירה מוצלחת", async () => {
   const storage = sharedStorage();
   storage.setItem("visitReportOfflineQueue", JSON.stringify([{ booking_id: 4, staff_id: 10, treatment_summary: "legacy" }]));
-  const a = loadPage(storage, { userId: "user-a", rlsAllowedStaff: 10 });
+  const a = loadPage(storage, { userId: "user-a", allowedUser: "user-a" });
   await tick();
   const result = await a.ctx.flushOfflineQueue();
   assert.equal(result.synced, 1);
   assert.equal(JSON.parse(storage.getItem("visitReportOfflineQueue") || "[]").length, 0);
+});
+
+test("משתמש B בכישלון 403 על מפתח ישן — A עדיין מקבל את הטיוטה שלו ומסנכרן אותה", async () => {
+  const storage = sharedStorage();
+  storage.setItem("visitReportOfflineQueue", JSON.stringify([{ booking_id: 5, staff_id: 10, treatment_summary: "legacy" }]));
+  const b = loadPage(storage, { userId: "user-b", allowedUser: "user-a" });
+  await tick();
+  const rb = await b.ctx.flushOfflineQueue();
+  assert.equal(rb.synced, 0);
+  assert.equal(rb.errors[0].kind, "forbidden");
+  assert.equal(JSON.parse(storage.getItem("visitReportOfflineQueue")).length, 1, "403 משאיר את הטיוטה");
+  const a = loadPage(storage, { userId: "user-a", allowedUser: "user-a" });
+  await tick();
+  const ra = await a.ctx.flushOfflineQueue();
+  assert.equal(ra.synced, 1);
+  assert.equal(JSON.parse(storage.getItem("visitReportOfflineQueue") || "[]").length, 0);
+});
+
+test("התור של A נשאר כשהרשת נופלת; B לא מסנכרן ולא מייצר בקשות על הטיוטה של A", async () => {
+  const storage = sharedStorage();
+  const a = loadPage(storage, { userId: "user-a", networkDown: true });
+  await tick();
+  a.ctx.queueVisitReportDraft({ booking_id: 6, staff_id: 10, treatment_summary: "A offline" });
+  const r = await a.ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0);
+  assert.equal(a.ctx.getQueuedDraftCount(), 1);
+  const b = loadPage(storage, { userId: "user-b" });
+  await tick();
+  await b.ctx.flushOfflineQueue();
+  assert.equal(b.calls.length, 0);
+  assert.ok(storage.keys().some((k) => k.endsWith(":user-a")));
 });

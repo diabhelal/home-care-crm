@@ -166,3 +166,30 @@ def test_anon_has_no_access_to_bookings(db):
     as_user(db, new_uuid(), role="anon")
     with pytest.raises(psycopg.errors.InsufficientPrivilege):
         db.execute("select * from bookings")
+
+
+def test_cancel_frees_slot_for_rebooking(db):
+    d = seed(db)
+    as_user(db, d["pa"]); bid, _ = insert_booking(db, d["pa"], d["s1"], T0)
+    db.execute("update bookings set status='cancelled' where id=%s", (bid,))
+    as_user(db, d["pb"])
+    assert insert_booking(db, d["pb"], d["s1"], T0, addr="רחוב 2")
+
+
+def test_patient_cannot_cancel_completed_booking(db):
+    d = seed(db)
+    as_user(db, d["pa"]); bid, _ = insert_booking(db, d["pa"], d["s1"], T0)
+    as_postgres(db)
+    db.execute("select set_config('request.jwt.claims', '', true)")  # privileged write, no JWT subject
+    db.execute("update bookings set approval_status='confirmed', status='completed' where id=%s", (bid,))
+    as_user(db, d["pa"])
+    with pytest.raises(psycopg.errors.InsufficientPrivilege):
+        db.execute("update bookings set status='cancelled' where id=%s", (bid,))
+
+
+def test_admin_can_cancel_any_scheduled_booking(db):
+    d = seed(db)
+    as_user(db, d["pa"]); bid, _ = insert_booking(db, d["pa"], d["s1"], T0)
+    as_user(db, d["admin"], admin=True)
+    db.execute("update bookings set status='cancelled' where id=%s", (bid,))
+    assert db.execute("select status from bookings where id=%s", (bid,)).fetchone()[0] == "cancelled"

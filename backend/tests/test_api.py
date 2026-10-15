@@ -304,3 +304,131 @@ def test_vitals_boundaries_accepted(world):
                           json={**REPORT, "systolic_bp": 250, "temperature": 30.0},
                           headers=H("staff1"))
     assert r.status_code == 200
+
+
+# ---- cancel
+def _cancel(world, bid, who="patient"):
+    return world.client.post(f"/bookings/{bid}/cancel", headers=H(who))
+
+
+def test_patient_cancels_own_requested_and_frees_slot(world):
+    bid = _new(world)
+    r = _cancel(world, bid)
+    assert r.status_code == 200 and r.json()["display_state"] == "cancelled"
+    assert world.repo.bookings[bid].status == "cancelled"
+    assert _new(world) is not None  # same slot bookable again
+
+
+def test_patient_cancels_confirmed(world):
+    bid = _confirmed(world)
+    assert _cancel(world, bid).json()["status"] == "cancelled"
+
+
+def test_other_patient_cannot_cancel_404_and_nothing_changes(world):
+    bid = _new(world)
+    r = _cancel(world, bid, "patient2")
+    assert r.status_code == 404
+    assert world.repo.bookings[bid].status == "scheduled"
+
+
+def test_cancel_requires_auth(world):
+    bid = _new(world)
+    assert world.client.post(f"/bookings/{bid}/cancel").status_code == 401
+
+
+def test_staff_cannot_use_patient_cancel(world):
+    bid = _confirmed(world)
+    assert _cancel(world, bid, "staff1").status_code == 404
+    assert world.repo.bookings[bid].status == "scheduled"
+
+
+def test_cancel_completed_409(world):
+    bid = _confirmed(world)
+    world.client.post(f"/staff/visits/{bid}/complete", json=REPORT, headers=H("staff1"))
+    assert _cancel(world, bid).status_code == 409
+    assert world.client.post(f"/admin/bookings/{bid}/cancel", headers=H("admin")).status_code == 409
+    assert world.repo.bookings[bid].status == "completed"
+
+
+def test_patient_cannot_cancel_after_check_in_409(world):
+    bid = _confirmed(world)
+    world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("staff1"))
+    assert _cancel(world, bid).status_code == 409
+    assert world.repo.bookings[bid].status == "scheduled"
+
+
+def test_cancel_idempotent(world):
+    bid = _new(world)
+    assert _cancel(world, bid).status_code == 200
+    r = _cancel(world, bid)
+    assert r.status_code == 200 and r.json()["display_state"] == "cancelled"
+
+
+def test_admin_cancel_ok_incl_checked_in_and_idempotent(world):
+    bid = _confirmed(world)
+    world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("staff1"))
+    r = world.client.post(f"/admin/bookings/{bid}/cancel", headers=H("admin"))
+    assert r.status_code == 200 and r.json()["status"] == "cancelled"
+    assert world.client.post(f"/admin/bookings/{bid}/cancel", headers=H("admin")).status_code == 200
+
+
+def test_admin_cancel_forbidden_for_non_admin_and_missing_404(world):
+    bid = _new(world)
+    for who in ("patient", "patient2", "staff1"):
+        assert world.client.post(f"/admin/bookings/{bid}/cancel", headers=H(who)).status_code == 403
+    assert world.client.post("/admin/bookings/9999/cancel", headers=H("admin")).status_code == 404
+    assert world.repo.bookings[bid].status == "scheduled"
+
+
+# ---- complete: browser payload contract
+BROWSER_PAYLOAD = {  # exactly what employee.html/admin.html send today (+ extras to be ignored)
+    "booking_id": 1, "patient_id": "p1", "staff_id": 1,
+    "systolic_bp": 128, "diastolic_bp": 82, "blood_sugar": None, "pulse": 74,
+    "temperature": 36.8, "oxygen_saturation": None,
+    "treatment_summary": "סיכום טיפול",
+    "patient_signature_data": "data:image/png;base64,iVBORw0KGgo=",
+    "performed_blood_draw": True, "performed_injection": False, "performed_infusion": False,
+    "performed_dressing_change": False, "performed_catheter_change": True,
+}
+
+
+def test_complete_accepts_browser_payload_with_nulls_and_extras(world):
+    bid = _confirmed(world)
+    r = world.client.post(f"/staff/visits/{bid}/complete",
+                          json={**BROWSER_PAYLOAD, "staff_id": 2, "patient_id": "victim"},
+                          headers=H("staff1"))
+    assert r.status_code == 200
+    rep = world.repo.reports[bid]
+    assert rep["patient_signature_data"].startswith("data:image/png")
+    assert rep["performed_catheter_change"] is True and rep["blood_sugar"] is None
+    assert rep["staff_id"] == 1 and rep["patient_id"] == "p1"   # identity not taken from body
+    assert r.json()["report"]["id"]
+
+
+def test_complete_non_integer_vital_422(world):
+    bid = _confirmed(world)
+    r = world.client.post(f"/staff/visits/{bid}/complete",
+                          json={**BROWSER_PAYLOAD, "blood_sugar": 105.5}, headers=H("staff1"))
+    assert r.status_code == 422 and world.repo.complete_calls == 0
+
+
+def test_complete_by_admin_ok_keeps_booking_staff(world):
+    bid = _confirmed(world)
+    r = world.client.post(f"/staff/visits/{bid}/complete", json=REPORT, headers=H("admin"))
+    assert r.status_code == 200
+    assert world.repo.reports[bid]["staff_id"] == 1
+    assert world.repo.bookings[bid].status == "completed"
+
+
+def test_complete_by_patient_403(world):
+    bid = _confirmed(world)
+    assert world.client.post(f"/staff/visits/{bid}/complete", json=REPORT,
+                             headers=H("patient")).status_code == 403
+    assert world.repo.complete_calls == 0
+
+
+def test_complete_cancelled_409(world):
+    bid = _confirmed(world)
+    _cancel(world, bid)
+    assert world.client.post(f"/staff/visits/{bid}/complete", json=REPORT,
+                             headers=H("staff1")).status_code == 409

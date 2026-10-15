@@ -78,7 +78,7 @@ class FakeRepo:
         if self.fail_complete:
             raise RuntimeError("simulated failure: nothing written")
         b = self.bookings[booking_id]
-        report = {**payload, "booking_id": booking_id, "patient_id": b.patient_id,
+        report = {**payload, "id": booking_id, "booking_id": booking_id, "patient_id": b.patient_id,
                   "staff_id": b.staff_id}
         # both writes or neither (single step in memory)
         self.reports[booking_id] = report

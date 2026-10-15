@@ -23,9 +23,10 @@ uvicorn app.main:app --port 8001
 |---|---|---|
 | POST | `/bookings/request` (`Idempotency-Key` header optional) | any signed-in user incl. guests |
 | GET | `/availability?start&end[&staff_id][&address]` | signed-in |
-| POST | `/admin/bookings/{id}/approve` `/reject` `/reassign` | admin (`app_metadata.is_admin`) |
+| POST | `/bookings/{id}/cancel` | the booking's patient only (404 for anyone else; 409 when completed/checked-in; idempotent) |
+| POST | `/admin/bookings/{id}/approve` `/reject` `/reassign` `/cancel` | admin (`app_metadata.is_admin`); cancel: any non-completed booking, idempotent |
 | POST | `/staff/bookings/{id}/check-in` | assigned staff |
-| POST | `/staff/visits/{booking_id}/complete` | assigned staff |
+| POST | `/staff/visits/{booking_id}/complete` | assigned staff, or admin on behalf (report keeps the booking's staff_id) |
 
 Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition or slot taken
 ("המטפל אינו פנוי בשעה זו, אנא בחר משבצת זמן אחרת"), 422 validation.

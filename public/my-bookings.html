@@ -167,17 +167,15 @@
             if (!confirm(t("myBookings.cancelConfirm"))) return;
             hideError(errorBox);
             setButtonLoading(cancelBtn, true, t("myBookings.cancelling"));
-            let error;
+            let error = null;
             try {
-              ({ error } = await supabaseClient
-                .from("bookings")
-                .update({ status: "cancelled" })
-                .eq("id", b.id));
+              // ביטול רק דרך ה-backend (הבעלים בלבד, רק כשמתוכנן). "בוטל" יוצג רק אחרי הצלחה.
+              await backendFetch(`/bookings/${encodeURIComponent(b.id)}/cancel`, { method: "POST" });
             } catch (err) {
               error = err;
             }
             if (error) {
-              showError(errorBox, t("myBookings.errCancelling") + friendlyErrorMessageLocalized(error));
+              showError(errorBox, t("myBookings.errCancelling") + (error.kind ? error.message : friendlyErrorMessageLocalized(error)));
               setButtonLoading(cancelBtn, false);
               return;
             }

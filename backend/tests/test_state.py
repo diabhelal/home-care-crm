@@ -31,3 +31,16 @@ def test_illegal_transitions_409(kind, a, b):
 ])
 def test_display_state(args, expected):
     assert display_state(*args) == expected
+
+
+def test_cancel_decision_rules():
+    from app.state import cancel_decision
+    assert cancel_decision("patient", "scheduled") == "cancel"
+    assert cancel_decision("admin", "scheduled", checked_in=True) == "cancel"
+    assert cancel_decision("patient", "cancelled") == "noop"
+    for actor in ("patient", "admin"):
+        with pytest.raises(DomainError) as e:
+            cancel_decision(actor, "completed")
+        assert e.value.status == 409
+    with pytest.raises(DomainError):
+        cancel_decision("patient", "scheduled", checked_in=True)

@@ -9,10 +9,10 @@
 // - openVisitReportModal (עדיין ב-admin.html, בבלוק "דוח ביקור" שנשאר שם בכוונה) —
 //   startVisit + renderWorkQueueBuckets.
 // - prInvalidate/prSwitchTab (prInvalidate מ-app.js, prSwitchTab מ-patient-record.js,
-//   שניהם כבר טעונים לפני הקובץ הזה) — updateBookingStatus.
+//   שניהם כבר טעונים לפני הקובץ הזה) — cancelBookingAdmin.
 // - appError/flashSuccess (עדיין ב-admin.html, מוגדרים למעלה בסקריפט הראשי לפני שהוא
 //   בכלל רץ, אבל נקראים כאן רק בזמן ריצה מאוחר) — startVisit/renderQueueStaffCell/
-//   updateBookingStatus.
+//   cancelBookingAdmin.
 // - loadBookings() נקרא גם מ-js/admin/staff.js (deleteStaff) וגם מהאתחול ומהבלוק
 //   "דוח ביקור" ב-admin.html — כל הקריאות האלה הן forward/lateral references בטוחות
 //   מאותה סיבה.
@@ -192,12 +192,13 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
         startBtn.addEventListener("click", () => startVisit(b, startBtn));
         const completeBtn = document.createElement("button");
         completeBtn.className = "btn btn-secondary btn-sm";
-        completeBtn.textContent = "סמן כהושלם";
-        completeBtn.addEventListener("click", () => updateBookingStatus(b.id, "completed", completeBtn));
+        // השלמה = דוח ביקור + סימון "הושלם" כפעולה אטומית אחת בשרת (אין עוד סימון חשוף ללא דוח).
+        completeBtn.textContent = "השלמת ביקור (דוח)";
+        completeBtn.addEventListener("click", () => openVisitReportModal(b, (b.visit_reports && b.visit_reports[0]) || null));
         const cancelBtn = document.createElement("button");
         cancelBtn.className = "btn btn-danger btn-sm";
         cancelBtn.textContent = "ביטול";
-        cancelBtn.addEventListener("click", () => updateBookingStatus(b.id, "cancelled", cancelBtn));
+        cancelBtn.addEventListener("click", () => cancelBookingAdmin(b.id, cancelBtn));
         actionsTd.appendChild(startBtn);
         actionsTd.appendChild(completeBtn);
         actionsTd.appendChild(cancelBtn);
@@ -305,19 +306,21 @@ async function decideBooking(id, action, btn) {
   loadBookings();
 }
 
-async function updateBookingStatus(id, status, btn) {
+// ביטול ע"י מנהל: רק דרך ה-backend (POST /admin/bookings/{id}/cancel). "בוטל" לא מוצג
+// ולא נרשם בממשק עד שהשרת אישר; כשל מציג את הודעת השרת והרשימה נטענת מחדש.
+async function cancelBookingAdmin(id, btn) {
   hideError(appError);
-  if (btn) setButtonLoading(btn, true, "מעדכן...");
-  let error;
+  if (btn) setButtonLoading(btn, true, "מבטל...");
+  let error = null;
   try {
-    ({ error } = await supabaseClient.from("bookings").update({ status }).eq("id", id));
+    await backendFetch(`/admin/bookings/${encodeURIComponent(id)}/cancel`, { method: "POST" });
   } catch (err) {
     error = err;
   } finally {
     if (btn) setButtonLoading(btn, false);
   }
-  if (error) { showError(appError, friendlyErrorMessage(error)); return; }
-  flashSuccess("הסטטוס עודכן");
+  if (error) { showError(appError, error.message || friendlyErrorMessage(error)); return; }
+  flashSuccess("הביקור בוטל");
   loadBookings();
   if (window.currentPatientState) {
     prInvalidate("bookings", "visitReports", "currentRisk", "alerts", "tasks");

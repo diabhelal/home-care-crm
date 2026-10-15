@@ -82,3 +82,26 @@ def test_update_patch_filter():
     out = make(h).update_booking(3, {"approval_status": "confirmed"})
     assert seen["req"].method == "PATCH" and seen["req"].url.params["id"] == "eq.3"
     assert out.approval_status == "confirmed"
+
+
+def test_update_cancel_patch_body_and_rls_empty_result():
+    import pytest
+    from app.errors import DomainError
+    seen = {}
+    def h(req):
+        seen["body"] = req.content
+        return httpx.Response(200, json=[])
+    with pytest.raises(DomainError) as e:
+        make(h).update_booking(3, {"status": "cancelled"})
+    assert e.value.status == 403 and seen["body"] == b'{"status":"cancelled"}'
+
+
+def test_db_errors_map_to_domain_errors():
+    import pytest
+    from app.errors import DomainError
+    for pg, status in (("42501", 403), ("55000", 409), ("P0002", 404)):
+        def h(req, pg=pg):
+            return httpx.Response(400, json={"code": pg, "message": "x"})
+        with pytest.raises(DomainError) as e:
+            make(h).complete_visit_atomic(1, {})
+        assert e.value.status == status

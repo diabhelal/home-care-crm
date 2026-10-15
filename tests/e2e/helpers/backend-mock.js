@@ -32,6 +32,9 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     availabilityCalls: [],
     checkInFail: null,     // מספר סטטוס HTTP לכישלון check-in, או 'abort' לניתוק רשת
     checkIns: 0,
+    completeFail: null,    // מספר סטטוס HTTP לכישלון complete, או 'abort' לניתוק רשת לפני עיבוד
+    completes: [],         // גופי בקשות complete שעובדו בהצלחה (booking_id + body)
+    cancels: [],           // { scope: 'patient'|'admin', id } שעובדו בהצלחה
   };
 
   await context.route(backendUrl + "/**", async (route) => {
@@ -119,6 +122,9 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
         const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
         const row = (db.bookings || []).find((b) => b.id === Number(id));
         if (!row) return { status: 404, detail: "ההזמנה לא נמצאה" };
+        const me = (db.medical_staff || []).find((s) => s.auth_user_id === sess.user.id);
+        if (!me) return { status: 403, detail: "נדרשת הרשאת צוות" };
+        if (row.staff_id !== me.id) return { status: 403, detail: "ההזמנה אינה משויכת אליך" };
         if (row.approval_status && row.approval_status !== "confirmed") return { status: 409, detail: "ההזמנה טרם אושרה" };
         if (!row.checked_in_at) row.checked_in_at = new Date().toISOString();
         row.workflow_status = "in_progress";
@@ -128,6 +134,63 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
       if (result.status !== 200) return json(result.status, { code: "error", detail: result.detail });
       ctl.checkIns++;
       return json(200, { ...result.row, display_state: "in_progress" });
+    }
+
+    // ---- ביטול (מטופל-בעלים / מנהל) — משקף backend/app/service.py cancel_own / cancel_admin
+    const cn = path.match(/^\/(admin\/)?bookings\/(\d+)\/cancel$/);
+    if (req.method() === "POST" && cn) {
+      const scope = cn[1] ? "admin" : "patient";
+      const result = await inPage(({ id, scope }) => {
+        const sess = JSON.parse(localStorage.getItem("__demo_session") || "null");
+        if (!sess) return { status: 401 };
+        const isAdmin = (sess.user.app_metadata || {}).is_admin === true;
+        if (scope === "admin" && !isAdmin) return { status: 403, code: "forbidden", detail: "נדרשת הרשאת מנהל" };
+        const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+        const row = (db.bookings || []).find((b) => b.id === Number(id));
+        if (!row || (scope === "patient" && row.patient_id !== sess.user.id)) return { status: 404, code: "not_found", detail: "ההזמנה לא נמצאה" };
+        if (row.status === "cancelled") return { status: 200, row };
+        if (row.status === "completed") return { status: 409, code: "illegal_transition", detail: "ביקור שהושלם לא ניתן לביטול" };
+        if (scope === "patient" && row.checked_in_at) return { status: 409, code: "illegal_transition", detail: "הביקור כבר החל ולא ניתן לבטלו" };
+        row.status = "cancelled";
+        localStorage.setItem("__demo_db", JSON.stringify(db));
+        return { status: 200, row };
+      }, { id: cn[2], scope });
+      if (result.status !== 200) return json(result.status, { code: result.code || "error", detail: result.detail });
+      ctl.cancels.push({ scope, id: Number(cn[2]) });
+      return json(200, { ...result.row, display_state: "cancelled" });
+    }
+
+    // ---- השלמת ביקור (אטומי: דוח + status=completed) — משקף POST /staff/visits/{id}/complete
+    const cm = path.match(/^\/staff\/visits\/(\d+)\/complete$/);
+    if (req.method() === "POST" && cm) {
+      if (ctl.completeFail === "abort") return route.abort("connectionreset");
+      if (ctl.completeFail) return json(ctl.completeFail, { code: "error", detail: "שגיאת בדיקה" });
+      const result = await inPage(({ id, body }) => {
+        const sess = JSON.parse(localStorage.getItem("__demo_session") || "null");
+        if (!sess) return { status: 401 };
+        const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+        const isAdmin = (sess.user.app_metadata || {}).is_admin === true;
+        const staff = (db.medical_staff || []).find((s) => s.auth_user_id === sess.user.id && s.is_active !== false);
+        if (!isAdmin && !staff) return { status: 403, code: "forbidden", detail: "נדרשת הרשאת צוות" };
+        const row = (db.bookings || []).find((b) => b.id === Number(id));
+        if (!row) return { status: 404, code: "not_found", detail: "ההזמנה לא נמצאה" };
+        if (!isAdmin && row.staff_id !== staff.id) return { status: 403, code: "forbidden", detail: "ההזמנה אינה משויכת אליך" };
+        if ((row.approval_status || "confirmed") !== "confirmed") return { status: 409, code: "illegal_transition", detail: "ההזמנה לא אושרה" };
+        if (row.status !== "scheduled") return { status: 409, code: "illegal_transition", detail: "מעבר לא חוקי (status)" };
+        if (!body || !String(body.treatment_summary || "").trim()) return { status: 422, code: "validation", detail: "treatment_summary" };
+        db.visit_reports = db.visit_reports || [];
+        const report = {
+          ...body, id: ++db.seq, booking_id: row.id, patient_id: row.patient_id, staff_id: row.staff_id,
+          visit_date: new Date().toISOString(),
+        };
+        db.visit_reports = db.visit_reports.filter((v) => v.booking_id !== row.id).concat(report);
+        row.status = "completed"; row.workflow_status = "assigned";
+        localStorage.setItem("__demo_db", JSON.stringify(db));
+        return { status: 200, report };
+      }, { id: cm[1], body });
+      if (result.status !== 200) return json(result.status, { code: result.code || "error", detail: result.detail });
+      ctl.completes.push({ booking_id: Number(cm[1]), body });
+      return json(200, { report: result.report });
     }
 
     const m = path.match(/^\/admin\/bookings\/(\d+)\/(approve|reject|reassign)$/);

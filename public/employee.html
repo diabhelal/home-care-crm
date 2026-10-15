@@ -99,9 +99,7 @@
       <button type="button" class="btn btn-ghost btn-sm" id="vr-signature-clear" style="margin-top:8px;">ניקוי חתימה</button>
     </div>
 
-    <div class="field">
-      <label><input type="checkbox" id="vr-mark-completed" checked style="width:auto; display:inline-block;"> לסמן את הביקור כהושלם עם השמירה</label>
-    </div>
+    <p id="vr-complete-note" style="color:var(--text-muted); font-size:14px; margin:0 0 8px;">שמירת הדוח מסמנת את הביקור כהושלם.</p>
 
     <div class="error-msg" id="visit-report-modal-error" role="alert" aria-live="assertive"></div>
     <div class="actions-row vr-actions">
@@ -527,8 +525,11 @@
       cb.checked = report ? !!report[cb.dataset.proc] : false;
     });
     vrLoadSignature(report?.patient_signature_data || null);
-    document.getElementById("vr-mark-completed").checked = booking.status !== "completed";
     hideError(document.getElementById("visit-report-modal-error"));
+    // דוח נשמר רק יחד עם השלמת הביקור (פעולה אטומית בשרת); ביקור שהושלם — נעול לעריכה כאן.
+    const vrLocked = booking.status === "completed";
+    document.getElementById("visit-report-modal-save").disabled = vrLocked;
+    if (vrLocked) showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
     document.getElementById("vr-allergy-banner").style.display = "none";
     visitReportModal.style.display = "flex";
     loadAndRenderRisk(booking.patient_id);
@@ -647,6 +648,9 @@
     if (vitals.pulse !== null && (vitals.pulse < 30 || vitals.pulse > 220)) { showError(modalError, "דופק תקין נע בין 30 ל-220"); document.getElementById("vr-pulse").focus(); return; }
     if (vitals.temperature !== null && (vitals.temperature < 30 || vitals.temperature > 45)) { showError(modalError, "חום גוף תקין נע בין 30 ל-45"); document.getElementById("vr-temp").focus(); return; }
     if (vitals.oxygen_saturation !== null && (vitals.oxygen_saturation < 50 || vitals.oxygen_saturation > 100)) { showError(modalError, "סטורציה נעה בין 50 ל-100"); document.getElementById("vr-o2").focus(); return; }
+    for (const [k, id] of [["systolic_bp", "vr-systolic"], ["diastolic_bp", "vr-diastolic"], ["blood_sugar", "vr-sugar"], ["pulse", "vr-pulse"], ["oxygen_saturation", "vr-o2"]]) {
+      if (vitals[k] !== null && !Number.isInteger(vitals[k])) { showError(modalError, "יש להזין מספר שלם במדדים (ללא נקודה עשרונית)"); document.getElementById(id).focus(); return; }
+    }
     if (!summary) { showError(modalError, "חובה למלא סיכום טיפול"); document.getElementById("vr-summary").focus(); return; }
 
     const payload = {
@@ -661,44 +665,37 @@
       payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
     });
 
-    const markCompleted = document.getElementById("vr-mark-completed").checked;
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
-    let error, savedReport;
+    let res = null;
+    let error = null;
     try {
-      ({ data: savedReport, error } = await supabaseClient.from("visit_reports").upsert(payload, { onConflict: "booking_id" }).select("id").single());
+      // מסלול כתיבה יחיד: backend (אטומי: דוח + "הושלם", זהות מה-JWT, שעה מהשרת).
+      res = await submitVisitCompletion(payload);
     } catch (err) {
       error = err;
     } finally {
       setButtonLoading(btn, false);
     }
     if (error) {
-      if (isNetworkError(error)) {
-        queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+      if (isRetryableCompletionError(error) || (error && error.kind === "auth")) {
+        queueVisitReportDraft({ ...payload, _markCompleted: true });
         updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
-        flashWarning("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
+        if (error.kind === "auth") flashError(visitCompletionErrorMessage(error, true));
+        else flashWarning("אין חיבור לשרת — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadMyBookings();
         return;
       }
-      showError(modalError, friendlyErrorMessage(error));
+      showError(modalError, visitCompletionErrorMessage(error, false));
       return;
     }
-
-    let statusError = null;
-    if (markCompleted) {
-      ({ error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id));
-      if (statusError) console.error("bookings status update", statusError);
-    }
+    const savedReport = (res && res.report) || {};
 
     visitReportModal.style.display = "none";
-    if (statusError) {
-      flashError(`דוח הביקור נשמר, אך סימון ההזמנה כ"הושלם" נכשל: ${friendlyErrorMessage(statusError)}`);
-    } else {
-      flashSuccess(markCompleted ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
-    }
+    flashSuccess("דוח הביקור נשמר וסומן כהושלם");
     loadMyBookings();
-    await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
+    if (savedReport.id) await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
     refreshOpenPatientRecordIfMatching(payload.patient_id);
   });
 
@@ -1221,6 +1218,7 @@
   // ===== אתחול: הגנה על העמוד — לא מחובר/ת או לא איש-צוות פעיל => redirect להתחברות =====
   setupAllModalsAccessibility();
   window.onOfflineQueueFlushed = (count, partial) => flashSuccess(offlineQueueFlushMessage(count, partial));
+  window.onOfflineQueueError = (message) => flashError(message);
   (async () => {
     const staff = await resolveActiveStaffSession();
     if (!staff) {
@@ -1230,8 +1228,9 @@
     myStaffRow = staff;
     await showStaffApp();
     if (navigator.onLine) {
-      const { synced, partial } = await flushOfflineQueue();
-      if (synced > 0 || partial > 0) { flashSuccess(offlineQueueFlushMessage(synced, partial)); loadMyBookings(); }
+      const result = await flushOfflineQueue();
+      reportOfflineQueueResult(result);
+      if (result.synced > 0) loadMyBookings();
     }
   })();
 </script>

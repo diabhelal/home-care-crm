@@ -261,6 +261,8 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
   min-height: 44px;
 }
 
+.link-tap { display: inline-flex; align-items: center; min-height: 44px; padding: 0 4px; }
+
 .helper-text { margin-top: 20px; font-size: 15px; color: var(--text-muted); }
 
 .error-msg {

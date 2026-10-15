@@ -79,6 +79,15 @@ def create_app(settings: Settings | None = None,
         b, created = c.svc.request_booking(c.identity, body, idempotency_key)
         return JSONResponse(_view(b), status_code=201 if created else 200)
 
+    @app.post("/bookings/{booking_id}/cancel")
+    def cancel_own(booking_id: int, c: Ctx = Depends(ctx)):
+        return _view(c.svc.cancel_own(c.identity, booking_id))
+
+    @app.post("/admin/bookings/{booking_id}/cancel")
+    def cancel_admin(booking_id: int, c: Ctx = Depends(ctx)):
+        require_admin(c.identity)
+        return _view(c.svc.cancel_admin(booking_id))
+
     @app.post("/admin/bookings/{booking_id}/approve")
     def approve(booking_id: int, c: Ctx = Depends(ctx)):
         require_admin(c.identity)
@@ -100,6 +109,8 @@ def create_app(settings: Settings | None = None,
 
     @app.post("/staff/visits/{booking_id}/complete")
     def complete(booking_id: int, body: VisitReportIn, c: Ctx = Depends(ctx)):
+        if c.identity.is_admin:  # identity from the verified JWT only
+            return {"report": c.svc.complete_admin(booking_id, body)}
         return {"report": c.svc.complete(c.staff(), booking_id, body)}
 
     return app

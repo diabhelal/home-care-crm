@@ -258,7 +258,7 @@
     </div>
 
     <div class="field">
-      <label><input type="checkbox" id="vr-mark-completed" checked style="width:auto; display:inline-block;"> לסמן את הביקור כהושלם עם השמירה</label>
+      <span id="vr-complete-note" style="color:var(--text-muted); font-size:14px;">שמירת הדוח מסמנת את הביקור כהושלם.</span>
     </div>
 
     <div class="error-msg" id="visit-report-modal-error" role="alert" aria-live="assertive"></div>
@@ -546,7 +546,9 @@
       cb.checked = report ? !!report[cb.dataset.proc] : false;
     });
     vrLoadSignature(report?.patient_signature_data || null);
-    document.getElementById("vr-mark-completed").checked = booking.status !== "completed";
+    // דוח נשמר רק יחד עם השלמת הביקור (אטומי בשרת); ביקור שהושלם — נעול לעריכה כאן.
+    document.getElementById("visit-report-modal-save").disabled = booking.status === "completed";
+    if (booking.status === "completed") showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
     hideError(document.getElementById("visit-report-modal-error"));
     document.getElementById("vr-trend-result").innerHTML = "";
     document.getElementById("vr-comprehensive-result").innerHTML = "";
@@ -935,16 +937,13 @@
       payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
     });
 
-    const markCompleted = document.getElementById("vr-mark-completed").checked;
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
-    let error, savedReport;
+    let res = null;
+    let error = null;
     try {
-      ({ data: savedReport, error } = await supabaseClient
-        .from("visit_reports")
-        .upsert(payload, { onConflict: "booking_id" })
-        .select("id")
-        .single());
+      // מסלול כתיבה יחיד: backend (אטומי: דוח + "הושלם"), הזהות (מנהל) מה-JWT.
+      res = await submitVisitCompletion(payload);
     } catch (err) {
       error = err;
     } finally {
@@ -952,40 +951,24 @@
     }
 
     if (error) {
-      // אין רשת (לא שגיאת ולידציה/הרשאה) — לא מאבדים את מה שהאחות הזינה: שומרים
-      // מקומית ומנסים שוב אוטומטית כשהחיבור חוזר (ר' flushOfflineQueue ב-app.js).
-      if (isNetworkError(error)) {
-        queueVisitReportDraft({ ...payload, _markCompleted: markCompleted });
+      if (isRetryableCompletionError(error) || error.kind === "auth") {
+        queueVisitReportDraft({ ...payload, _markCompleted: true });
         updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
-        flashWarning("אין חיבור לאינטרנט — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
+        if (error.kind === "auth") flashError(visitCompletionErrorMessage(error, true));
+        else flashWarning("אין חיבור לשרת — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadBookings();
         return;
       }
-      showError(modalError, friendlyErrorMessage(error));
+      showError(modalError, visitCompletionErrorMessage(error, false));
       return;
     }
-
-    // שמירת דוח הביקור ("שמירה") לא הייתה מסמנת בעבר את ההזמנה כהושלמה — שתי פעולות
-    // נפרדות, לא מקושרות, מה שגרם לתחושה ש"שום דבר לא נשמר / הטיפול לא הסתיים" כי
-    // מסך ההזמנות המשיך להראות "מתוכנן". עכשיו זו פעולה אחת: שמירה + סימון כהושלם
-    // (אלא אם המשתמש הסיר את הסימון, למשל לתיעוד טיוטה על ביקור עתידי).
-    let statusError = null;
-    if (markCompleted) {
-      ({ error: statusError } = await supabaseClient.from("bookings").update({ status: "completed" }).eq("id", payload.booking_id));
-      if (statusError) console.error("bookings status update", statusError);
-    }
+    const savedReport = (res && res.report) || {};
 
     visitReportModal.style.display = "none";
-    if (statusError) {
-      // הדוח עצמו נשמר בהצלחה — רק סימון "הושלם" נכשל. לא משתיקים את זה כהצלחה סתמית
-      // (בדיוק כמו הטיפול ב"partial" בתור האופליין, app.js).
-      flashError(`דוח הביקור נשמר, אך סימון ההזמנה כ"הושלם" נכשל: ${friendlyErrorMessage(statusError)}`);
-    } else {
-      flashSuccess(markCompleted ? "דוח הביקור נשמר וסומן כהושלם" : "דוח הביקור נשמר");
-    }
+    flashSuccess("דוח הביקור נשמר וסומן כהושלם");
     loadBookings();
-    await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
+    if (savedReport.id) await recalculateRiskAfterSave(payload.patient_id, savedReport.id, vitals);
     refreshOpenPatientRecordIfMatching(payload.patient_id);
   });
 
@@ -997,6 +980,7 @@
   wireContactsFilterTabs();
   wireContactModal();
   window.onOfflineQueueFlushed = (count, partial) => flashSuccess(offlineQueueFlushMessage(count, partial));
+  window.onOfflineQueueError = (message) => flashError(message);
   (async () => {
     // אם הגענו מקישור איפוס סיסמה (type=recovery ב-URL), onAuthStateChange כבר מציג
     // את מסך "בחירת סיסמה חדשה" — לא ממשיכים לבדוק session/כניסה אוטומטית לאפליקציה.
@@ -1005,8 +989,9 @@
     if (admin) {
       showAdminApp();
       if (navigator.onLine) {
-        const { synced, partial } = await flushOfflineQueue();
-        if (synced > 0 || partial > 0) { flashSuccess(offlineQueueFlushMessage(synced, partial)); loadBookings(); }
+        const result = await flushOfflineQueue();
+        reportOfflineQueueResult(result);
+        if (result.synced > 0) loadBookings();
       }
     }
   })();
