@@ -9,6 +9,7 @@
 const path = require("path");
 const fs = require("fs");
 const { test, expect } = require("@playwright/test");
+const { installBackendMock } = require("./helpers/backend-mock");
 
 const BASE = "http://demo.localhost:8080";
 const SHOTS = path.join(__dirname, "..", "..", "docs", "demo-proof");
@@ -158,7 +159,7 @@ function fakeSupabaseSource() {
       },
       functions: { invoke: () => Promise.resolve({ data: null, error: null }) },
       auth: {
-        getSession: () => Promise.resolve({ data: { session: session() ? { user: session().user } : null } }),
+        getSession: () => Promise.resolve({ data: { session: session() ? { user: session().user, access_token: ["fake", "jwt", session().user.id].join("-") } : null } }),
         getUser: () => Promise.resolve({ data: { user: session() ? session().user : null } }),
         signInAnonymously() {
           const db = load(); const id = "guest-" + (++db.seq); save(db);
@@ -208,6 +209,9 @@ async function setup(browser) {
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) =>
     route.fulfill({ contentType: "text/css", body: "" }));
 
+  // הזמנות נכתבות רק דרך ה-backend הממוקק (route interception), לא בכתיבה ישירה ל-bookings
+  await installBackendMock(context);
+
   context.on("request", (req) => {
     const url = req.url();
     if (/localhost:8000|127\.0\.0\.1:8000/.test(url)) problems.localhost8000.push(url);
@@ -246,6 +250,8 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
   if (shotPrefix) await shot(page, `${shotPrefix}-01-home`);
   await serviceCard.click();
 
+  await page.waitForURL(/booking\.html/);
+  await page.click("#choose-staff-link"); // בורר אופציונלי של איש צוות מסוים
   await page.waitForURL(/staff\.html/);
   const staffCard = page.locator(".staff-card").first();
   await expect(staffCard).toContainText("אחות הדגמה");
@@ -254,6 +260,7 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
 
   await page.waitForURL(/booking\.html/);
   await page.locator(".chip").first().click();
+  await page.fill("#patient-address", "רחוב ההדגמה 1, עיר הדגמה");
   await page.locator(".date-pill").nth(1).click(); // מחר — תמיד בעתיד, בלי תלות בשעת ההרצה
   const slot = page.locator(".slot-btn:not([disabled])").nth(slotIndex);
   await expect(slot).toBeVisible();
@@ -262,13 +269,12 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
   await page.fill("#patient-name", name);
   await page.fill("#patient-national-id", nationalId);
   await page.fill("#patient-phone", "050-0000001");
-  await page.fill("#patient-address", "רחוב ההדגמה 1, עיר הדגמה");
   await page.fill("#notes", "הערה סינתטית");
   if (shotPrefix) await shot(page, `${shotPrefix}-03-booking-details`);
   await expect(page.locator("#confirm-btn")).toBeEnabled();
   await page.click("#confirm-btn");
   await expect(page.locator("#confirmation-panel")).toBeVisible();
-  await expect(page.locator("#success-box")).toBeVisible();
+  await expect(page.locator("#success-box")).toHaveText("הביקור התבקש וממתין לאישור");
   await expect(page.locator("#confirmed-staff")).toContainText("אחות הדגמה");
   await expect(page.locator("#confirmed-address")).toHaveText("רחוב ההדגמה 1, עיר הדגמה");
   if (shotPrefix) await shot(page, `${shotPrefix}-04-confirmation`);
@@ -295,7 +301,8 @@ test("שדרוג אורח לחשבון שומר הזמנות, כניסה ממכ�
   const item = page.locator("#upcoming-list .booking-item");
   await expect(item).toHaveCount(1);
   await expect(item.first()).toContainText(orderText);
-  await expect(item.first().locator("ol.steps")).toHaveAttribute("aria-label", /התקבלה/);
+  await expect(item.first().locator("ol.steps")).toHaveAttribute("aria-label", /ממתין לאישור/);
+  await expect(item.first()).toContainText("הביקור התבקש וממתין לאישור");
   await expect(item.first().locator(".step.active")).toHaveText("התקבלה");
   await expect(page.locator("#account-signout-btn")).toBeVisible();
   await expect(page.locator("#account-card-host")).toContainText("patient@demo.test");
@@ -343,7 +350,7 @@ test("תשלום כאורח עובד בלי חשבון, ושלבי סטטוס מ
 
   await page.evaluate(() => {
     const db = JSON.parse(localStorage.getItem("__demo_db"));
-    db.bookings.forEach((b) => (b.workflow_status = "in_progress"));
+    db.bookings.forEach((b) => { b.approval_status = "confirmed"; b.workflow_status = "in_progress"; });
     localStorage.setItem("__demo_db", JSON.stringify(db));
   });
   await page.reload();

@@ -1,13 +1,31 @@
-// בדיקת רגרסיה: booking.html משתמש ב-RPC taken_slots() (ולא ב-select ישיר על
-// bookings) כדי לחשב אילו שעות תפוסות. select ישיר היה נכשל בשקט (RLS על bookings
-// מסתיר הזמנות של מטופלים אחרים במכוון — bookings_select_own), והיה גורם לכל שעה
-// להיראות פנויה גם כשהיא תפוסה. הבדיקה הזו רק מוודאת את ה-contract בצד ה-JS (שם ה-
-// RPC ופרמטרים נכונים) עם supabaseClient.rpc מדומה — התיקון בפועל (partial unique
-// index + RPC SECURITY DEFINER) אומת בנפרד, ידנית, מול ה-DB האמיתי (ר' migration
-// 20260923135337_fix_bookings_cancelled_slot_reuse_and_slot_availability_rpc.sql).
+// בדיקת רגרסיה: booking.html מקבל זמינות מה-backend (GET /availability) — לא מחשב בדפדפן ולא
+// קורא ל-RPC taken_slots. הבדיקה מוודאת את חוזה ה-JS: הפרמטרים (start/end/staff_id), שמשבצת
+// שהשרת לא החזיר (תפוסה / בתוך מרווח נסיעה) לא מוצגת, ושהמשבצות שחזרו ניתנות לבחירה.
+// הלוגיקה בפועל (התנגשות, מרווח נסיעה) נבדקת ב-backend/tests (pytest).
 const { test, expect } = require("@playwright/test");
+const { fakeSupabaseSource } = require("./helpers/fake-supabase");
 
-test("booking.html: loadSlots קורא ל-taken_slots RPC עם staff_id/from/to נכונים, ומסמן את השעה שחוזרת כ-disabled", async ({ page }) => {
+test("booking.html: זמינות מה-backend עם staff_id/start/end נכונים; משבצת שלא הוחזרה לא מוצגת", async ({ page }) => {
+  let availabilityUrl = null;
+  // Supabase ממוקק: בלי יצירת משתמשי אורח בפרויקט החי
+  await page.route("**/@supabase/supabase-js@2", (route) =>
+    route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
+  await page.route("**/config.js", async (route) => {
+    const res = await route.fetch();
+    await route.fulfill({ response: res, body: (await res.text()) + '\nwindow.BACKEND_URL = "http://localhost:8001";\n' });
+  });
+  await page.route("http://localhost:8001/**", async (route) => {
+    const cors = { "access-control-allow-origin": "*", "access-control-allow-headers": "Authorization, Content-Type, Idempotency-Key" };
+    const req = route.request();
+    if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+    availabilityUrl = new URL(req.url());
+    // 10:00 (מקומי) תפוס ולכן לא מוחזר; 09:00 ו-11:00 פנויות
+    const d = new Date(availabilityUrl.searchParams.get("start") + "T00:00:00");
+    const at = (h) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x.toISOString(); };
+    return route.fulfill({ status: 200, headers: cors, contentType: "application/json",
+      body: JSON.stringify({ slots: [{ start: at(9), staff_ids: [1] }, { start: at(11), staff_ids: [1] }], travel_buffer_minutes: 30 }) });
+  });
+
   await page.goto("/staff.html");
   await page.evaluate(() => {
     sessionStorage.setItem("selected_staff", JSON.stringify({
@@ -19,30 +37,14 @@ test("booking.html: loadSlots קורא ל-taken_slots RPC עם staff_id/from/to 
   });
   await page.goto("/booking.html");
   await page.waitForSelector(".date-pill", { timeout: 10000 });
+  await page.locator(".date-pill").first().click();
+  await expect(page.locator(".slot-btn")).toHaveCount(2);
 
-  const rpcCall = await page.evaluate(async () => {
-    let capturedArgs = null;
-    const realRpc = supabaseClient.rpc.bind(supabaseClient);
-    supabaseClient.rpc = (fn, args) => {
-      if (fn === "taken_slots") {
-        capturedArgs = args;
-        // מדמים ש-10:00 (מקומי) תפוס — מחזירים אותו timestamp שה-DOM אמור להתאים אליו.
-        const takenDate = new Date();
-        takenDate.setHours(10, 0, 0, 0);
-        return Promise.resolve({ data: [{ scheduled_at: takenDate.toISOString() }], error: null });
-      }
-      return realRpc(fn, args);
-    };
-    document.querySelector(".date-pill")?.click();
-    await new Promise((r) => setTimeout(r, 500));
-    return capturedArgs;
-  });
+  expect(availabilityUrl.pathname).toBe("/availability");
+  expect(availabilityUrl.searchParams.get("staff_id")).toBe("1");
+  expect(availabilityUrl.searchParams.get("start")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  expect(availabilityUrl.searchParams.get("end")).toBe(availabilityUrl.searchParams.get("start"));
 
-  expect(rpcCall).not.toBeNull();
-  expect(rpcCall.p_staff_id).toBe(1);
-  expect(typeof rpcCall.p_from).toBe("string");
-  expect(typeof rpcCall.p_to).toBe("string");
-
-  const slot10 = page.locator(".slot-btn", { hasText: "10:00" });
-  await expect(slot10).toBeDisabled();
+  await expect(page.locator(".slot-btn", { hasText: "10:00" })).toHaveCount(0);
+  await expect(page.locator(".slot-btn", { hasText: "09:00" })).toBeEnabled();
 });

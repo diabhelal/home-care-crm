@@ -130,6 +130,20 @@ const I18N_STRINGS = {
       confirmedTitle: "ההזמנה נקבעה בהצלחה!",
       confirmedPurposeLabel: "מטרת הביקור:", confirmedWhenLabel: "מועד:", confirmedAddressLabel: "כתובת:",
       confirmedGoToBookings: "מעבר להזמנות שלי",
+      stepService: "1. בחירת שירות", stepWhen: "2. כתובת ומועד", stepDetails: "3. פרטים", stepConfirm: "4. אישור",
+      serviceTitle: "איזה שירות תרצו?", whereTitle: "כתובת הביקור",
+      addressHelp: "הכתובת משמשת לבדיקת זמינות וזמני הגעה.",
+      staffAny: "האח או האחות הזמינים המתאימים", chooseStaff: "בחירת איש צוות מסוים", clearStaff: "חזרה לשיבוץ אוטומטי",
+      requestedTitle: "הביקור התבקש וממתין לאישור",
+      requestedNote: "הבקשה נשלחה לצוות. הביקור יהיה סופי רק לאחר אישור — נעדכן אתכם בדף \"ההזמנות שלי\".",
+      approvedTitle: "הביקור אושר",
+      staffAssignedLater: "ייקבע עם אישור הבקשה",
+      pickAddressFirst: "הזינו כתובת לביקור כדי לראות שעות פנויות מדויקות.",
+      errUnconfigured: "שירות ההזמנות אינו זמין כרגע. לא נשמרה הזמנה.",
+      errNetwork: "אין חיבור לשירות ההזמנות. לא נשמרה הזמנה — נסו שוב בעוד רגע.",
+      errTimeout: "שירות ההזמנות לא הגיב בזמן. לא נשמרה הזמנה — נסו שוב.",
+      errAuth: "פג תוקף ההתחברות. רעננו את הדף ונסו שוב.",
+      errServer: "אירעה שגיאה בשירות. לא נשמרה הזמנה — נסו שוב.",
     },
     account: {
       saveTitle: "שמרו את ההיסטוריה שלכם",
@@ -143,6 +157,9 @@ const I18N_STRINGS = {
       signedInAs: "מחוברים כ-{email}", signOut: "התנתקות",
       orderLabel: "הזמנה #{id}", statusAria: "סטטוס ההזמנה: {step}",
       stepReceived: "התקבלה", stepAssigned: "נקבעה", stepInProgress: "בדרך אליכם / בביצוע", stepDone: "בוצעה", stepCancelled: "בוטלה",
+      stateRequested: "ממתין לאישור", stateConfirmed: "אושר", stateInProgress: "בביצוע", stateCompleted: "בוצע", stateCancelled: "בוטל", stateRejected: "לא אושר",
+      lineRequested: "הביקור התבקש וממתין לאישור", lineConfirmed: "הביקור אושר",
+      lineRejected: "הבקשה לא אושרה. אפשר לקבוע ביקור במועד אחר.",
     },
     myBookings: {
       title: "בית חם — ההזמנות שלי",
@@ -268,6 +285,20 @@ const I18N_STRINGS = {
       confirmedTitle: "Your visit has been booked successfully!",
       confirmedPurposeLabel: "Visit purpose:", confirmedWhenLabel: "When:", confirmedAddressLabel: "Address:",
       confirmedGoToBookings: "Go to My Bookings",
+      stepService: "1. Choose a service", stepWhen: "2. Address and time", stepDetails: "3. Your details", stepConfirm: "4. Confirmation",
+      serviceTitle: "Which service do you need?", whereTitle: "Visit address",
+      addressHelp: "The address is used to check availability and travel time.",
+      staffAny: "The most suitable available nurse", chooseStaff: "Choose a specific nurse", clearStaff: "Back to automatic assignment",
+      requestedTitle: "Your visit was requested and is awaiting approval",
+      requestedNote: "The request was sent to our team. The visit is final only once approved — we will update you in \"My Bookings\".",
+      approvedTitle: "Your visit is approved",
+      staffAssignedLater: "Assigned when the request is approved",
+      pickAddressFirst: "Enter the visit address to see accurate available times.",
+      errUnconfigured: "The booking service is unavailable right now. No booking was saved.",
+      errNetwork: "Cannot reach the booking service. No booking was saved — please try again shortly.",
+      errTimeout: "The booking service did not respond in time. No booking was saved — please try again.",
+      errAuth: "Your session expired. Please refresh the page and try again.",
+      errServer: "A service error occurred. No booking was saved — please try again.",
     },
     account: {
       saveTitle: "Save your history",
@@ -281,6 +312,9 @@ const I18N_STRINGS = {
       signedInAs: "Signed in as {email}", signOut: "Sign out",
       orderLabel: "Booking #{id}", statusAria: "Booking status: {step}",
       stepReceived: "Received", stepAssigned: "Scheduled", stepInProgress: "On the way / in progress", stepDone: "Completed", stepCancelled: "Cancelled",
+      stateRequested: "Awaiting approval", stateConfirmed: "Approved", stateInProgress: "In progress", stateCompleted: "Completed", stateCancelled: "Cancelled", stateRejected: "Not approved",
+      lineRequested: "Your visit was requested and is awaiting approval", lineConfirmed: "Your visit is approved",
+      lineRejected: "This request was not approved. You can book another time.",
     },
     myBookings: {
       title: "Warm Home — My Bookings",
@@ -406,6 +440,20 @@ const I18N_STRINGS = {
       confirmedTitle: "تم حجز زيارتك بنجاح!",
       confirmedPurposeLabel: "غرض الزيارة:", confirmedWhenLabel: "الموعد:", confirmedAddressLabel: "العنوان:",
       confirmedGoToBookings: "الانتقال إلى حجوزاتي",
+      stepService: "1. اختيار الخدمة", stepWhen: "2. العنوان والموعد", stepDetails: "3. بياناتك", stepConfirm: "4. التأكيد",
+      serviceTitle: "ما الخدمة التي تحتاجونها؟", whereTitle: "عنوان الزيارة",
+      addressHelp: "يُستخدم العنوان للتحقق من التوفر ووقت الوصول.",
+      staffAny: "الممرض/ة المتاح المناسب", chooseStaff: "اختيار ممرض/ة محدد", clearStaff: "العودة إلى التعيين التلقائي",
+      requestedTitle: "تم طلب الزيارة وهي بانتظار الموافقة",
+      requestedNote: "أُرسل الطلب إلى طاقمنا. تصبح الزيارة نهائية بعد الموافقة فقط — سنوافيكم في صفحة \"حجوزاتي\".",
+      approvedTitle: "تمت الموافقة على الزيارة",
+      staffAssignedLater: "يُحدَّد عند الموافقة على الطلب",
+      pickAddressFirst: "أدخلوا عنوان الزيارة لرؤية الأوقات المتاحة بدقة.",
+      errUnconfigured: "خدمة الحجز غير متاحة حاليًا. لم يتم حفظ أي حجز.",
+      errNetwork: "تعذّر الاتصال بخدمة الحجز. لم يتم حفظ أي حجز — حاولوا مجددًا بعد قليل.",
+      errTimeout: "لم تستجب خدمة الحجز في الوقت المناسب. لم يتم حفظ أي حجز — حاولوا مجددًا.",
+      errAuth: "انتهت صلاحية الجلسة. حدّثوا الصفحة وحاولوا مجددًا.",
+      errServer: "حدث خطأ في الخدمة. لم يتم حفظ أي حجز — حاولوا مجددًا.",
     },
     account: {
       saveTitle: "احفظ سجلّك",
@@ -419,6 +467,9 @@ const I18N_STRINGS = {
       signedInAs: "مسجّل الدخول باسم {email}", signOut: "تسجيل الخروج",
       orderLabel: "حجز رقم #{id}", statusAria: "حالة الحجز: {step}",
       stepReceived: "تم الاستلام", stepAssigned: "تم تحديد الموعد", stepInProgress: "في الطريق إليكم / قيد التنفيذ", stepDone: "تم التنفيذ", stepCancelled: "ملغى",
+      stateRequested: "بانتظار الموافقة", stateConfirmed: "تمت الموافقة", stateInProgress: "قيد التنفيذ", stateCompleted: "تم التنفيذ", stateCancelled: "ملغى", stateRejected: "لم تتم الموافقة",
+      lineRequested: "تم طلب الزيارة وهي بانتظار الموافقة", lineConfirmed: "تمت الموافقة على الزيارة",
+      lineRejected: "لم تتم الموافقة على هذا الطلب. يمكنكم حجز موعد آخر.",
     },
     myBookings: {
       title: "بيت دافئ — حجوزاتي",
@@ -645,20 +696,55 @@ function renderAccountCard(host, user, opts) {
   }
 }
 
-// שלבי סטטוס ידידותיים למטופל מתוך status + workflow_status הקיימים
+// קוד מצב ידידותי למטופל: requested | confirmed | in_progress | completed | cancelled | rejected.
+// משקף את display_state של ה-backend (backend/app/state.py); כשאין approval_status (שורה ישנה / עמודה
+// שטרם הוחלה) מתייחסים להזמנה כמאושרת, כמו לפני מחזור הבקשה->אישור.
+function bookingDisplayState(b) {
+  if (b.display_state) return b.display_state;
+  const approval = b.approval_status || "confirmed";
+  if (approval === "rejected") return "rejected";
+  if (b.status === "cancelled") return "cancelled";
+  if (b.status === "completed") return "completed";
+  if (approval === "requested") return "requested";
+  if (b.workflow_status === "in_progress" || b.checked_in_at) return "in_progress";
+  return "confirmed";
+}
+
+const BOOKING_STATE_BADGE_CLASS = { requested: "scheduled", confirmed: "scheduled", in_progress: "scheduled", completed: "completed", cancelled: "cancelled", rejected: "cancelled" };
+function bookingStateLabel(state) { return t("account.state" + state.replace(/(^|_)(\w)/g, (m, a, c) => c.toUpperCase())); }
+
+// הודעת שגיאה מקומית משגיאת backendFetch (BackendError). הודעות עבריות מהשרת (409/validation) מוצגות
+// כפי שהן בעברית; בשפות אחרות "משבצת תפוסה" מתורגמת והשאר נופל להודעה כללית מקומית.
+function backendErrorMessage(err) {
+  const kind = err && err.kind;
+  const he = getLang() === "he";
+  if (kind === "conflict") return (!he && err.code === "slot_taken") ? t("booking.slotTaken") : (err.message || t("booking.slotTaken"));
+  if (kind === "validation") return he ? err.message : t("booking.errServer");
+  const map = { unconfigured: "errUnconfigured", network: "errNetwork", timeout: "errTimeout", auth: "errAuth", forbidden: "errAuth", server: "errServer" };
+  if (map[kind]) return t("booking." + map[kind]);
+  return friendlyErrorMessageLocalized(err);
+}
+
+// שלבי סטטוס ידידותיים למטופל מתוך approval_status + status + workflow_status
 function bookingStatusStepsHtml(b) {
   const label = (k) => t("account." + k);
+  const state = bookingDisplayState(b);
+  if (state === "rejected") {
+    return `<span class="status-badge cancelled" aria-label="${escapeHtml(tf("account.statusAria", { step: label("stateRejected") }))}">${label("stateRejected")}</span><div class="meta" style="margin-top:6px;">${label("lineRejected")}</div>`;
+  }
   if (b.status === "cancelled") {
     return `<span class="status-badge cancelled" aria-label="${escapeHtml(tf("account.statusAria", { step: label("stepCancelled") }))}">${label("stepCancelled")}</span>`;
   }
   const keys = ["stepReceived", "stepAssigned", "stepInProgress", "stepDone"];
   let cur = 0;
   if (b.status === "completed") cur = 3;
-  else if (b.workflow_status === "in_progress") cur = 2;
-  else if (b.workflow_status === "assigned") cur = 1;
+  else if (state === "in_progress") cur = 2;
+  else if (state === "confirmed") cur = 1;
+  // state === "requested": נשאר בשלב "התקבלה" — ממתין לאישור
   const items = keys.map((k, i) => {
     const cls = i < cur || (i === cur && cur === 3) ? "done" : i === cur ? "active" : "";
     return `<li class="step ${cls}"${i === cur ? ' aria-current="step"' : ""}>${label(k)}</li>`;
   }).join("");
-  return `<ol class="steps" style="margin:6px 0 0; padding:0; list-style:none; flex-wrap:wrap; justify-content:flex-start;" aria-label="${escapeHtml(tf("account.statusAria", { step: label(keys[cur]) }))}">${items}</ol>`;
+  const pending = state === "requested" ? `<div class="meta" style="margin-top:6px; font-weight:600;">${label("lineRequested")}</div>` : "";
+  return `<ol class="steps" style="margin:6px 0 0; padding:0; list-style:none; flex-wrap:wrap; justify-content:flex-start;" aria-label="${escapeHtml(tf("account.statusAria", { step: state === "requested" ? label("stateRequested") : label(keys[cur]) }))}">${items}</ol>${pending}`;
 }

@@ -595,6 +595,58 @@ function friendlyErrorMessage(err) {
   return msg;
 }
 
+// ===== לקוח backend תפעולי (FastAPI) — עטיפה יחידה לכל הקריאות =====
+// מוסיף Authorization: Bearer <access_token של session Supabase>, JSON, timeout, ומתרגם שגיאות
+// ל-BackendError עם kind יציב: unconfigured | network | timeout | auth | forbidden | conflict |
+// validation | server. הדפדפן אינו כותב ל-bookings ישירות בזרימות הבקשה/אישור — רק דרך כאן.
+class BackendError extends Error {
+  constructor(kind, message, extra) {
+    super(message);
+    this.name = "BackendError";
+    this.kind = kind;
+    this.status = (extra && extra.status) || 0;
+    this.code = (extra && extra.code) || null;
+  }
+}
+
+async function backendFetch(path, { method = "GET", body, idempotencyKey, timeoutMs = 15000 } = {}) {
+  const base = String(window.BACKEND_URL || "").trim().replace(/\/+$/, "");
+  if (!base) throw new BackendError("unconfigured", "שירות ההזמנות אינו מוגדר. נא לנסות מאוחר יותר.");
+  let token = null;
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    token = session && session.access_token;
+  } catch (e) { /* ממשיכים בלי טוקן — השרת יחזיר 401 */ }
+  const headers = { Accept: "application/json" };
+  if (token) headers.Authorization = "Bearer " + token;
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(base + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal });
+  } catch (err) {
+    if (err && err.name === "AbortError") throw new BackendError("timeout", "השירות לא הגיב בזמן. לא נשמרה הזמנה — נא לנסות שוב.");
+    throw new BackendError("network", "השירות אינו זמין כרגע. לא נשמרה הזמנה — נא לנסות שוב בעוד רגע.");
+  } finally {
+    clearTimeout(timer);
+  }
+  let data = null;
+  try { data = await res.json(); } catch (e) { /* גוף לא-JSON */ }
+  if (res.ok) return data;
+  const detail = data && typeof data.detail === "string" ? data.detail : null;
+  const code = data && typeof data.code === "string" ? data.code : null;
+  const extra = { status: res.status, code };
+  if (res.status === 401) throw new BackendError("auth", "פג תוקף ההתחברות. נא לרענן את הדף ולנסות שוב.", extra);
+  if (res.status === 403) throw new BackendError("forbidden", detail || "אין הרשאה לפעולה זו.", extra);
+  if (res.status === 409) throw new BackendError("conflict", detail || "הפעולה מתנגשת בהזמנה קיימת.", extra);
+  if (res.status === 400 || res.status === 404 || res.status === 422) {
+    throw new BackendError("validation", detail || "הפרטים שנשלחו אינם תקינים.", extra);
+  }
+  throw new BackendError("server", "אירעה שגיאה בשירות. לא נשמרה הזמנה — נא לנסות שוב.", extra);
+}
+
 // ===== באנר זמינות שירות התחזית =====
 // שירות predictive-service הוא תהליך Python מקומי שמופעל ידנית, לא שירות שרץ תמיד.
 // במקום שכל כפתור (תחזית מגמה / אבחון מקיף / תצוגה חיה) יגלה בנפרד רק בלחיצה

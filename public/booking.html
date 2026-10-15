@@ -25,21 +25,33 @@
   </header>
   <main id="main-content" tabindex="-1">
     <h1 class="visually-hidden" data-i18n="booking.h1Hidden">קביעת תור — בית חם</h1>
-    <div class="steps">
-      <div class="step done" data-i18n="staff.step1">1. בחירת אחות או אח</div>
-      <div class="step active" aria-current="step" data-i18n="staff.step2">2. הזמנה ופרטים</div>
+    <div class="steps" id="booking-steps">
+      <div class="step active" aria-current="step" data-i18n="booking.stepService">1. בחירת שירות</div>
+      <div class="step" data-i18n="booking.stepWhen">2. כתובת ומועד</div>
+      <div class="step" data-i18n="booking.stepDetails">3. פרטים</div>
+      <div class="step" data-i18n="booking.stepConfirm">4. אישור</div>
     </div>
 
-    <div class="summary-box">
+    <div class="summary-box" id="staff-summary">
       <div><span data-i18n="booking.staffLabel">אחות או אח:</span> <span class="staff-name" id="staff-name"></span></div>
-      <a href="staff.html" data-i18n="booking.changeStaff">החלפת אחות או אח</a>
+      <span>
+        <a href="staff.html" id="choose-staff-link" data-i18n="booking.chooseStaff">בחירת איש צוות מסוים</a>
+        <button type="button" class="btn btn-ghost btn-sm" id="clear-staff-btn" style="display:none;" data-i18n="booking.clearStaff">חזרה לשיבוץ אוטומטי</button>
+      </span>
     </div>
 
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
 
     <div id="booking-form-section">
-      <h2 data-i18n="booking.purposeTitle">מטרת הביקור</h2>
+      <h2 data-i18n="booking.serviceTitle">איזה שירות תרצו?</h2>
       <div class="chips" id="purpose-chips"></div>
+
+      <h2 data-i18n="booking.whereTitle">כתובת הביקור</h2>
+      <div class="field">
+        <label for="patient-address" data-i18n="booking.addressLabel">כתובת לביקור *</label>
+        <input type="text" id="patient-address" required autocomplete="street-address" data-i18n-placeholder="booking.addressPlaceholder" placeholder="רחוב, מספר בית ועיר">
+        <p style="color:var(--text-muted); font-size:13px; margin:4px 0 0;" data-i18n="booking.addressHelp">הכתובת משמשת לבדיקת זמינות וזמני הגעה.</p>
+      </div>
 
       <h2 data-i18n="booking.dateTitle">תאריך</h2>
       <div class="date-list" id="date-list"></div>
@@ -68,10 +80,6 @@
         <input type="tel" id="patient-phone" required autocomplete="tel" placeholder="050-1234567">
       </div>
       <div class="field">
-        <label for="patient-address" data-i18n="booking.addressLabel">כתובת לביקור *</label>
-        <input type="text" id="patient-address" required autocomplete="street-address" data-i18n-placeholder="booking.addressPlaceholder" placeholder="רחוב, מספר בית ועיר">
-      </div>
-      <div class="field">
         <label for="notes" data-i18n="booking.notesLabel">הערות (אופציונלי)</label>
         <input type="text" id="notes" data-i18n-placeholder="booking.notesPlaceholder" placeholder="לדוגמה: יש להתקשר לפני ההגעה">
       </div>
@@ -89,6 +97,7 @@
       <p><span data-i18n="booking.confirmedPurposeLabel">מטרת הביקור:</span> <strong id="confirmed-purpose"></strong></p>
       <p><span data-i18n="booking.confirmedWhenLabel">מועד:</span> <strong id="confirmed-when"></strong></p>
       <p><span data-i18n="booking.confirmedAddressLabel">כתובת:</span> <strong id="confirmed-address"></strong></p>
+      <p id="confirmed-note" style="color:var(--text-muted);"></p>
       <div id="account-card-host" style="margin-top:16px;"></div>
       <div class="actions-row">
         <a href="my-bookings.html" class="btn btn-primary btn-full" data-i18n="booking.confirmedGoToBookings">מעבר להזמנות שלי</a>
@@ -102,7 +111,6 @@
 <script src="app.js"></script>
 <script>showDemoBanner();</script>
 <script src="i18n.js"></script>
-<script src="slot-calculation.js"></script>
 <script>
   (async () => {
     applyTranslations();
@@ -112,11 +120,20 @@
     if (!user) return;
     wireReset();
 
-    const staff = JSON.parse(sessionStorage.getItem("selected_staff") || "null");
-    if (!staff) { window.location.href = "staff.html"; return; }
+    // איש צוות מסוים הוא אופציונלי: ברירת המחדל היא שיבוץ אוטומטי (בלי staff_id) והשרת בוחר.
+    // staff.html משמש כבורר אופציונלי וחוזר לכאן עם selected_staff.
+    let staff = null;
+    try { staff = JSON.parse(sessionStorage.getItem("selected_staff") || "null"); } catch (e) { staff = null; }
 
-    document.getElementById("staff-name").textContent =
-      `${staff.full_name} (${roleLabel(staff.role)})`;
+    const staffNameEl = document.getElementById("staff-name");
+    const clearStaffBtn = document.getElementById("clear-staff-btn");
+    const chooseStaffLink = document.getElementById("choose-staff-link");
+    function renderStaffSummary() {
+      staffNameEl.textContent = staff ? `${staff.full_name} (${roleLabel(staff.role)})` : t("booking.staffAny");
+      clearStaffBtn.style.display = staff ? "" : "none";
+      chooseStaffLink.textContent = t(staff ? "booking.changeStaff" : "booking.chooseStaff");
+    }
+    renderStaffSummary();
 
     const errorBox = document.getElementById("error-box");
     const successBox = document.getElementById("success-box");
@@ -130,9 +147,17 @@
     let selectedDate = null;   // Date object at local midnight
     let selectedSlot = null;   // Date object
 
-    // מטרת ביקור (preselect_purpose נקבע ע"י "הזמן שוב" ב-my-bookings.html)
+    function setStep(n) {
+      document.querySelectorAll("#booking-steps .step").forEach((el, i) => {
+        el.classList.toggle("done", i < n);
+        el.classList.toggle("active", i === n);
+        if (i === n) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current");
+      });
+    }
+
+    // מטרת ביקור: ?purpose= (מכרטיס שירות בדף הבית) או preselect_purpose ("הזמן שוב" ב-my-bookings.html)
     let preselectPurpose = null;
-    try { preselectPurpose = sessionStorage.getItem("preselect_purpose"); } catch (e) {}
+    try { preselectPurpose = new URLSearchParams(location.search).get("purpose") || sessionStorage.getItem("preselect_purpose"); } catch (e) {}
     const chipsEl = document.getElementById("purpose-chips");
     ((window.SERVICE_CONFIG && window.SERVICE_CONFIG.purposes) || Object.keys(I18N_STRINGS[getLang()].purposeLabels)).forEach((key) => {
       const chip = document.createElement("button");
@@ -156,35 +181,58 @@
     });
     try { sessionStorage.removeItem("preselect_purpose"); } catch (e) {}
 
-    // תאריכים - הימים הקרובים שאיש הצוות זמין בהם
+    // תאריכים — עשרת הימים הקרובים (עם איש צוות מסוים: רק ימי העבודה שלו). הזמינות בפועל
+    // (כולל מרווח נסיעה) מגיעה מהשרת לכל יום בנפרד; יום בלי שעות מציג "אין שעות פנויות".
     const dateListEl = document.getElementById("date-list");
-    const availableWeekdays = new Set(staff.available_weekdays || []);
     const dateButtons = [];
-    for (let i = 0; i < 21 && dateButtons.length < 10; i++) {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() + i);
-      if (!availableWeekdays.has(d.getDay())) continue;
+    function renderDatePills() {
+      dateListEl.innerHTML = "";
+      dateButtons.length = 0;
+      const weekdays = staff && staff.available_weekdays ? new Set(staff.available_weekdays) : null;
+      for (let i = 0; i < 21 && dateButtons.length < 10; i++) {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + i);
+        if (weekdays && !weekdays.has(d.getDay())) continue;
 
-      const pill = document.createElement("button");
-      pill.type = "button";
-      pill.className = "date-pill";
-      pill.setAttribute("aria-pressed", "false");
-      pill.innerHTML = `<div class="dow">${weekdayShortLabel(d.getDay())}</div><div class="dom">${d.getDate()}/${d.getMonth() + 1}</div>`;
-      pill.addEventListener("click", () => {
-        dateListEl.querySelectorAll(".date-pill").forEach((p) => { p.classList.remove("selected"); p.setAttribute("aria-pressed", "false"); });
-        pill.classList.add("selected");
-        pill.setAttribute("aria-pressed", "true");
-        selectedDate = d;
-        selectedSlot = null;
-        updateConfirmState();
-        loadSlots(d);
-      });
-      dateListEl.appendChild(pill);
-      dateButtons.push(pill);
+        const pill = document.createElement("button");
+        pill.type = "button";
+        pill.className = "date-pill";
+        pill.setAttribute("aria-pressed", "false");
+        pill.innerHTML = `<div class="dow">${weekdayShortLabel(d.getDay())}</div><div class="dom">${d.getDate()}/${d.getMonth() + 1}</div>`;
+        pill.addEventListener("click", () => {
+          dateListEl.querySelectorAll(".date-pill").forEach((p) => { p.classList.remove("selected"); p.setAttribute("aria-pressed", "false"); });
+          pill.classList.add("selected");
+          pill.setAttribute("aria-pressed", "true");
+          selectedDate = d;
+          selectedSlot = null;
+          updateConfirmState();
+          loadSlots(d);
+        });
+        dateListEl.appendChild(pill);
+        dateButtons.push(pill);
+      }
+      if (dateButtons.length === 0) {
+        dateListEl.innerHTML = `<div class="empty-state">${t("booking.noDatesAvailable")}</div>`;
+      }
     }
-    if (dateButtons.length === 0) {
-      dateListEl.innerHTML = `<div class="empty-state">${t("booking.noDatesAvailable")}</div>`;
+    renderDatePills();
+
+    clearStaffBtn.addEventListener("click", () => {
+      try { sessionStorage.removeItem("selected_staff"); } catch (e) {}
+      staff = null;
+      selectedDate = null;
+      selectedSlot = null;
+      document.getElementById("slots-section").style.display = "none";
+      document.getElementById("no-slots").style.display = "none";
+      renderStaffSummary();
+      renderDatePills();
+      updateConfirmState();
+    });
+
+    function localDateStr(d) {
+      const p = (n) => String(n).padStart(2, "0");
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
     }
 
     let loadSlotsToken = 0;
@@ -199,22 +247,17 @@
       slotsSection.style.display = "block";
       showLoadingRow(slotGrid, t("booking.loadingSlots"));
 
-      const startOfDay = new Date(date);
-      const endOfDay = new Date(date);
-      endOfDay.setDate(endOfDay.getDate() + 1);
-
-      // RLS על bookings (bookings_select_own) מציגה למטופל רק את ההזמנות שלו — אז
-      // select() ישיר לא מראה תורים שתפוסים ע"י מטופלים אחרים. taken_slots() היא
-      // RPC צר (SECURITY DEFINER, ר' migration) שחושף רק scheduled_at לתורים תפוסים
-      // של איש הצוות הזה, בלי לחשוף מי הזמין אותם.
-      let existing, error;
+      // זמינות מהשרת (מקור האמת): כולל מרווח נסיעה והתנגשויות. בלי staff_id = כל הצוות המתאים.
+      // הכתובת (אם הוזנה) מאפשרת לשרת לדעת מתי אין צורך במרווח נסיעה (אותה כתובת).
+      const ds = localDateStr(date);
+      const qs = new URLSearchParams({ start: ds, end: ds });
+      if (staff && staff.id != null) qs.set("staff_id", String(staff.id));
+      const addr = addressInput.value.trim();
+      if (addr) qs.set("address", addr);
+      let slots = [], error = null;
       try {
-        ({ data: existing, error } = await supabaseClient
-          .rpc("taken_slots", {
-            p_staff_id: staff.id,
-            p_from: startOfDay.toISOString(),
-            p_to: endOfDay.toISOString(),
-          }));
+        const res = await backendFetch("/availability?" + qs.toString());
+        slots = (res && Array.isArray(res.slots)) ? res.slots : [];
       } catch (err) {
         error = err;
       }
@@ -226,38 +269,37 @@
 
       if (error) {
         slotsSection.style.display = "none";
-        showError(errorBox, t("booking.errLoadingSlots") + friendlyErrorMessageLocalized(error));
+        selectedSlot = null;
+        updateConfirmState();
+        showError(errorBox, t("booking.errLoadingSlots") + backendErrorMessage(error));
         return;
       }
-      const slots = computeAvailableSlots({
-        date,
-        workStartTime: staff.work_start_time,
-        workEndTime: staff.work_end_time,
-        slotDurationMinutes: staff.slot_duration_minutes,
-        takenTimes: (existing || []).map((b) => b.scheduled_at),
-      });
-
       let anyEnabled = false;
-      slots.forEach(({ time: slotDate, available }) => {
+      let stillSelected = false;
+      slots.forEach((slot) => {
+        const slotDate = new Date(slot.start);
+        if (isNaN(slotDate.getTime())) return;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "slot-btn";
         btn.textContent = formatTimeLocalized(slotDate);
         btn.setAttribute("aria-pressed", "false");
-        if (!available) {
-          btn.disabled = true;
-        } else {
-          anyEnabled = true;
-          btn.addEventListener("click", () => {
-            slotGrid.querySelectorAll(".slot-btn").forEach((b) => { b.classList.remove("selected"); b.setAttribute("aria-pressed", "false"); });
-            btn.classList.add("selected");
-            btn.setAttribute("aria-pressed", "true");
-            selectedSlot = slotDate;
-            updateConfirmState();
-          });
+        anyEnabled = true;
+        if (selectedSlot && selectedSlot.getTime() === slotDate.getTime()) {
+          stillSelected = true;
+          btn.classList.add("selected");
+          btn.setAttribute("aria-pressed", "true");
         }
+        btn.addEventListener("click", () => {
+          slotGrid.querySelectorAll(".slot-btn").forEach((b) => { b.classList.remove("selected"); b.setAttribute("aria-pressed", "false"); });
+          btn.classList.add("selected");
+          btn.setAttribute("aria-pressed", "true");
+          selectedSlot = slotDate;
+          updateConfirmState();
+        });
         slotGrid.appendChild(btn);
       });
+      if (selectedSlot && !stillSelected) { selectedSlot = null; updateConfirmState(); }
 
       if (!anyEnabled) {
         slotsSection.style.display = "none";
@@ -265,11 +307,15 @@
       }
     }
 
+    // שינוי כתובת משנה את חישוב מרווח הנסיעה — טוענים מחדש את שעות היום הנבחר (הבחירה נשמרת אם עדיין פנויה)
+    addressInput.addEventListener("change", () => { if (selectedDate) loadSlots(selectedDate); });
+
     let detailsRevealed = false;
     const patientDetailsSection = document.getElementById("patient-details-section");
 
     function updateConfirmState() {
       confirmBtn.disabled = !(selectedPurpose && selectedDate && selectedSlot);
+      setStep(!selectedPurpose ? 0 : !(selectedDate && selectedSlot) ? 1 : 2);
       // חשיפה הדרגתית: טופס הפרטים האישיים מוצג רק אחרי שנבחרו מטרה/תאריך/שעה —
       // כדי שהמסך לא יציג עשרה שדות בבת אחת לפני שיש בכלל מה לאשר.
       if (selectedPurpose && selectedDate && selectedSlot && !detailsRevealed) {
@@ -280,6 +326,8 @@
       }
     }
 
+    setStep(selectedPurpose ? 1 : 0);
+
     [nameInput, nationalIdInput, phoneInput, addressInput].forEach((input) => {
       input.addEventListener("input", () => {
         hideError(errorBox);
@@ -288,6 +336,21 @@
     });
 
     let submittingBooking = false;
+
+    // מפתח Idempotency נוצר פעם אחת לכל "ניסיון" (אותם פרטי בקשה) ונשמר ב-sessionStorage:
+    // ניסיון חוזר אחרי נפילת רשת/timeout שולח את אותו מפתח, כך שהשרת לא יוצר הזמנה כפולה.
+    const IDEM_STORE = "booking_idem";
+    function idempotencyKeyFor(fingerprint) {
+      try {
+        const saved = JSON.parse(sessionStorage.getItem(IDEM_STORE) || "null");
+        if (saved && saved.fp === fingerprint && saved.key) return saved.key;
+      } catch (e) {}
+      const key = (window.crypto && crypto.randomUUID) ? crypto.randomUUID()
+        : "k-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 12);
+      try { sessionStorage.setItem(IDEM_STORE, JSON.stringify({ fp: fingerprint, key })); } catch (e) {}
+      return key;
+    }
+    function clearIdempotencyKey() { try { sessionStorage.removeItem(IDEM_STORE); } catch (e) {} }
 
     confirmBtn.addEventListener("click", async () => {
       if (submittingBooking) return;
@@ -298,12 +361,12 @@
       const nationalId = nationalIdInput.value.trim();
       const phone = phoneInput.value.trim();
       const address = addressInput.value.trim();
-      if (!fullName || !nationalId || !phone || !address) {
+      if (!fullName || !nationalId || !phone || address.length < 3) {
         showError(errorBox, t("booking.fillAllFields"));
         if (!fullName) nameInput.setAttribute("aria-invalid", "true");
         if (!nationalId) nationalIdInput.setAttribute("aria-invalid", "true");
         if (!phone) phoneInput.setAttribute("aria-invalid", "true");
-        if (!address) addressInput.setAttribute("aria-invalid", "true");
+        if (address.length < 3) addressInput.setAttribute("aria-invalid", "true");
         (!fullName ? nameInput : !nationalId ? nationalIdInput : !phone ? phoneInput : addressInput).focus();
         return;
       }
@@ -317,53 +380,56 @@
       submittingBooking = true;
       setButtonLoading(confirmBtn, true, t("booking.savingBooking"));
       const notes = document.getElementById("notes").value.trim() || null;
+      const staffId = staff && staff.id != null ? staff.id : null;
+      const body = { purpose: selectedPurpose, scheduled_at: selectedSlot.toISOString(), address, notes };
+      if (staffId != null) body.staff_id = staffId;
+      const key = idempotencyKeyFor(JSON.stringify([body.purpose, body.scheduled_at, body.address, body.staff_id ?? null, body.notes]));
 
-      let error, newBookingId = null;
+      let booking = null, error = null;
       try {
-        ({ error } = await savePatientDetails(user, { full_name: fullName, national_id: nationalId, phone, address }));
-        if (!error) {
-          let inserted;
-          ({ data: inserted, error } = await supabaseClient.from("bookings").insert({
-            patient_id: user.id,
-            staff_id: staff.id,
-            visit_purpose: selectedPurpose,
-            scheduled_at: selectedSlot.toISOString(),
-            notes,
-          }).select("id").single());
-          if (!error && inserted) newBookingId = inserted.id;
-        }
+        const saved = await savePatientDetails(user, { full_name: fullName, national_id: nationalId, phone, address });
+        if (saved && saved.error) error = saved.error;
+        else booking = await backendFetch("/bookings/request", { method: "POST", body, idempotencyKey: key });
       } catch (err) {
         error = err;
       }
 
-      if (error) {
-        submittingBooking = false;
-        if (error.code === "23505") {
-          showError(errorBox, t("booking.slotTaken"));
-          selectedSlot = null;
-          updateConfirmState();
-          setButtonLoading(confirmBtn, false);
-          loadSlots(selectedDate);
+      submittingBooking = false;
+      if (error || !booking) {
+        setButtonLoading(confirmBtn, false);
+        if (error && error.name === "BackendError") {
+          // רק כשל זמני (רשת/timeout/שרת) שומר את המפתח — כשל מוחלט מקבל מפתח חדש בניסיון הבא
+          if (!["network", "timeout", "server"].includes(error.kind)) clearIdempotencyKey();
+          showError(errorBox, (error.kind === "conflict" ? "" : t("booking.errSavingBooking")) + backendErrorMessage(error));
+          if (error.kind === "conflict") {
+            selectedSlot = null;
+            updateConfirmState();
+            loadSlots(selectedDate);
+          }
         } else {
           showError(errorBox, t("booking.errSavingBooking") + friendlyErrorMessageLocalized(error));
-          setButtonLoading(confirmBtn, false);
         }
         return;
       }
 
-      successBox.textContent = t("booking.confirmedTitle");
+      clearIdempotencyKey();
+      const state = bookingDisplayState(booking);
+      successBox.textContent = t(state === "requested" ? "booking.requestedTitle" : "booking.approvedTitle");
       successBox.classList.add("show");
+      document.getElementById("confirmed-note").textContent = state === "requested" ? t("booking.requestedNote") : "";
       const orderEl = document.getElementById("confirmed-order");
-      if (newBookingId != null) orderEl.textContent = tf("account.orderLabel", { id: newBookingId });
+      if (booking.id != null) orderEl.textContent = tf("account.orderLabel", { id: booking.id });
       else orderEl.parentElement.style.display = "none";
       const { data: { user: curUser } } = await supabaseClient.auth.getUser();
       renderAccountCard(document.getElementById("account-card-host"), curUser || user, { showUpgrade: true, allowSignIn: false });
-      document.getElementById("confirmed-staff").textContent = `${staff.full_name} (${roleLabel(staff.role)})`;
+      document.getElementById("confirmed-staff").textContent = staff ? `${staff.full_name} (${roleLabel(staff.role)})` : t("booking.staffAssignedLater");
       document.getElementById("confirmed-purpose").textContent = purposeLabel(selectedPurpose);
       document.getElementById("confirmed-when").textContent = `${formatDateLocalized(selectedSlot)} ${formatTimeLocalized(selectedSlot)}`;
       document.getElementById("confirmed-address").textContent = address;
       document.getElementById("booking-form-section").style.display = "none";
+      document.getElementById("staff-summary").style.display = "none";
       patientDetailsSection.style.display = "none";
+      setStep(3);
       document.getElementById("confirmation-panel").style.display = "block";
       document.getElementById("confirmation-panel").scrollIntoView({ behavior: "smooth", block: "start" });
       sessionStorage.removeItem("selected_staff");

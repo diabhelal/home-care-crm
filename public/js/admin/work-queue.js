@@ -20,6 +20,7 @@
 // 6 קבוצות תפעוליות, נגזרות מ-status הקיים (לא משתנה) + workflow_status החדש +
 // קיום task פתוח (נדרש מעקב) — בלי טבלת "בקשות" נפרדת. ר' plan: dapper-baking-shannon.
 const QUEUE_BUCKETS = [
+  { key: "requested", label: "בקשות ממתינות לאישור", icon: "⏳", openByDefault: true },
   { key: "unassigned", label: "לא משויך", icon: "🆕", openByDefault: true },
   { key: "assigned", label: "משויך", icon: "📋", openByDefault: true },
   { key: "in_progress", label: "בתהליך", icon: "🩺", openByDefault: true },
@@ -30,6 +31,8 @@ const QUEUE_BUCKETS = [
 
 function bookingQueueBucket(b, hasOpenTask) {
   if (b.status === "cancelled") return "cancelled";
+  // בקשה שטרם אושרה (approval_status נוסף ב-supabase/proposed; שורות ישנות בלי העמודה = מאושרות)
+  if (b.status === "scheduled" && b.approval_status === "requested") return "requested";
   if (b.status === "completed") return hasOpenTask ? "follow_up" : "completed";
   if (b.workflow_status === "in_progress") return "in_progress";
   if (b.workflow_status === "unassigned") return "unassigned";
@@ -67,10 +70,18 @@ function renderQueueStaffCell(td, b) {
       const newStaffId = Number(select.value);
       if (newStaffId === b.staff_id) return;
       select.disabled = true;
-      const { error } = await supabaseClient.from("bookings").update({ staff_id: newStaffId }).eq("id", b.id);
+      errEl.textContent = "";
+      // שיוך מחדש רק דרך ה-backend: בודק זמינות, התנגשות ומרווח נסיעה בשרת (אין כתיבה ישירה ל-bookings)
+      let error = null;
+      try {
+        await backendFetch(`/admin/bookings/${encodeURIComponent(b.id)}/reassign`, { method: "POST", body: { staff_id: newStaffId } });
+      } catch (err) {
+        error = err;
+      }
       select.disabled = false;
       if (error) {
-        errEl.textContent = /duplicate|unique/i.test(error.message || "") ? "לצוות הנבחר כבר יש תור באותו מועד — נבחר שיוך אחר" : friendlyErrorMessage(error);
+        errEl.textContent = error.message || friendlyErrorMessage(error);
+        select.value = String(b.staff_id);
         return;
       }
       flashSuccess("השיוך עודכן");
@@ -156,7 +167,25 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
       `;
       renderQueueStaffCell(tr.querySelector(".queue-staff-cell"), b);
       const actionsTd = tr.lastElementChild;
-      if (b.status === "scheduled") {
+      const isRequested = bookingQueueBucket(b, false) === "requested";
+      if (isRequested) {
+        tr.classList.add("queue-row-requested");
+        const tag = document.createElement("div");
+        tag.className = "queue-request-tag";
+        tag.style.cssText = "font-weight:700; font-size:12px; color:var(--warning-text, var(--text-muted)); margin-bottom:6px;";
+        tag.textContent = "בקשה חדשה — ממתינה לאישור מנהל";
+        actionsTd.appendChild(tag);
+        const approveBtn = document.createElement("button");
+        approveBtn.className = "btn btn-primary btn-sm";
+        approveBtn.textContent = "אישור";
+        approveBtn.addEventListener("click", () => decideBooking(b.id, "approve", approveBtn));
+        const rejectBtn = document.createElement("button");
+        rejectBtn.className = "btn btn-danger btn-sm";
+        rejectBtn.textContent = "דחייה";
+        rejectBtn.addEventListener("click", () => decideBooking(b.id, "reject", rejectBtn));
+        actionsTd.appendChild(approveBtn);
+        actionsTd.appendChild(rejectBtn);
+      } else if (b.status === "scheduled") {
         const startBtn = document.createElement("button");
         startBtn.className = "btn btn-primary btn-sm";
         startBtn.textContent = b.workflow_status === "in_progress" ? "המשך ביקור" : "התחלת ביקור";
@@ -257,6 +286,24 @@ document.getElementById("work-queue-search").addEventListener("input", (e) => {
   const value = e.target.value;
   workQueueSearchDebounce = setTimeout(() => searchWorkQueue(value), 300);
 });
+
+// אישור/דחיית בקשה: רק דרך ה-backend (JWT של המנהל). הודעות התנגשות/מרווח נסיעה מהשרת מוצגות כמות שהן.
+async function decideBooking(id, action, btn) {
+  hideError(appError);
+  const busy = action === "approve" ? "מאשר..." : "דוחה...";
+  if (btn) setButtonLoading(btn, true, busy);
+  let error = null;
+  try {
+    await backendFetch(`/admin/bookings/${encodeURIComponent(id)}/${action}`, { method: "POST" });
+  } catch (err) {
+    error = err;
+  } finally {
+    if (btn) setButtonLoading(btn, false);
+  }
+  if (error) { showError(appError, error.message || friendlyErrorMessage(error)); loadBookings(); return; }
+  flashSuccess(action === "approve" ? "הבקשה אושרה" : "הבקשה נדחתה");
+  loadBookings();
+}
 
 async function updateBookingStatus(id, status, btn) {
   hideError(appError);

@@ -1,0 +1,55 @@
+{
+  "purpose": "Preservation baseline for clinical source and existing local model artifacts. This is not a training, validation or clinical approval record.",
+  "date": "2026-10-15",
+  "checkout": "/Users/helaldiab/home-care-crm",
+  "local_head": "a8dbd8595680016ebaa6b274cd937bdd0db97189",
+  "github_main_observed": "1639dde517b99e4568aa61bfd387cac8551d8c2e",
+  "tracked_files": [
+    {
+      "path": "predictive-service/CLINICAL_THRESHOLDS_FOR_REVIEW.md",
+      "sha256": "d7fa4f3d7d48e55acacb1c1777d6d1375e66b1c54114c4548be4b95071c8cfb9"
+    },
+    {
+      "path": "predictive-service/clinical_baseline.py",
+      "sha256": "70f9fa8a3fa43a36834308fdfeba9206ef4f7cb980f2a2f6dc6b4096603bc355"
+    },
+    {
+      "path": "predictive-service/lstm_interface.py",
+      "sha256": "33ef05e213e12f800f3b357653a408e59de10abc234fe8d6d0b9725fdc03fa85"
+    },
+    {
+      "path": "predictive-service/main.py",
+      "sha256": "128012f94542c8d00551db86ff88c284bfec77aff36091ade208a74949e5ce79"
+    },
+    {
+      "path": "predictive-service/ml_targets.py",
+      "sha256": "289748ef913c850dd79c2d3a0f74aef86c7e6154740a076874a021bb6ebdae5c"
+    },
+    {
+      "path": "predictive-service/models/.gitkeep",
+      "sha256": "411b242f16d607986a2808fbd5a7ee461b6b2de1d938cbac6f5d5b9454eb0a31"
+    },
+    {
+      "path": "predictive-service/requirements-dev.txt",
+      "sha256": "f7fa732876ad2267d9298f300f4ee3935accca72edc0aef0bff7b69541aca15c"
+    },
+    {
+      "path": "predictive-service/requirements.txt",
+      "sha256": "0210b714200962217a66ae2b5920bb0726a140ed3654f75308a892d91798eb60"
+    },
+    {
+      "path": "predictive-service/tests/test_risk_calculation.py",
+      "sha256": "946f71be446368890b058516b67c3a077cf691dcdf1163dd06ea39480ddbed14"
+    },
+    {
+      "path": "predictive-service/timeseries.py",
+      "sha256": "6566108dc15fa9b25e1daabf89173bd1ee636e00208977918c0811db637f8a8c"
+    }
+  ],
+  "local_joblib_artifacts": [],
+  "limitations": [
+    "Checksums describe the files at capture time only.",
+    "Absence of tracked model weights does not mean model implementation was deleted.",
+    "No files, model artifacts, configuration or database data were changed while generating this baseline."
+  ]
+}

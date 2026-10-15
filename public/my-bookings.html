@@ -19,7 +19,7 @@
   <header class="app-header">
     <div class="brand"><span class="logo">🏠</span> <span data-i18n="common.brand">בית חם</span></div>
     <nav>
-      <a href="staff.html" class="btn btn-secondary btn-sm" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
+      <a href="booking.html" class="btn btn-secondary btn-sm" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
       <button class="btn btn-ghost" id="reset-btn" data-i18n="common.navReset">התחלה מחדש</button>
     </nav>
   </header>
@@ -32,7 +32,7 @@
     <div class="section-title" data-i18n="myBookings.upcomingTitle">ביקורים קרובים</div>
     <div id="upcoming-list" aria-live="polite"></div>
     <div id="upcoming-empty" class="empty-state" style="display:none;">
-      <span data-i18n="myBookings.upcomingEmpty">אין לך ביקורים מתוכננים.</span> <a href="staff.html" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
+      <span data-i18n="myBookings.upcomingEmpty">אין לך ביקורים מתוכננים.</span> <a href="booking.html" data-i18n="common.navNewBooking">קביעת ביקור חדש</a>
     </div>
 
     <div class="section-title" data-i18n="myBookings.pastTitle">היסטוריית ביקורים</div>
@@ -66,7 +66,7 @@
     <div class="error-msg" id="mb-plan-error" role="alert" aria-live="assertive"></div>
     <div class="success-msg" id="mb-plan-success" role="status" aria-live="polite"></div>
     <button class="btn btn-primary btn-full" id="mb-plan-submit" data-i18n="myBookings.submitRequest">שליחת בקשה</button>
-    <a href="staff.html" class="btn btn-primary btn-full" id="mb-plan-onetime-link" style="display:none;" data-i18n="myBookings.goToBooking">מעבר לקביעת תור</a>
+    <a href="booking.html" class="btn btn-primary btn-full" id="mb-plan-onetime-link" style="display:none;" data-i18n="myBookings.goToBooking">מעבר לקביעת תור</a>
     <div id="mb-plan-list" style="margin-top:16px;"></div>
 
     <div class="section-title" data-i18n="myBookings.messagesTitle">ההודעות שלי</div>
@@ -144,6 +144,7 @@
         const staffLabel = b.medical_staff
           ? `${escapeHtml(b.medical_staff.full_name)} (${roleLabel(b.medical_staff.role)})`
           : "—";
+        const state = bookingDisplayState(b);
         const item = document.createElement("div");
         item.className = "booking-item";
         item.innerHTML = `
@@ -155,7 +156,7 @@
             ${b.notes ? `<div class="meta">${t("myBookings.noteLabel")}${escapeHtml(b.notes)}</div>` : ""}
           </div>
           <div class="item-actions" style="display:flex; align-items:center; gap:10px;">
-            <span class="status-badge ${b.status}">${statusLabel(b.status)}</span>
+            <span class="status-badge ${BOOKING_STATE_BADGE_CLASS[state] || b.status}">${bookingStateLabel(state)}</span>
           </div>
         `;
         if (cancellable) {
@@ -184,14 +185,16 @@
           });
           item.querySelector(".item-actions").appendChild(cancelBtn);
         }
-        if (!cancellable && b.medical_staff && b.staff_id != null) {
+        if (!cancellable && ((b.medical_staff && b.staff_id != null) || state === "rejected")) {
           const rebookBtn = document.createElement("button");
           rebookBtn.type = "button";
           rebookBtn.className = "btn btn-secondary";
           rebookBtn.textContent = t("myBookings.rebookButton");
           rebookBtn.addEventListener("click", () => {
-            // אותו מנגנון כמו staff.html -> booking.html: selected_staff ב-sessionStorage
-            sessionStorage.setItem("selected_staff", JSON.stringify(b.medical_staff));
+            // אותו מנגנון כמו staff.html -> booking.html: selected_staff ב-sessionStorage.
+            // בקשה שנדחתה נקבעת מחדש בלי איש צוות מסוים (השיבוץ נעשה בשרת).
+            if (state === "rejected") sessionStorage.removeItem("selected_staff");
+            else sessionStorage.setItem("selected_staff", JSON.stringify(b.medical_staff));
             if (b.visit_purpose) sessionStorage.setItem("preselect_purpose", b.visit_purpose);
             else sessionStorage.removeItem("preselect_purpose");
             window.location.href = "booking.html";

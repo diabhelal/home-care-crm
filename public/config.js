@@ -14,3 +14,8 @@ window.DEMO_MODE = true;
 // השירותים שהעסק מציע בפועל כרגע (מקור יחיד, הפיך כשהצוות יגדל): רק אחיות/אחים.
 // להוספת תפקיד (למשל "doctor") או מטרת ביקור — מוסיפים כאן; פאנל מנהל/צוות לא מושפע.
 window.SERVICE_CONFIG = { roles: ["nurse"], purposes: ["checkup", "wound_care", "blood_test", "medication", "other"] };
+
+// כתובת ה-backend התפעולי (FastAPI, backend/): הזמנות, זמינות ואישור/דחייה/שיבוץ.
+// ברירת מחדל רק בהרצה מקומית. בכל מארח אחר חובה להגדיר כתובת HTTPS מפורשת כאן —
+// אם היא ריקה, הזמנה מציגה "השירות אינו זמין" ולא כותבת כלום (אין נתיב כתיבה עוקף).
+window.BACKEND_URL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "http://localhost:8001" : "";
