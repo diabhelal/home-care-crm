@@ -53,3 +53,16 @@ Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition o
 The SQL in `supabase/proposed/` is NOT applied; the backend needs it (new columns + RPCs) before it works against the real DB.
 Known gap: until the frontend stops inserting bookings directly, a direct insert still gets `approval_status='confirmed'`.
 Geocoding is a no-op by default; implement `Geocoder` to enable proximity ranking.
+
+## Isolated database tests (never the live project)
+
+`tests_db/` starts a throwaway local PostgreSQL (the `pixeltable-pgserver` wheel, inside
+the venv — no Docker, nothing installed system-wide), stubs the Supabase `auth`/`storage`
+pieces, applies the project's real `supabase/migrations/*.sql` followed by the PROPOSED
+`supabase/proposed/*.sql`, and runs synthetic-data checks (approval state, travel buffer,
+double booking, ownership, atomic completion, address privacy, RLS/column grants).
+
+    cd backend && source .venv/bin/activate
+    pip install -r requirements-dev.txt
+    pytest tests_db -q        # database behaviour
+    pytest -q --ignore=tests_db   # API/service unit tests

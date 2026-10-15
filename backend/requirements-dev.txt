@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest>=8
+pixeltable-pgserver>=0.3
+psycopg[binary]>=3.2
