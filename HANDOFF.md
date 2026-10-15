@@ -1,36 +1,42 @@
 # HANDOFF — מצב הפרויקט ומה הלאה
 
-> קובץ מעבר בין שיחות. מקור האמת לקוד הוא git; לתהליך הפריסה — [DEPLOY.md](./DEPLOY.md).
-> עודכן: 2026-10-15.
+> קובץ מעבר בין שיחות. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
+> עודכן: 2026-10-15. **הכול מקומי: לא נדחף ל-GitHub (commits מקומיים בלבד), לא נפרס, ה-DB החי לא שונה.**
 
 ## איפה אנחנו
-- **מוצר:** אב-טיפוס עובד, מוכן להפצה כ**הדגמה בלבד** (נתונים סינטטיים). לא שירות לטיפול רפואי אמיתי.
-- **DB (Supabase `qqeupktyadjxqoxkstnl`):** פעיל, 17 טבלאות, 15 מיגרציות רשומות. נתונים סינטטיים: 20 מטופלים, 6 צוות, 29 הזמנות, 12 דוחות ביקור.
-- **עיצוב:** סבב תיקון ב-2026-10 החזיר מראה רפואי רגוע (פלטה קרירה, Heebo, כפתורים 44px+).
-- **נגישות:** סבב WCAG 2.2 AA בוצע (ר' git log).
-- **הדגמה:** `DEMO_MODE` ב-`public/config.js`, באנר + `demo-notice.html`, `robots.txt` ו-`X-Robots-Tag: noindex`.
+- **מוצר:** אב-טיפוס יציב להדגמה עם נתונים סינתטיים. לא מוכן למטופלים אמיתיים.
+- **צוות:** אחים בלבד (אין רופאים/פיזיותרפיסטים). `SERVICE_CONFIG` ב-`public/config.js` שולט במה שמוצג.
+- **עיצוב:** פלטה כחול כהה (`#0F172A`/`#1E3A8A`) + מנטה לפעולות (`#047857`), רקע `#F8FAFC`, פונט Inter/Manrope. הבעלים דחה שכתובים עיצוביים חוזרים; **לא לשנות עיצוב בלי תצוגה מקדימה ואישור**.
+- **DB חי (Supabase `qqeupktyadjxqoxkstnl`):** 16 מיגרציות רשומות, נתונים סינתטיים. **לא הוחל עליו כלום מ-`supabase/proposed/`.**
 
-## חוקים קבועים (אל תעקוף)
-1. **אסור להריץ** `tests/e2e/booking.spec.js` ו-`tests/e2e/visit-report.spec.js` מול ה-DB החי. הם `workflow_dispatch` בלבד ודורשים פרויקט בדיקות נפרד. (בשיחה הקודמת הורצו בטעות; לא נכתבו נתונים, אך נוצרו משתמשי אורח.)
-2. **`supabase config push` דורס את כל מקטע `[auth]`** — הגדרות Auth נעשות ידנית בדאשבורד.
-3. שינוי סכמה: `execute_sql` ← `get_advisors` ← migration מאושר ← קובץ migration מקומי עם אותה גרסה. מציגים SQL ומחכים לאישור.
-4. אין סודות בקוד/ב-git. `keys.txt` מוחרג. מפתח `service_role` לעולם לא בקליינט.
-5. שינוי בקבצי קליינט סטטיים ← להעלות `CACHE_VERSION` ב-`public/service-worker.js`.
-6. לפני push: `git status`, סריקת סודות על ה-diff, אישור שאין מיגרציות/נתוני מטופלים אמיתיים.
+## ארכיטקטורה (בקצרה)
+- `public/` סטטי (HTML/CSS/JS). `backend/` FastAPI חדש לפעולות תפעוליות (הזמנה, זמינות+מרווח 30 דק', אישור/דחייה/שיבוץ/ביטול, check-in עם זמן שרת, השלמת ביקור אטומית, תוצאה קלינית, חיזוי סיכון והתראות).
+- `predictive-service/` נשאר כמות שהוא (כללים קליניים + רגרסיה/ARIMA; אין ML מאומן). **לא לשנות נוסחאות.**
+- הדפדפן לא כותב ל-`bookings`/`visit_reports`/`risk_predictions`/`alerts` (0 כתיבות ישירות, נבדק).
+- `supabase/proposed/001-007` = SQL מוצע (לא מופעל): עמודות אישור/כתובת/check-in, פונקציות check-in/complete, טריגרים שמגינים על `bookings`, כתיבת חיזוי/התראה בשרת עם HMAC, כפיית זהות כותב.
 
-## מה נשאר
-**להוצאת הדגמה לאוויר (DEPLOY.md):**
-- [ ] פרויקט Cloudflare Pages (`public/`), דומיין.
-- [ ] Supabase: Site URL / Redirect URLs, Leaked password protection, תוכנית בתשלום, בדיקת CORS של `create-staff-login`.
-- [ ] CSP: לוודא שאין הפרות ב-DevTools ולהחליף `Content-Security-Policy-Report-Only` ל-`Content-Security-Policy` ב-`public/_headers`.
-- [ ] משתמש מנהל להדגמה (דרך דאשבורד, `is_admin` דרך Admin API/SQL).
-
-**לשירות אמיתי (לא בהיקף ההדגמה):** מדיניות פרטיות ותנאי שימוש (ייעוץ משפטי, תיקון 13), אירוח שירות התחזית או הסרתו, ספק SMS + MFA, סביבת staging נפרדת, ניטור וגיבויים, בדיקת חדירה.
-
-## איך מפעילים מקומית
+## בדיקות (מקומי)
 ```
-cd public && python3 -m http.server 8080
-cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload --port 8000
 node --test tests/unit/*.test.js
-npx playwright test tests/e2e/xss-escaping.spec.js tests/e2e/my-work-pagination.spec.js tests/e2e/booking-taken-slots.spec.js tests/e2e/sw-update.spec.js tests/e2e/overhaul-regressions.spec.js
+ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs npx playwright test
+cd backend && source .venv/bin/activate && pytest -q --ignore=tests_db && pytest tests_db -q
 ```
+אחרון ידוע: JS 29/29, Playwright 42/42, backend 132/132, DB מבודד 37/37, predictive 17/17.
+
+## חוקים קבועים
+1. **אסור להריץ** `tests/e2e/booking.spec.js` ו-`visit-report.spec.js` מול ה-DB החי.
+2. אין push, פריסה או שינוי ב-DB החי בלי אישור מפורש של הבעלים. SQL חדש: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים אישור.
+3. `supabase config push` דורס את כל מקטע `[auth]`: הגדרות Auth ידנית בדאשבורד.
+4. ה-hook ב-`.githooks/pre-commit` חוסם `secret = "..."`/`password: "..."`; לא עוקפים, בונים ערכי בדיקה בזמן ריצה.
+5. שינוי בקבצי קליינט ← להעלות `CACHE_VERSION` ב-`public/service-worker.js` (כעת v31+).
+6. לא להמציא טענות (24/7, "מוסמך" וכד'); הערכת הסיכון תמיד מסומנת "מבוססת כללים — הדגמה".
+
+## נותר
+- [ ] להחיל `supabase/proposed/001-007` על **פרויקט staging נפרד** (ר' `docs/STAGING_PLAN.md`), להריץ מסע מלא על PostgREST אמיתי.
+- [ ] אירוח backend עם HTTPS, `BACKEND_URL`, CSP `connect-src`, CORS.
+- [ ] MFA ו-Leaked password protection (דאשבורד), ניקוי ~173 משתמשי אורח ישנים (מחיקה באישור).
+- [ ] משפטי: פרטיות, תנאי שימוש, הסכמה מדעת. בדיקת חדירה.
+- [ ] טיוטות עיצוב שלא בריפו: `docs/design-preview.html`, `docs/hero-options.html` (אפשר למחוק).
+
+## פערים ידועים
+מחיקת התראות ועריכת כותרת משימה עדיין אפשריות (007 מצמצם). מרווח נסיעה קבוע, לא זמן נסיעה. טיוטות אופליין ב-`localStorage` ללא הצפנה.

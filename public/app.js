@@ -151,6 +151,80 @@ async function submitVisitCompletion(payload) {
 async function requestRiskAssessment(reportId) {
   return backendFetch(`/visits/${encodeURIComponent(reportId)}/risk-assessment`, { method: "POST", timeoutMs: 20000 });
 }
+// ===== תור ניסיון-חוזר להערכת סיכון (אחרי השלמה מאושרת בסנכרון אופליין) =====
+// אם השלמת הביקור אושרה אך קריאת הערכת הסיכון נכשלה (רשת/5xx/503), לא מוותרים: שומרים
+// רק {report_id, booking_id, queuedAt} — בלי שום ערך קליני — תחת מפתח של אותו uid של תור
+// הטיוטות, וחוזרים לנסות בסנכרון הבא (אירוע online / flush / טעינת עמוד). הרשומה יורדת רק
+// אחרי הצלחה מאושרת או סירוב סופי (403/404). אף כשל כאן לא חוסם ולא מבטל את הדוח שהושלם.
+const RISK_PENDING_KEY = "visitRiskPending";
+
+function riskPendingKey() {
+  return offlineQueueOwnerId ? `${RISK_PENDING_KEY}:${offlineQueueOwnerId}` : null;
+}
+
+function getPendingRiskList() {
+  const key = riskPendingKey();
+  if (!key) return [];
+  try {
+    const list = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(list) ? list : [];
+  } catch (e) { return []; }
+}
+
+function setPendingRiskList(list) {
+  const key = riskPendingKey();
+  if (!key) return;
+  try {
+    if (!list.length) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(list));
+  } catch (e) { console.error("pending risk save failed", e); }
+}
+
+let riskQueuedThisFlush = new Set();
+
+function queuePendingRisk(reportId, bookingId) {
+  riskQueuedThisFlush.add(reportId);
+  if (!riskPendingKey() || reportId === undefined || reportId === null) return;
+  const list = getPendingRiskList().filter((x) => x.report_id !== reportId);
+  list.push({ report_id: reportId, booking_id: bookingId === undefined ? null : bookingId, queuedAt: new Date().toISOString() });
+  setPendingRiskList(list);
+}
+
+// סירוב סופי של השרת: אין טעם לנסות שוב (אין הרשאה / הדוח לא קיים).
+function isDefinitiveRiskRejection(err) {
+  return !!err && (err.status === 403 || err.status === 404);
+}
+
+let pendingRiskRetrying = false;
+
+// מנסה שוב את הרשימה של המשתמש הנוכחי בלבד. מחזירה {retried, remaining}. לעולם לא זורקת.
+async function retryPendingRiskAssessments(skipIds) {
+  if (pendingRiskRetrying) return { retried: 0, remaining: getPendingRiskList().length };
+  const skip = skipIds || new Set();
+  const list = getPendingRiskList().filter((x) => !skip.has(x.report_id));
+  if (!list.length) return { retried: 0, remaining: 0 };
+  pendingRiskRetrying = true;
+  const done = new Set();
+  let retried = 0;
+  try {
+    for (const item of list) {
+      try {
+        await requestRiskAssessment(item.report_id);
+        done.add(item.report_id); retried++;
+      } catch (err) {
+        if (isDefinitiveRiskRejection(err)) { done.add(item.report_id); continue; }
+        if (err && (err.kind === "network" || err.kind === "timeout" || err.kind === "unconfigured")) break;
+      }
+    }
+  } finally {
+    pendingRiskRetrying = false;
+  }
+  // קוראים מחדש: הרשימה עשויה היתה להשתנות בזמן הניסיון (רשומות חדשות נשמרות)
+  const remaining = getPendingRiskList().filter((x) => !done.has(x.report_id));
+  setPendingRiskList(remaining);
+  return { retried, remaining: remaining.length };
+}
+
 // התראה אוטומטית מ"אבחון מקיף" (השרת מחשב מחדש מהיסטוריית הדוחות — לא מקבל ערכים מהלקוח).
 async function requestAutoAlert(patientId) {
   return backendFetch(`/patients/${encodeURIComponent(patientId)}/auto-alert`, { method: "POST", timeoutMs: 20000 });
@@ -179,6 +253,16 @@ function visitCompletionErrorMessage(err, queued = true) {
 let offlineQueueSyncing = false;
 
 async function flushOfflineQueue() {
+  riskQueuedThisFlush = new Set();
+  try {
+    return await flushOfflineQueueDrafts();
+  } finally {
+    // ניסיון חוזר של הערכות סיכון שנכשלו אחרי השלמה; לא משפיע על תוצאת הסנכרון.
+    try { await retryPendingRiskAssessments(riskQueuedThisFlush); } catch (e) { /* הודעה בלבד */ }
+  }
+}
+
+async function flushOfflineQueueDrafts() {
   const ownKey = offlineQueueKey();
   const own = await flushOfflineQueueKey(ownKey);
   // טיוטות ממפתח ישן (לפני הפרדת משתמשים): מנסים לסנכרן, אך רק מה שנשמר בפועל נמחק
@@ -227,7 +311,13 @@ async function flushOfflineQueueKey(queueKey) {
       synced++; // תשובת הצלחה מאושרת — רק עכשיו הטיוטה יורדת מהתור
       // הערכת סיכון אחרי השלמה מאושרת, בכל מקרה לא חוסמת: כישלון = בלי הערכה, הדוח נשמר.
       const doneId = done && done.report && done.report.id;
-      if (doneId) { try { await requestRiskAssessment(doneId); } catch (riskErr) { /* הודעה בלבד בזרימה הרגילה */ } }
+      if (doneId) {
+        try { await requestRiskAssessment(doneId); }
+        catch (riskErr) {
+          // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
+          if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(doneId, draft.booking_id);
+        }
+      }
     } catch (err) {
       if (err && err.kind === "conflict" && await isBookingAlreadyCompleted(draft.booking_id)) { synced++; continue; }
       stillPending.push(draft);

@@ -30,7 +30,7 @@ function loadPage(storage, { userId, allowedUser, networkDown = false }) {
     from() { throw new Error("no direct DB access expected"); },
   };
   const fetchMock = async (url, init) => {
-    calls.push({ url, auth: init.headers.Authorization, body: JSON.parse(init.body) });
+    calls.push({ url, auth: init.headers.Authorization, body: init.body ? JSON.parse(init.body) : null });
     if (networkDown) throw new TypeError("Failed to fetch");
     const who = (init.headers.Authorization || "").replace("Bearer tok-", "");
     if (allowedUser !== undefined && who !== allowedUser) {
