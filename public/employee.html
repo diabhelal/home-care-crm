@@ -191,6 +191,7 @@
     staffApp.style.display = "flex";
     document.getElementById("staff-app-title").textContent = `${myStaffRow.full_name} · ${ROLE_LABELS[myStaffRow.role] || myStaffRow.role}`;
     await loadMyBookings();
+    try { startNewBookingWatcher({ scope: "staff", staffId: myStaffRow.id }); } catch (e) {}
   }
 
   // ===== העבודה שלי =====

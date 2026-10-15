@@ -652,3 +652,156 @@ function updateOfflineDraftBanner() {
       : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
   banner.style.display = "block";
 }
+
+// ===== התראת הזמנות חדשות (בתוך האפליקציה בלבד) =====
+// סקר כל 60 שניות כשהלשונית גלויה. lastSeen לכל משתמש ב-localStorage. כשלים שקטים.
+// עובד רק כשהעמוד פתוח בדפדפן — התראה כשהוא סגור תדרוש אימייל/SMS בעתיד.
+function startNewBookingWatcher({ scope, staffId } = {}) {
+  if (window.__newBookingWatcher) return window.__newBookingWatcher;
+  const userKey = scope === "admin" ? "admin" : "staff-" + (staffId || "");
+  const storeKey = "newBookingLastSeen:" + userKey;
+  const baseTitle = document.title;
+  const POLL_MS = 60000;
+  let items = [];
+  let timer = null;
+  let notifiedIds = new Set();
+  let box = null;
+
+  function getLastSeen() {
+    try {
+      const v = localStorage.getItem(storeKey);
+      if (v && !isNaN(Date.parse(v))) return v;
+    } catch (e) {}
+    return new Date(Date.now() - 24 * 3600 * 1000).toISOString();
+  }
+  function setLastSeen(iso) {
+    try { localStorage.setItem(storeKey, iso); } catch (e) {}
+  }
+
+  function ensureBox() {
+    if (box && box.isConnected) return box;
+    const main = document.getElementById("main-content");
+    if (!main) return null;
+    box = document.createElement("div");
+    box.id = "new-booking-banner";
+    box.className = "card card-compact";
+    box.setAttribute("role", "status");
+    box.setAttribute("aria-live", "polite");
+    box.style.marginBottom = "16px";
+    box.hidden = true;
+    const h1 = main.querySelector("h1");
+    if (h1 && h1.nextSibling) main.insertBefore(box, h1.nextSibling); else main.prepend(box);
+    return box;
+  }
+
+  function el(tag, text, cls) {
+    const e = document.createElement(tag);
+    if (text != null) e.textContent = text;
+    if (cls) e.className = cls;
+    if (cls === "nb-hint") { e.style.fontSize = "14px"; e.style.color = "var(--text-muted)"; e.style.marginTop = "6px"; }
+    return e;
+  }
+
+  function render() {
+    const b = ensureBox();
+    if (!b) return;
+    const n = items.length;
+    document.title = n > 0 ? `(${n}) ${baseTitle}` : baseTitle;
+    b.textContent = "";
+    if (n === 0) { b.hidden = true; return; }
+    b.hidden = false;
+    b.appendChild(el("strong", `📅 יש ${n} ביקורים חדשים`));
+    const ul = el("ul");
+    ul.style.margin = "8px 0";
+    ul.style.paddingInlineStart = "20px";
+    items.slice(0, 5).forEach((r) => {
+      const when = r.scheduled_at ? new Date(r.scheduled_at) : null;
+      const whenTxt = when && !isNaN(when) ? `${formatDateHe(when)} ${formatTimeHe(when)}` : "";
+      const name = (r.patients && r.patients.full_name) || "מטופל/ת";
+      const purpose = PURPOSE_LABELS[r.visit_purpose] || "";
+      ul.appendChild(el("li", [name, purpose, whenTxt].filter(Boolean).join(" · ")));
+    });
+    b.appendChild(ul);
+    if (n > 5) b.appendChild(el("div", `ועוד ${n - 5}...`, "nb-hint"));
+    const row = el("div", null, "actions-row");
+    row.style.justifyContent = "flex-start";
+    const read = el("button", "סימון כנקרא", "btn btn-primary btn-sm");
+    read.type = "button";
+    read.id = "new-booking-mark-read";
+    read.addEventListener("click", () => {
+      const newest = items.reduce((m, r) => (r.created_at > m ? r.created_at : m), getLastSeen());
+      setLastSeen(newest);
+      items = [];
+      render();
+    });
+    row.appendChild(read);
+    if (scope === "admin") {
+      const go = el("button", "מעבר לתור העבודה", "btn btn-ghost btn-sm");
+      go.type = "button";
+      go.addEventListener("click", () => {
+        const q = document.getElementById("work-queue");
+        if (q && q.scrollIntoView) q.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      row.appendChild(go);
+    }
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      const nb = el("button", "הפעלת התראות בדפדפן", "btn btn-ghost btn-sm");
+      nb.type = "button";
+      nb.id = "new-booking-enable-notify";
+      nb.addEventListener("click", async () => {
+        try { await Notification.requestPermission(); } catch (e) {}
+        render();
+      });
+      row.appendChild(nb);
+    }
+    b.appendChild(row);
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      b.appendChild(el("div", "התראות הדפדפן פועלות רק כשהעמוד פתוח בדפדפן. התראה כשהעמוד סגור תדרוש אימייל/SMS בעתיד.", "nb-hint"));
+    }
+  }
+
+  function maybeNotify(fresh) {
+    try {
+      if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+      if (document.visibilityState === "visible") return;
+      const unseen = fresh.filter((r) => !notifiedIds.has(r.id));
+      if (!unseen.length) return;
+      unseen.forEach((r) => notifiedIds.add(r.id));
+      new Notification(`יש ${unseen.length} ביקורים חדשים`, { body: "נקבעו ביקורים חדשים במערכת." });
+    } catch (e) {}
+  }
+
+  async function poll() {
+    try {
+      if (typeof supabaseClient === "undefined") return;
+      if (navigator.onLine === false) return;
+      let q = supabaseClient
+        .from("bookings")
+        .select("id, created_at, scheduled_at, visit_purpose, staff_id, patient_id, patients(full_name)")
+        .eq("status", "scheduled")
+        .gt("created_at", getLastSeen())
+        .order("created_at", { ascending: false })
+        .limit(50);
+      if (scope !== "admin" && staffId != null) q = q.eq("staff_id", staffId);
+      const { data, error } = await q;
+      if (error || !Array.isArray(data)) return;
+      items = data;
+      render();
+      maybeNotify(data);
+    } catch (e) { /* שקט */ }
+  }
+
+  function start() {
+    stop();
+    timer = setInterval(() => { if (document.visibilityState === "visible") poll(); }, POLL_MS);
+  }
+  function stop() { if (timer) { clearInterval(timer); timer = null; } }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") poll();
+  });
+  start();
+  poll();
+  window.__newBookingWatcher = { poll, stop };
+  return window.__newBookingWatcher;
+}

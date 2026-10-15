@@ -485,6 +485,7 @@
     loginScreen.style.display = "none";
     adminApp.style.display = "flex";
     await Promise.all([loadBookings(), loadStaff(), loadPatients(), loadAttentionDashboard(), loadContacts()]);
+    try { startNewBookingWatcher({ scope: "admin" }); } catch (e) {}
   }
 
   // ===== תור עבודה / הזמנות ===== הועבר ל-js/admin/work-queue.js (loadBookings/
