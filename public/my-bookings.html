@@ -27,45 +27,7 @@
     <h1 data-i18n="myBookings.h1">ההזמנות שלי</h1>
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
 
-    <div class="section-title" data-i18n="myBookings.accessTitle">גישה מכל מכשיר</div>
-    <div class="card card-compact" id="phone-link-card" style="margin-bottom:16px;">
-      <p id="phone-link-status" style="color:var(--text-muted); margin-top:0;"></p>
-
-      <div id="phone-link-form">
-        <div class="field">
-          <label for="phone-link-input" data-i18n="myBookings.phoneNumberLabel">מספר טלפון</label>
-          <input type="tel" id="phone-link-input" placeholder="05XXXXXXXX" autocomplete="tel">
-        </div>
-        <button class="btn btn-secondary btn-sm" id="phone-link-send-btn" data-i18n="myBookings.sendCodeButton">שליחת קוד אימות</button>
-        <div id="phone-link-code-row" style="display:none; margin-top:10px;">
-          <div class="field">
-            <label for="phone-link-code-input" data-i18n="myBookings.verifyCodeLabel">קוד אימות</label>
-            <input type="text" id="phone-link-code-input" inputmode="numeric" maxlength="6" placeholder="123456">
-          </div>
-          <button class="btn btn-primary btn-sm" id="phone-link-verify-btn" data-i18n="myBookings.verifyAndLinkButton">אימות וקישור</button>
-        </div>
-        <div class="error-msg" id="phone-link-error" role="alert" aria-live="assertive"></div>
-      </div>
-
-      <details style="margin-top:12px;">
-        <summary style="cursor:pointer; color:var(--text-muted); font-size:14px;" data-i18n="myBookings.alreadyLinkedSummary">כבר קישרת טלפון ממכשיר אחר? התחברות</summary>
-        <div style="margin-top:10px;">
-          <div class="field">
-            <label for="phone-signin-input" data-i18n="myBookings.phoneNumberLabel">מספר טלפון</label>
-            <input type="tel" id="phone-signin-input" placeholder="05XXXXXXXX" autocomplete="tel">
-          </div>
-          <button class="btn btn-secondary btn-sm" id="phone-signin-send-btn" data-i18n="myBookings.sendCodeButtonShort">שליחת קוד</button>
-          <div id="phone-signin-code-row" style="display:none; margin-top:10px;">
-            <div class="field">
-              <label for="phone-signin-code-input" data-i18n="myBookings.verifyCodeLabel">קוד אימות</label>
-              <input type="text" id="phone-signin-code-input" inputmode="numeric" maxlength="6" placeholder="123456">
-            </div>
-            <button class="btn btn-primary btn-sm" id="phone-signin-verify-btn" data-i18n="myBookings.signInButton">התחברות</button>
-          </div>
-          <div class="error-msg" id="phone-signin-error" role="alert" aria-live="assertive"></div>
-        </div>
-      </details>
-    </div>
+    <div id="account-card-host"></div>
 
     <div class="section-title" data-i18n="myBookings.upcomingTitle">ביקורים קרובים</div>
     <div id="upcoming-list" aria-live="polite"></div>
@@ -132,90 +94,6 @@
     const user = await ensureGuestSession();
     if (!user) return;
     wireReset();
-    initPhoneIdentity(user);
-
-    // ===== זהות אופציונלית לפי טלפון — תשתית בלבד, לא מופעלת בפועל =====
-    // התחברות אנונימית (ensureGuestSession) נשארת ברירת המחדל ולא נגעה בה כלל —
-    // זו תוספת אופציונלית: מקשרת מספר טלפון ל-session האנונימי הקיים (supabase-js
-    // updateUser על session אנונימי משדרג אותו לזהות קבועה, שומר על אותו auth.uid()
-    // ולכן על אותה שורת patients — לא "הרשמה חדשה", לא שובר guest checkout).
-    // דורש ספק SMS מוגדר ב-supabase/config.toml [auth.sms] (enable_signup=false כרגע,
-    // בכוונה — אין ספק מחובר) לפני שזה באמת ישלח קוד; עד אז נכשל בבירור עם שגיאת
-    // Supabase אמיתית ("SMS provider not configured"), לא נכשל בשקט.
-    function normalizeIsraeliPhone(raw) {
-      const digits = raw.replace(/\D/g, "");
-      if (!digits) return null;
-      if (digits.startsWith("972")) return "+" + digits;
-      if (digits.startsWith("0")) return "+972" + digits.slice(1);
-      return "+" + digits;
-    }
-
-    function initPhoneIdentity(u) {
-      const statusEl = document.getElementById("phone-link-status");
-      const formEl = document.getElementById("phone-link-form");
-      if (u.phone) {
-        statusEl.textContent = tf("myBookings.phoneLinkStatusLinked", { phone: u.phone });
-        formEl.style.display = "none";
-        return;
-      }
-      statusEl.textContent = t("myBookings.phoneLinkStatusDefault");
-
-      let pendingPhone = null;
-      document.getElementById("phone-link-send-btn").addEventListener("click", async () => {
-        const errEl = document.getElementById("phone-link-error");
-        hideError(errEl);
-        const phone = normalizeIsraeliPhone(document.getElementById("phone-link-input").value);
-        if (!phone) { showError(errEl, t("myBookings.invalidPhone")); return; }
-        const btn = document.getElementById("phone-link-send-btn");
-        setButtonLoading(btn, true, t("myBookings.sending"));
-        const { error } = await supabaseClient.auth.updateUser({ phone });
-        setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
-        pendingPhone = phone;
-        document.getElementById("phone-link-code-row").style.display = "block";
-      });
-      document.getElementById("phone-link-verify-btn").addEventListener("click", async () => {
-        const errEl = document.getElementById("phone-link-error");
-        hideError(errEl);
-        const code = document.getElementById("phone-link-code-input").value.trim();
-        if (!pendingPhone || !code) { showError(errEl, t("myBookings.missingCode")); return; }
-        const btn = document.getElementById("phone-link-verify-btn");
-        setButtonLoading(btn, true, t("myBookings.verifying"));
-        const { error } = await supabaseClient.auth.verifyOtp({ phone: pendingPhone, token: code, type: "phone_change" });
-        setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
-        location.reload();
-      });
-    }
-
-    (function initPhoneSignIn() {
-      let pendingPhone = null;
-      document.getElementById("phone-signin-send-btn").addEventListener("click", async () => {
-        const errEl = document.getElementById("phone-signin-error");
-        hideError(errEl);
-        const phone = normalizeIsraeliPhone(document.getElementById("phone-signin-input").value);
-        if (!phone) { showError(errEl, t("myBookings.invalidPhone")); return; }
-        const btn = document.getElementById("phone-signin-send-btn");
-        setButtonLoading(btn, true, t("myBookings.sending"));
-        const { error } = await supabaseClient.auth.signInWithOtp({ phone });
-        setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
-        pendingPhone = phone;
-        document.getElementById("phone-signin-code-row").style.display = "block";
-      });
-      document.getElementById("phone-signin-verify-btn").addEventListener("click", async () => {
-        const errEl = document.getElementById("phone-signin-error");
-        hideError(errEl);
-        const code = document.getElementById("phone-signin-code-input").value.trim();
-        if (!pendingPhone || !code) { showError(errEl, t("myBookings.missingCode")); return; }
-        const btn = document.getElementById("phone-signin-verify-btn");
-        setButtonLoading(btn, true, t("myBookings.signingIn"));
-        const { error } = await supabaseClient.auth.verifyOtp({ phone: pendingPhone, token: code, type: "sms" });
-        setButtonLoading(btn, false);
-        if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
-        location.reload();
-      });
-    })();
 
     const errorBox = document.getElementById("error-box");
 
@@ -240,6 +118,7 @@
       if (error) {
         document.getElementById("upcoming-list").innerHTML = "";
         showError(errorBox, t("myBookings.errLoadingBookings") + friendlyErrorMessageLocalized(error));
+        renderAccountCard(document.getElementById("account-card-host"), user, { showUpgrade: false, allowSignIn: !!user.is_anonymous });
         return;
       }
 
@@ -253,6 +132,9 @@
 
       renderList(document.getElementById("past-list"), past, false);
       document.getElementById("past-empty").style.display = past.length ? "none" : "block";
+
+      const hasHistory = (bookings || []).length > 0;
+      renderAccountCard(document.getElementById("account-card-host"), user, { showUpgrade: hasHistory, allowSignIn: !hasHistory, onChange: () => location.reload() });
     }
 
     function renderList(container, list, cancellable) {
@@ -266,7 +148,9 @@
         item.className = "booking-item";
         item.innerHTML = `
           <div class="info">
+            <div class="meta" style="font-weight:600;">${escapeHtml(tf("account.orderLabel", { id: b.id }))}</div>
             <div class="purpose">${purposeLabel(b.visit_purpose)}</div>
+            ${bookingStatusStepsHtml(b)}
             <div class="meta">${staffLabel} · ${formatDateLocalized(date)} ${formatTimeLocalized(date)}</div>
             ${b.notes ? `<div class="meta">${t("myBookings.noteLabel")}${escapeHtml(b.notes)}</div>` : ""}
           </div>

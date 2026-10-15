@@ -141,6 +141,19 @@ const I18N_STRINGS = {
       confirmedPurposeLabel: "מטרת הביקור:", confirmedWhenLabel: "מועד:", confirmedAddressLabel: "כתובת:",
       confirmedGoToBookings: "מעבר להזמנות שלי",
     },
+    account: {
+      saveTitle: "שמרו את ההיסטוריה שלכם",
+      saveIntro: "אפשר ליצור חשבון עם אימייל וסיסמה כדי לראות את ההזמנות גם ממכשיר אחר. זה אופציונלי — ההזמנה כבר נשמרה.",
+      emailLabel: "אימייל", passwordLabel: "סיסמה (לפחות 8 תווים)",
+      saveButton: "שמירת ההיסטוריה", saving: "שומר...",
+      invalidEmail: "יש להזין כתובת אימייל תקינה", pwTooShort: "הסיסמה חייבת להכיל לפחות 8 תווים",
+      upgraded: "החשבון נשמר. ההזמנות שלכם זמינות מעכשיו גם ממכשיר אחר.",
+      confirmEmail: "שלחנו הודעת אישור לכתובת האימייל. יש ללחוץ על הקישור בהודעה כדי להשלים את שמירת החשבון.",
+      haveAccount: "יש לי חשבון — כניסה", signInTitle: "כניסה לחשבון", signInButton: "כניסה", signingIn: "נכנס...",
+      signedInAs: "מחוברים כ-{email}", signOut: "התנתקות",
+      orderLabel: "הזמנה #{id}", statusAria: "סטטוס ההזמנה: {step}",
+      stepReceived: "התקבלה", stepAssigned: "נקבעה", stepInProgress: "בדרך אליכם / בביצוע", stepDone: "בוצעה", stepCancelled: "בוטלה",
+    },
     myBookings: {
       title: "בית חם — ההזמנות שלי",
       h1: "ההזמנות שלי",
@@ -284,6 +297,19 @@ const I18N_STRINGS = {
       confirmedTitle: "Your visit has been booked successfully!",
       confirmedPurposeLabel: "Visit purpose:", confirmedWhenLabel: "When:", confirmedAddressLabel: "Address:",
       confirmedGoToBookings: "Go to My Bookings",
+    },
+    account: {
+      saveTitle: "Save your history",
+      saveIntro: "Create an account with an email and password to see your bookings from another device too. Optional — your booking is already saved.",
+      emailLabel: "Email", passwordLabel: "Password (at least 8 characters)",
+      saveButton: "Save my history", saving: "Saving...",
+      invalidEmail: "Please enter a valid email address", pwTooShort: "Password must be at least 8 characters",
+      upgraded: "Account saved. Your bookings are now available from another device too.",
+      confirmEmail: "We sent a confirmation message to your email. Click the link in it to finish saving your account.",
+      haveAccount: "I have an account — sign in", signInTitle: "Sign in", signInButton: "Sign in", signingIn: "Signing in...",
+      signedInAs: "Signed in as {email}", signOut: "Sign out",
+      orderLabel: "Booking #{id}", statusAria: "Booking status: {step}",
+      stepReceived: "Received", stepAssigned: "Scheduled", stepInProgress: "On the way / in progress", stepDone: "Completed", stepCancelled: "Cancelled",
     },
     myBookings: {
       title: "Warm Home — My Bookings",
@@ -429,6 +455,19 @@ const I18N_STRINGS = {
       confirmedPurposeLabel: "غرض الزيارة:", confirmedWhenLabel: "الموعد:", confirmedAddressLabel: "العنوان:",
       confirmedGoToBookings: "الانتقال إلى حجوزاتي",
     },
+    account: {
+      saveTitle: "احفظ سجلّك",
+      saveIntro: "يمكنك إنشاء حساب بالبريد الإلكتروني وكلمة مرور لرؤية حجوزاتك من جهاز آخر أيضًا. اختياري — حجزك محفوظ بالفعل.",
+      emailLabel: "البريد الإلكتروني", passwordLabel: "كلمة المرور (8 أحرف على الأقل)",
+      saveButton: "حفظ السجل", saving: "جارٍ الحفظ...",
+      invalidEmail: "يرجى إدخال بريد إلكتروني صالح", pwTooShort: "يجب أن تحتوي كلمة المرور على 8 أحرف على الأقل",
+      upgraded: "تم حفظ الحساب. حجوزاتك متاحة الآن من جهاز آخر أيضًا.",
+      confirmEmail: "أرسلنا رسالة تأكيد إلى بريدك الإلكتروني. اضغط على الرابط فيها لإكمال حفظ الحساب.",
+      haveAccount: "لدي حساب — تسجيل الدخول", signInTitle: "تسجيل الدخول", signInButton: "دخول", signingIn: "جارٍ الدخول...",
+      signedInAs: "مسجّل الدخول باسم {email}", signOut: "تسجيل الخروج",
+      orderLabel: "حجز رقم #{id}", statusAria: "حالة الحجز: {step}",
+      stepReceived: "تم الاستلام", stepAssigned: "تم تحديد الموعد", stepInProgress: "في الطريق إليكم / قيد التنفيذ", stepDone: "تم التنفيذ", stepCancelled: "ملغى",
+    },
     myBookings: {
       title: "بيت دافئ — حجوزاتي",
       h1: "حجوزاتي",
@@ -571,4 +610,112 @@ function renderLangSwitch() {
   });
   select.addEventListener("change", () => { if (select.value !== getLang()) setLang(select.value); });
   nav.appendChild(select);
+}
+
+
+// ===== חשבון אופציונלי (אימייל+סיסמה) ומעקב סטטוס הזמנה =====
+// משדרג את אותו משתמש אנונימי (updateUser) — אותו auth.uid(), ההזמנות נשמרות.
+// opts: { showUpgrade, allowSignIn, onChange }
+function renderAccountCard(host, user, opts) {
+  opts = opts || {};
+  host.innerHTML = "";
+  if (!user) return;
+  if (!user.is_anonymous && user.email) {
+    host.innerHTML = `<div class="card card-compact" style="margin-bottom:16px;"><p style="margin:0 0 10px;">${escapeHtml(tf("account.signedInAs", { email: user.email }))}</p><button type="button" class="btn btn-secondary btn-sm" id="account-signout-btn">${t("account.signOut")}</button></div>`;
+    document.getElementById("account-signout-btn").addEventListener("click", async () => {
+      await supabaseClient.auth.signOut();
+      try { sessionStorage.clear(); } catch (e) {}
+      location.reload();
+    });
+    return;
+  }
+  const showUpgrade = opts.showUpgrade !== false;
+  const parts = [];
+  if (showUpgrade) {
+    parts.push(`<div class="card card-compact" style="margin-bottom:16px;" id="account-upgrade">
+      <div class="section-title" style="margin-top:0;">${t("account.saveTitle")}</div>
+      <p style="color:var(--text-muted); margin-top:0;">${t("account.saveIntro")}</p>
+      <div class="field"><label for="account-email">${t("account.emailLabel")}</label><input type="email" id="account-email" autocomplete="email" dir="ltr"></div>
+      <div class="field"><label for="account-password">${t("account.passwordLabel")}</label><input type="password" id="account-password" autocomplete="new-password" minlength="8" dir="ltr"></div>
+      <div class="error-msg" id="account-error" role="alert" aria-live="assertive"></div>
+      <div class="success-msg" id="account-success" role="status" aria-live="polite"></div>
+      <button type="button" class="btn btn-primary btn-sm" id="account-save-btn">${t("account.saveButton")}</button>
+    </div>`);
+  }
+  if (opts.allowSignIn) {
+    parts.push(`<div class="card card-compact" style="margin-bottom:16px;" id="account-signin">
+      <a href="#" id="account-signin-toggle">${t("account.haveAccount")}</a>
+      <div id="account-signin-form" style="display:none; margin-top:10px;">
+        <div class="field"><label for="signin-email">${t("account.emailLabel")}</label><input type="email" id="signin-email" autocomplete="email" dir="ltr"></div>
+        <div class="field"><label for="signin-password">${t("account.passwordLabel")}</label><input type="password" id="signin-password" autocomplete="current-password" dir="ltr"></div>
+        <div class="error-msg" id="signin-error" role="alert" aria-live="assertive"></div>
+        <button type="button" class="btn btn-primary btn-sm" id="signin-btn">${t("account.signInButton")}</button>
+      </div>
+    </div>`);
+  }
+  host.innerHTML = parts.join("");
+
+  const saveBtn = document.getElementById("account-save-btn");
+  if (saveBtn) saveBtn.addEventListener("click", async () => {
+    const errEl = document.getElementById("account-error");
+    const okEl = document.getElementById("account-success");
+    hideError(errEl); okEl.classList.remove("show");
+    const email = document.getElementById("account-email").value.trim();
+    const password = document.getElementById("account-password").value;
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { showError(errEl, t("account.invalidEmail")); return; }
+    if (password.length < 8) { showError(errEl, t("account.pwTooShort")); return; }
+    setButtonLoading(saveBtn, true, t("account.saving"));
+    let res;
+    try { res = await supabaseClient.auth.updateUser({ email, password }); } catch (err) { res = { error: err }; }
+    setButtonLoading(saveBtn, false);
+    if (res.error) { showError(errEl, friendlyErrorMessageLocalized(res.error)); return; }
+    const u = res.data && res.data.user;
+    const pending = !u || u.is_anonymous === true || !!u.new_email;
+    okEl.textContent = pending ? t("account.confirmEmail") : t("account.upgraded");
+    okEl.classList.add("show");
+    document.getElementById("account-email").value = "";
+    document.getElementById("account-password").value = "";
+    if (!pending && opts.onChange) opts.onChange();
+  });
+
+  const toggle = document.getElementById("account-signin-toggle");
+  if (toggle) {
+    toggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      document.getElementById("account-signin-form").style.display = "block";
+      document.getElementById("signin-email").focus();
+    });
+    document.getElementById("signin-btn").addEventListener("click", async () => {
+      const errEl = document.getElementById("signin-error");
+      hideError(errEl);
+      const email = document.getElementById("signin-email").value.trim();
+      const password = document.getElementById("signin-password").value;
+      if (!email || !password) { showError(errEl, t("account.invalidEmail")); return; }
+      const btn = document.getElementById("signin-btn");
+      setButtonLoading(btn, true, t("account.signingIn"));
+      let res;
+      try { res = await supabaseClient.auth.signInWithPassword({ email, password }); } catch (err) { res = { error: err }; }
+      setButtonLoading(btn, false);
+      if (res.error) { showError(errEl, friendlyErrorMessageLocalized(res.error)); return; }
+      location.reload();
+    });
+  }
+}
+
+// שלבי סטטוס ידידותיים למטופל מתוך status + workflow_status הקיימים
+function bookingStatusStepsHtml(b) {
+  const label = (k) => t("account." + k);
+  if (b.status === "cancelled") {
+    return `<span class="status-badge cancelled" aria-label="${escapeHtml(tf("account.statusAria", { step: label("stepCancelled") }))}">${label("stepCancelled")}</span>`;
+  }
+  const keys = ["stepReceived", "stepAssigned", "stepInProgress", "stepDone"];
+  let cur = 0;
+  if (b.status === "completed") cur = 3;
+  else if (b.workflow_status === "in_progress") cur = 2;
+  else if (b.workflow_status === "assigned") cur = 1;
+  const items = keys.map((k, i) => {
+    const cls = i < cur || (i === cur && cur === 3) ? "done" : i === cur ? "active" : "";
+    return `<li class="step ${cls}"${i === cur ? ' aria-current="step"' : ""}>${label(k)}</li>`;
+  }).join("");
+  return `<ol class="steps" style="margin:6px 0 0; padding:0; list-style:none; flex-wrap:wrap; justify-content:flex-start;" aria-label="${escapeHtml(tf("account.statusAria", { step: label(keys[cur]) }))}">${items}</ol>`;
 }

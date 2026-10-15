@@ -84,10 +84,12 @@
 
     <div id="confirmation-panel" class="card" style="display:none;">
       <div class="success-msg" id="success-box" role="status" aria-live="polite"></div>
+      <p><strong id="confirmed-order"></strong></p>
       <p><span data-i18n="booking.staffLabel">אחות או אח:</span> <strong id="confirmed-staff"></strong></p>
       <p><span data-i18n="booking.confirmedPurposeLabel">מטרת הביקור:</span> <strong id="confirmed-purpose"></strong></p>
       <p><span data-i18n="booking.confirmedWhenLabel">מועד:</span> <strong id="confirmed-when"></strong></p>
       <p><span data-i18n="booking.confirmedAddressLabel">כתובת:</span> <strong id="confirmed-address"></strong></p>
+      <div id="account-card-host" style="margin-top:16px;"></div>
       <div class="actions-row">
         <a href="my-bookings.html" class="btn btn-primary btn-full" data-i18n="booking.confirmedGoToBookings">מעבר להזמנות שלי</a>
       </div>
@@ -316,17 +318,19 @@
       setButtonLoading(confirmBtn, true, t("booking.savingBooking"));
       const notes = document.getElementById("notes").value.trim() || null;
 
-      let error;
+      let error, newBookingId = null;
       try {
         ({ error } = await savePatientDetails(user, { full_name: fullName, national_id: nationalId, phone, address }));
         if (!error) {
-          ({ error } = await supabaseClient.from("bookings").insert({
+          let inserted;
+          ({ data: inserted, error } = await supabaseClient.from("bookings").insert({
             patient_id: user.id,
             staff_id: staff.id,
             visit_purpose: selectedPurpose,
             scheduled_at: selectedSlot.toISOString(),
             notes,
-          }));
+          }).select("id").single());
+          if (!error && inserted) newBookingId = inserted.id;
         }
       } catch (err) {
         error = err;
@@ -349,6 +353,11 @@
 
       successBox.textContent = t("booking.confirmedTitle");
       successBox.classList.add("show");
+      const orderEl = document.getElementById("confirmed-order");
+      if (newBookingId != null) orderEl.textContent = tf("account.orderLabel", { id: newBookingId });
+      else orderEl.parentElement.style.display = "none";
+      const { data: { user: curUser } } = await supabaseClient.auth.getUser();
+      renderAccountCard(document.getElementById("account-card-host"), curUser || user, { showUpgrade: true, allowSignIn: false });
       document.getElementById("confirmed-staff").textContent = `${staff.full_name} (${roleLabel(staff.role)})`;
       document.getElementById("confirmed-purpose").textContent = purposeLabel(selectedPurpose);
       document.getElementById("confirmed-when").textContent = `${formatDateLocalized(selectedSlot)} ${formatTimeLocalized(selectedSlot)}`;
