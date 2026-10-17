@@ -43,6 +43,11 @@ cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload 
 ## טסטים / CI
 `node --test tests/unit/*.test.js` (JS) + `pytest` (`predictive-service/`) רצים על כל push. Playwright ב-`tests/e2e/`: 3 ספקים ממוקקים (בלי DB חי) רצים אוטומטית; `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא אומתו בפועל (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים).
 
+## הוראה קבועה: שמירה ל-GitHub בסוף כל משימה (הוראת הבעלים, 2026-10-17)
+בסיום **כל** משימת פיתוח, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע), בצע **commit ו-push ל-`origin main` אוטומטית**, בלי לחכות לאישור נוסף, ואמת שההעלאה הצליחה: `git fetch && git status -sb` (בלי "ahead") ו-`gh api repos/diabhelal/home-care-crm/commits/main` תואם ל-`git rev-parse HEAD`. אם הבדיקות או ה-push נכשלים - דווח במפורש והמשימה **לא** הושלמה.
+- **לא נכלל באישור הקבוע:** force-push, שכתוב היסטוריה, שינוי נראות הריפו, שינויי DB/מיגרציות, פריסה, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
+- טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) נשארות מחוץ לריפו.
+
 ## מצב נוכחי (אוקטובר 2026) — קרא לפני עבודה
 - **Backend תפעולי (Python/FastAPI) ב-`backend/`**: הזמנה, זמינות+מרווח נסיעה 30 דק', אישור/דחייה/שיבוץ/ביטול, check-in עם זמן שרת, השלמת ביקור אטומית, חיזוי סיכון והתראות. **הדפדפן לא כותב ישירות ל-`bookings`/`visit_reports`/`risk_predictions`/`alerts`** — הכול דרך `backendFetch` (`public/app.js`). **בלי ה-backend רץ אי אפשר להזמין** (הודעת כשל, בכוונה).
 - **SQL שהוחל על הפרויקט ב-2026-10-15** (001–007: עמודות אישור/כתובת/check-in, פונקציות, טריגרי הגנה על `bookings`, כתיבת חיזוי/התראה בשרת עם HMAC, כפיית זהות כותב). רשום ב-`supabase/migrations/` וב-`supabase/proposed/APPLIED.md`. סוד האטסטציה נמצא בטבלה `server_secrets` (לא ב-git) ובערך `RISK_ATTESTATION_SECRET` ב-`backend/.env` (מחוץ ל-git; לקרוא מה-DB דרך SQL editor כשמשחזרים סביבה).
