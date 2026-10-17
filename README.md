@@ -66,24 +66,33 @@ It was built as a hands-on exercise in designing a real Postgres/RLS security mo
 ## Architecture
 
 ```
-┌─────────────────────────┐         ┌──────────────────────────┐
-│   public/ (static site)  │         │  predictive-service/      │
-│   HTML + CSS + vanilla JS │  fetch  │  Python / FastAPI         │
-│   (no build step, no      │───────▶│  (local-only, port 8000)  │
-│    framework)              │         │  rule-based risk models  │
-└───────────┬───────────────┘         └──────────────────────────┘
-            │ supabase-js (publishable key only)
-            ▼
-┌──────────────────────────────────────────────┐
-│                  Supabase                      │
-│  Postgres + Auth + PostgREST Data API + RLS     │
-└──────────────────────────────────────────────┘
+                    ┌─────────────────────────────┐
+                    │  public/ (static site)       │
+                    │  HTML + CSS + vanilla JS     │
+                    └──┬──────────┬────────────┬──┘
+        reads (RLS)    │          │ writes     │ live risk preview,
+        supabase-js,   │          │ (user JWT) │ capacity forecast
+        publishable key│          ▼            ▼
+                       │   ┌────────────────┐  ┌──────────────────────┐
+                       │   │ backend/        │─▶│ predictive-service/   │
+                       │   │ Python/FastAPI  │  │ Python/FastAPI        │
+                       │   │ port 8001       │  │ port 8000, rule-based │
+                       │   └───────┬────────┘  └──────────────────────┘
+                       ▼           │ caller's JWT (RLS kept)
+                ┌─────────────────────────────────┐
+                │ Supabase: Postgres + Auth + RLS   │
+                │ + Edge Function create-staff-login│
+                └─────────────────────────────────┘
 ```
+
+Neither Python service is hosted yet; both run locally.
+
+
 
 - The frontend is a set of static HTML pages. **Reads** go to Supabase's REST API (PostgREST) through `supabase-js`; **writes to bookings, visit reports, risk predictions and alerts go through the Python backend (`backend/`)** — the browser has no direct write path to those tables.
 - All data access control is enforced in the database via **Row Level Security (RLS)** policies, not in application code.
-- A separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
-- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs, on every push/PR: a secret scan over the whole git history, the JS unit tests, the `predictive-service` pytest suite, and 15 mocked Playwright specs. **CI does not yet run `backend/tests` or `backend/tests_db`** (they are run locally). There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
+- A separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — it receives numbers (from the browser for the live preview and capacity forecast, and from the backend when a risk assessment is stored) and returns a classification.
+- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs, on every push/PR: a secret scan over the whole git history, the JS unit tests, the `predictive-service` pytest suite, the `backend` pytest suite plus its isolated-database tests (`backend/tests_db`, throwaway local Postgres), and 15 mocked Playwright specs. There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
 
 ### Python backend for operational logic (`backend/`)
 
@@ -195,7 +204,7 @@ So the system today is a **rule-based decision-support tool with classical stati
 
 - **RLS is the access-control layer.** All 16 application tables have RLS enabled; policies scope patients to their own rows via `auth.uid()`, staff to their assigned patients via a `current_staff_id()`/`is_my_patient()` pair of `SECURITY DEFINER` helper functions, and a separate permissive admin policy checks `(auth.jwt() -> 'app_metadata' ->> 'is_admin')::boolean` — `app_metadata` (unlike `user_metadata`) can only be set via the privileged Auth Admin API, so a user can never grant themselves admin.
 - **Least-privilege table grants.** The `anon` Postgres role has zero grants on every application table (Supabase's default table privileges were explicitly revoked); `authenticated` is granted only the specific commands each table actually needs (e.g. `patients` has no `DELETE` grant at all). A grant-drift bug was found and fixed during a later audit — see `supabase/migrations/20260925074016_*.sql`.
-- **A real backend component exists: `create-staff-login` (Supabase Edge Function).** Provisioning a login for a staff member requires the service-role key (to call the Auth Admin API), which must never run in the browser — this one deployed, always-on Deno function holds it instead, checks the caller is an admin, and invites the staff member by email. It's the one place in this project that isn't "frontend talks directly to Supabase" — everything else still is.
+- **A real backend component exists: `create-staff-login` (Supabase Edge Function).** Provisioning a login for a staff member requires the service-role key (to call the Auth Admin API), which must never run in the browser — this one deployed, always-on Deno function holds it instead, checks the caller is an admin, and invites the staff member by email. It is one of two server-side components: the other is the Python backend (`backend/`), which performs the booking, visit and clinical-record writes with the caller's own JWT and no service key. The browser still reads from Supabase directly (RLS-scoped).
 - **Publishable-key-only frontend.** The browser only ever holds Supabase's public `sb_publishable_...` key (`public/config.js`); the service-role key is never present in any client-side file, and is used only inside the Edge Function above (server-side) and out-of-band (via the Supabase MCP/Admin API during setup) to create synthetic auth users and flag the admin account.
 - **Security-invoker views.** The `current_patient_risk` view is explicitly created with `security_invoker = true` — without it, Postgres views default to running with the view creator's privileges, which would silently bypass RLS for anyone querying it (this was caught by Supabase's automated security advisor during development and fixed before shipping).
 - **XSS mitigation.** Free-text fields rendered back to patients (e.g. a visit report's treatment summary) are HTML-escaped before insertion into the DOM; a captured signature is only rendered if it matches the expected `data:image/png;base64,` format.
@@ -362,7 +371,7 @@ home-care-crm/
 Being transparent about what's *not* built, since the goal of this README is accuracy over ambition:
 
 - **Two roles exist (admin, staff), not fully-general RBAC.** Real staff/nurse logins exist (`employee.html`/`employee-login.html`) with their own RLS-enforced scope (`current_staff_id()`/`is_my_patient()` — a staff member sees only their assigned patients/bookings), distinct from the single shared admin role. There's no finer-grained permission system beyond that (no "family member" role, no per-staff feature toggles, and the admin/staff patient-record UIs intentionally differ in which tabs/actions are exposed rather than being driven by a configurable permission model).
-- **No client-side data-fetching/caching layer.** All data fetching is direct `supabase-js` calls per page load; there is no TanStack Query, no optimistic UI updates, and no Supabase Realtime subscriptions — the UI does not update live when another user changes data.
+- **No client-side data-fetching/caching layer.** All data **reads** are direct `supabase-js` calls per page load (writes to critical tables go through the backend); there is no TanStack Query, no optimistic UI updates, and no Supabase Realtime subscriptions — the UI does not update live when another user changes data.
 - **Automated tests exist; two live-database E2E specs are never run.** JS unit tests, backend and predictive-service pytest, database tests on an isolated local Postgres, and the mocked Playwright suite run in CI. `booking.spec.js` and `visit-report.spec.js` write real rows, need a dedicated test Supabase project that does not exist yet, and must **not** be run against the live project. One booking cycle (request, approve, check-in, complete, cancel) was run manually against the real project and backend on 2026-10-15; it was not saved as an automated test (`docs/REVIEW.md`). See `tests/e2e/README.md`.
 - **No external emergency notification.** Alerts are created server-side and shown in the admin/staff dashboards (plus an in-app banner for new booking requests), but nothing pushes an email, SMS or page; a Red risk badge needs a human to look at it. Email/SMS notifications for staff would require an external provider.
 - **Background medical conditions are now used in risk scoring, but only as an escalation rule.** A Yellow vital is escalated to Red when a relevant background condition or smoking status is present (see `predictive-service/main.py`, `BACKGROUND_ESCALATION_VITALS`); it never touches an already-Green or already-Red vital, and it's still a hand-written rule, not a learned model.
