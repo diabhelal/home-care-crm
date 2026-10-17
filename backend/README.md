@@ -13,7 +13,7 @@ cp .env.example .env   # fill SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS, 
 pytest -q --ignore=tests_db
 uvicorn app.main:app --port 8001 --env-file .env
 ```
-Last verified run (2026-10-17): `pytest -q --ignore=tests_db` 137 passed; `pytest tests_db -q` 47 passed. CI does not run these yet.
+Last verified run (2026-10-17): `pytest -q --ignore=tests_db` 137 passed; `pytest tests_db -q` 47 passed. CI runs both (job `backend-tests`).
 
 ## Layout
 `app/auth.py` JWT verification (pluggable `TokenVerifier`) - `app/state.py` transitions + `display_state` -
