@@ -151,3 +151,12 @@ def test_risk_rpc_permission_denied_maps_to_forbidden():
     with pytest.raises(DomainError) as e:
         repo.record_risk_prediction(1, {})
     assert e.value.status == 403
+
+
+def test_update_booking_conflict_from_the_database_guard_maps_to_slot_taken():
+    # proposed/010: the DB rejects an overlapping / buffer-violating UPDATE with SQLSTATE 23505
+    def h(req):
+        assert req.method == "PATCH"
+        return httpx.Response(409, json={"code": "23505", "message": "staff member not available at this time"})
+    with pytest.raises(SlotTakenError):
+        make(h).update_booking(7, {"staff_id": 2})

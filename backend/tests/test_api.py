@@ -525,3 +525,16 @@ def test_outcome_body_cannot_smuggle_other_columns(world):
                            headers=H("staff1"))
     assert r.status_code == 200
     assert world.repo.reports[rid]["staff_id"] == 1 and world.repo.reports[rid]["treatment_summary"] == "ok"
+
+
+def test_reassign_lost_race_is_reported_as_a_clear_conflict(world, monkeypatch):
+    # the availability check passes, then the DB guard (concurrent writer won) refuses the UPDATE
+    from app.errors import SlotTakenError
+    a = _new(world, 1)
+    def refuse(booking_id, fields):
+        raise SlotTakenError()
+    monkeypatch.setattr(world.repo, "update_booking", refuse)
+    r = world.client.post(f"/admin/bookings/{a}/reassign", json={"staff_id": 2}, headers=H("admin"))
+    assert r.status_code == 409
+    assert r.json()["code"] == "slot_taken"
+    assert r.json()["detail"]

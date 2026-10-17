@@ -62,6 +62,7 @@ drop trigger if exists bookings_assign_active_staff_guard on public.bookings;
 create trigger bookings_assign_active_staff_guard before insert or update of staff_id on public.bookings
   for each row execute function public.bookings_assign_active_staff_guard();
 
+drop policy if exists medical_staff_select_own_history on public.medical_staff;
 create policy medical_staff_select_own_history on public.medical_staff
   for select to authenticated
   using (exists (select 1 from public.bookings b

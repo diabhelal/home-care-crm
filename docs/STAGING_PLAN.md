@@ -54,8 +54,31 @@ on conflict (name) do update set value = excluded.value;
 
 אחר כך: `get_advisors` שוב והשוואה לבסיס, והרצת מסע מלא (מטופל ← מנהל ← אחות ← השלמה ← חיזוי) מול ה-backend המקומי המצביע על staging.
 
-## 6. Rollback (לפי סדר הפוך: 007 ← 001)
+## 6. Rollback (לפי סדר הפוך: 010 ← 001)
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
+
+```sql
+-- ROLLBACK 010
+drop trigger if exists bookings_update_conflict_guard on public.bookings;
+drop function if exists public.bookings_update_conflict_guard();
+```
+
+```sql
+-- ROLLBACK 009
+drop policy if exists medical_staff_select_own_history on public.medical_staff;
+drop trigger if exists bookings_assign_active_staff_guard on public.bookings;
+drop function if exists public.bookings_assign_active_staff_guard();
+alter table public.bookings drop constraint bookings_staff_id_fkey,
+  add constraint bookings_staff_id_fkey foreign key (staff_id) references public.medical_staff(id) on delete cascade;
+alter table public.visit_reports drop constraint visit_reports_staff_id_fkey,
+  add constraint visit_reports_staff_id_fkey foreign key (staff_id) references public.medical_staff(id) on delete cascade;
+```
+
+```sql
+-- ROLLBACK 008
+drop trigger if exists visit_reports_integrity_guard on public.visit_reports;
+drop function if exists public.visit_reports_integrity_guard();
+```
 
 ```sql
 -- ROLLBACK 007

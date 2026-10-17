@@ -122,7 +122,7 @@ browser ──(Bearer = Supabase session JWT)──▶ backend/ (FastAPI) ──
 | Decision-support service | Python 3, [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), served by [Uvicorn](https://www.uvicorn.org/) |
 | Fonts | Google Fonts (Heebo) |
 
-**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, Docker. The operational backend is Python/FastAPI (not Node). Tests: `node --test` (35), Playwright (mocked, 46 specs), `pytest` for the backend (137) and the predictive service (17), plus 47 database tests on an isolated local Postgres.
+**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, Docker. The operational backend is Python/FastAPI (not Node). Tests: `node --test` (46), Playwright (mocked, 51 tests), `pytest` for the backend (139) and the predictive service (17), plus 78 database tests on an isolated local Postgres.
 
 ## Database
 

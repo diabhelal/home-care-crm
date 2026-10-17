@@ -34,12 +34,13 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 6. לפני שאומרים "תוקן": לבדוק בדפדפן אמיתי מול החי באותו מסלול שהמשתמש עושה (לא רק מוקים).
 
 ## בדיקות (אחרון ידוע)
-JS 46/46 · Playwright (ממוקק) 51/51 · backend 137/137 · DB מבודד 66/66 · predictive 17/17 (הורצו ב-2026-10-17) · אימות SQL כולל rollback OK. **CI ב-GitHub מריץ**: סריקת סודות, JS, predictive-service, `backend` (`backend/tests` + `backend/tests_db`) ו-15 קבצי Playwright ממוקקים.
+JS 46/46 · Playwright (ממוקק) 51/51 · backend 139/139 · DB מבודד 78/78 · predictive 17/17 (הורצו ב-2026-10-17) · אימות SQL כולל rollback OK. **CI ב-GitHub מריץ**: סריקת סודות, JS, predictive-service, `backend` (`backend/tests` + `backend/tests_db`) ו-15 קבצי Playwright ממוקקים.
 
 ## נותר
 - [ ] **כניסה/שמירת היסטוריה בטלפון (SMS)**: הממשק בנוי ובדוק (ממוקק), מוסתר מאחורי `window.SMS_LOGIN_ENABLED = false` ב-`public/config.js`. להפעלה: ספק SMS (Twilio וכד') ב-Supabase Authentication ← Providers ← Phone, קאפצ'ה, בדיקת מגבלות קצב; ורק אז `true`. אם משתמשים ב-`config push`, לבדוק diff כי הוא דורס את כל `[auth]`.
 - [ ] **להחיל `supabase/proposed/008_visit_report_integrity.sql`** (טריגר שמונע כתיבה ישירה ל-`visit_reports` שעוקפת אישור/התאמת הזמנה-מטופל-איש צוות, נועל דוח שהושלם ומונע מחיקה ע"י צוות). נבדק רק על Postgres מבודד (58 בדיקות DB); לא הוחל על הפרויקט החי — דורש אישור, ואז העתקה ל-`supabase/migrations/` בשם הגרסה הרשום.
 - [ ] **להחיל `supabase/proposed/009_staff_deactivate_not_delete.sql`** (אחרי 008): מחיקת איש צוות עם היסטוריה נחסמת (RESTRICT), מושבת לא מקבל שיבוצים חדשים, והיסטוריית המטופל ממשיכה להציג את שמו. ה-UI כבר מציע "השבתה"; ללא המיגרציה המחיקה עדיין מוחקת בשרשרת במסד החי — דורש אישור.
+- [ ] **להחיל `supabase/proposed/010_booking_update_conflict_guard.sql`** (אחרי 008–009): בדיקת חפיפה ומרווח נסיעה גם בעדכון הזמנה (שעה/עובד/הפעלה מחדש/כתובת), גם למנהל ובכתיבה ישירה, עם נעילת איש הצוות נגד מרוצים. נבדק רק על Postgres מבודד; לא הוחל על הפרויקט החי. בלוקי ה-ROLLBACK של 008–010 נוספו ל-`docs/STAGING_PLAN.md`.
 - [ ] ניקוי נתוני בדיקה שיצרתי בפרויקט החי: הזמנות מבוטלות #49 ו-#51, שורות מטופל "בדיקת מערכת…" ומשתמשי אורח אנונימיים (~220) — **רק באישור**.
 - [ ] אירוח backend (HTTPS), `BACKEND_URL`, CSP `connect-src`, CORS.
 - [ ] MFA + Leaked password protection (דאשבורד), החלפת סוד האטסטציה.

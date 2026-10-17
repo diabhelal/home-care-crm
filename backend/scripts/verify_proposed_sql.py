@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -62,6 +62,14 @@ POSTFLIGHT = [
      "select not has_column_privilege('authenticated','public.medical_staff','national_id','select') "
      "and not has_column_privilege('authenticated','public.medical_staff','email','select') "
      "and has_column_privilege('authenticated','public.medical_staff','full_name','select')"),
+    ("008 visit_reports integrity trigger exists",
+     "select count(*) = 1 from pg_trigger where not tgisinternal and tgname = 'visit_reports_integrity_guard'"),
+    ("009 staff FKs are RESTRICT, inactive-staff trigger and history policy exist",
+     "select (select count(*) from pg_constraint where conname in ('bookings_staff_id_fkey','visit_reports_staff_id_fkey') and confdeltype = 'r') = 2 "
+     "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'bookings_assign_active_staff_guard') "
+     "and exists (select 1 from pg_policies where tablename = 'medical_staff' and policyname = 'medical_staff_select_own_history')"),
+    ("010 booking update conflict trigger exists",
+     "select count(*) = 1 from pg_trigger where not tgisinternal and tgname = 'bookings_update_conflict_guard'"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -69,6 +77,11 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "010": [("010 trigger gone", "select count(*) = 0 from pg_trigger where tgname = 'bookings_update_conflict_guard'")],
+    "009": [("009 objects gone, FKs cascade again",
+             "select count(*) = 0 from pg_trigger where tgname = 'bookings_assign_active_staff_guard' "
+             "and (select count(*) from pg_constraint where conname in ('bookings_staff_id_fkey','visit_reports_staff_id_fkey') and confdeltype = 'c') = 2")],
+    "008": [("008 trigger gone", "select count(*) = 0 from pg_trigger where tgname = 'visit_reports_integrity_guard'")],
     "007": [("007 triggers gone", "select count(*) = 0 from pg_trigger where tgname like '%\\_authorship' escape '\\' or tgname = 'alerts_guard_delete'"),
             ("007 helper gone", "select to_regprocedure('public._is_jwt_admin()') is null")],
     "006": [("006 functions gone", "select to_regprocedure('public.record_risk_prediction(bigint,jsonb)') is null"),
