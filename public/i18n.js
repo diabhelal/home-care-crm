@@ -149,6 +149,7 @@ const I18N_STRINGS = {
     },
     account: {
       saveTitle: "שמרו את ההיסטוריה שלכם",
+      saveIntroBoth: "אפשר לשמור את ההיסטוריה באימייל וסיסמה, או בטלפון עם קוד ב-SMS, כדי לראות את ההזמנות גם ממכשיר אחר. זה אופציונלי — ההזמנה כבר נשמרה.",
       saveIntro: "אפשר ליצור חשבון עם אימייל וסיסמה כדי לראות את ההזמנות גם ממכשיר אחר. זה אופציונלי — ההזמנה כבר נשמרה.",
       emailLabel: "אימייל", passwordLabel: "סיסמה (לפחות 8 תווים)",
       saveButton: "שמירת ההיסטוריה", saving: "שומר...",
@@ -157,6 +158,14 @@ const I18N_STRINGS = {
       confirmEmail: "שלחנו הודעת אישור לכתובת האימייל. יש ללחוץ על הקישור בהודעה כדי להשלים את שמירת החשבון.",
       haveAccount: "יש לי חשבון — כניסה", signInButton: "כניסה", signingIn: "נכנס...",
       signedInAs: "מחוברים כ-{email}", signOut: "התנתקות",
+      methodEmail: "אימייל", methodPhone: "טלפון (SMS)", methodAria: "בחירת דרך לשמירת ההיסטוריה",
+      phoneLabel: "מספר טלפון", sendCode: "שליחת קוד", codeLabel: "קוד אימות (6 ספרות)", verifyLink: "אימות ושמירה", verifySignIn: "אימות וכניסה",
+      sendingCode: "שולח...", codeSent: "שלחנו קוד ב-SMS למספר {phone}.", resendIn: "אפשר לשלוח שוב בעוד {s} שניות",
+      invalidPhone: "יש להזין מספר טלפון נייד תקין", invalidCode: "יש להזין את הקוד בן 6 הספרות",
+      phoneTaken: "המספר הזה כבר משויך לחשבון. אפשר להיכנס אליו דרך \"יש לי חשבון — כניסה\".",
+      phoneUpgraded: "המספר אומת וההיסטוריה נשמרה. ההזמנות שלכם זמינות עכשיו גם ממכשיר אחר.",
+      smsUnavailable: "שליחת SMS אינה זמינה כרגע. אפשר לשמור את ההיסטוריה עם אימייל.",
+      signedInAsPhone: "מחוברים עם הטלפון {phone}",
       orderLabel: "הזמנה #{id}", statusAria: "סטטוס ההזמנה: {step}",
       stepReceived: "התקבלה", stepAssigned: "נקבעה", stepInProgress: "בדרך אליכם / בביצוע", stepDone: "בוצעה", stepCancelled: "בוטלה",
       stateRequested: "ממתין לאישור", stateConfirmed: "אושר", stateInProgress: "בביצוע", stateCompleted: "בוצע", stateCancelled: "בוטל", stateRejected: "לא אושר",
@@ -306,6 +315,7 @@ const I18N_STRINGS = {
     },
     account: {
       saveTitle: "Save your history",
+      saveIntroBoth: "Save your history with an email and password, or with your phone and an SMS code, to see your bookings from another device too. Optional — your booking is already saved.",
       saveIntro: "Create an account with an email and password to see your bookings from another device too. Optional — your booking is already saved.",
       emailLabel: "Email", passwordLabel: "Password (at least 8 characters)",
       saveButton: "Save my history", saving: "Saving...",
@@ -314,6 +324,14 @@ const I18N_STRINGS = {
       confirmEmail: "We sent a confirmation message to your email. Click the link in it to finish saving your account.",
       haveAccount: "I have an account — sign in", signInButton: "Sign in", signingIn: "Signing in...",
       signedInAs: "Signed in as {email}", signOut: "Sign out",
+      methodEmail: "Email", methodPhone: "Phone (SMS)", methodAria: "Choose how to save your history",
+      phoneLabel: "Phone number", sendCode: "Send code", codeLabel: "Verification code (6 digits)", verifyLink: "Verify and save", verifySignIn: "Verify and sign in",
+      sendingCode: "Sending...", codeSent: "We sent an SMS code to {phone}.", resendIn: "You can resend in {s} seconds",
+      invalidPhone: "Please enter a valid mobile number", invalidCode: "Please enter the 6-digit code",
+      phoneTaken: "This number already belongs to an account. Use \"I have an account — sign in\" instead.",
+      phoneUpgraded: "Number verified and history saved. Your bookings are now available from another device too.",
+      smsUnavailable: "SMS is not available right now. You can save your history with an email instead.",
+      signedInAsPhone: "Signed in with phone {phone}",
       orderLabel: "Booking #{id}", statusAria: "Booking status: {step}",
       stepReceived: "Received", stepAssigned: "Scheduled", stepInProgress: "On the way / in progress", stepDone: "Completed", stepCancelled: "Cancelled",
       stateRequested: "Awaiting approval", stateConfirmed: "Approved", stateInProgress: "In progress", stateCompleted: "Completed", stateCancelled: "Cancelled", stateRejected: "Not approved",
@@ -463,6 +481,7 @@ const I18N_STRINGS = {
     },
     account: {
       saveTitle: "احفظ سجلّك",
+      saveIntroBoth: "يمكنك حفظ سجلّك بالبريد الإلكتروني وكلمة مرور، أو بالهاتف ورمز SMS، لرؤية حجوزاتك من جهاز آخر أيضًا. اختياري — حجزك محفوظ بالفعل.",
       saveIntro: "يمكنك إنشاء حساب بالبريد الإلكتروني وكلمة مرور لرؤية حجوزاتك من جهاز آخر أيضًا. اختياري — حجزك محفوظ بالفعل.",
       emailLabel: "البريد الإلكتروني", passwordLabel: "كلمة المرور (8 أحرف على الأقل)",
       saveButton: "حفظ السجل", saving: "جارٍ الحفظ...",
@@ -471,6 +490,14 @@ const I18N_STRINGS = {
       confirmEmail: "أرسلنا رسالة تأكيد إلى بريدك الإلكتروني. اضغط على الرابط فيها لإكمال حفظ الحساب.",
       haveAccount: "لدي حساب — تسجيل الدخول", signInButton: "دخول", signingIn: "جارٍ الدخول...",
       signedInAs: "مسجّل الدخول باسم {email}", signOut: "تسجيل الخروج",
+      methodEmail: "البريد الإلكتروني", methodPhone: "الهاتف (SMS)", methodAria: "اختر طريقة حفظ السجل",
+      phoneLabel: "رقم الهاتف", sendCode: "إرسال الرمز", codeLabel: "رمز التحقق (6 أرقام)", verifyLink: "تحقق واحفظ", verifySignIn: "تحقق وادخل",
+      sendingCode: "جارٍ الإرسال...", codeSent: "أرسلنا رمزًا برسالة SMS إلى {phone}.", resendIn: "يمكنك إعادة الإرسال بعد {s} ثانية",
+      invalidPhone: "يرجى إدخال رقم هاتف محمول صالح", invalidCode: "يرجى إدخال الرمز المكوّن من 6 أرقام",
+      phoneTaken: "هذا الرقم مرتبط بحساب بالفعل. استخدم \"لدي حساب — تسجيل الدخول\".",
+      phoneUpgraded: "تم التحقق من الرقم وحفظ السجل. حجوزاتك متاحة الآن من جهاز آخر أيضًا.",
+      smsUnavailable: "خدمة SMS غير متاحة حاليًا. يمكنك حفظ السجل بالبريد الإلكتروني.",
+      signedInAsPhone: "مسجّل الدخول بالهاتف {phone}",
       orderLabel: "حجز رقم #{id}", statusAria: "حالة الحجز: {step}",
       stepReceived: "تم الاستلام", stepAssigned: "تم تحديد الموعد", stepInProgress: "في الطريق إليكم / قيد التنفيذ", stepDone: "تم التنفيذ", stepCancelled: "ملغى",
       stateRequested: "بانتظار الموافقة", stateConfirmed: "تمت الموافقة", stateInProgress: "قيد التنفيذ", stateCompleted: "تم التنفيذ", stateCancelled: "ملغى", stateRejected: "لم تتم الموافقة",
@@ -616,12 +643,45 @@ function renderLangSwitch() {
 // ===== חשבון אופציונלי (אימייל+סיסמה) ומעקב סטטוס הזמנה =====
 // משדרג את אותו משתמש אנונימי (updateUser) — אותו auth.uid(), ההזמנות נשמרות.
 // opts: { showUpgrade, allowSignIn, onChange }
+function normalizeIsraeliPhone(raw) {
+  const digits = String(raw || "").replace(/\D/g, "");
+  if (!digits) return null;
+  let e164;
+  if (digits.startsWith("972")) e164 = "+" + digits;
+  else if (digits.startsWith("0")) e164 = "+972" + digits.slice(1);
+  else e164 = "+" + digits;
+  return /^\+9725\d{8}$/.test(e164) ? e164 : null; // נייד ישראלי בלבד
+}
+
+// כפתור "שלח קוד" ננעל 60 שניות אחרי שליחה (מגן גם על עלות SMS וגם על ניצול לרעה; המגבלה האמיתית בשרת).
+function startResendCooldown(btn, hintEl, seconds) {
+  let left = seconds;
+  btn.disabled = true;
+  const tick = () => {
+    if (left <= 0) { btn.disabled = false; hintEl.textContent = ""; return; }
+    hintEl.textContent = tf("account.resendIn", { s: left });
+    left -= 1;
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+function phoneErrorMessage(err) {
+  const msg = String((err && (err.message || err.code)) || "");
+  if ((err && err.code === "phone_exists") || /already (been )?(registered|exists|in use)|phone_exists/i.test(msg)) return t("account.phoneTaken");
+  if (/provider|sms.*(disabled|not (configured|enabled|supported))|unsupported phone/i.test(msg)) return t("account.smsUnavailable");
+  return friendlyErrorMessageLocalized(err);
+}
+
+// opts: { showUpgrade, allowSignIn, onChange }
 function renderAccountCard(host, user, opts) {
   opts = opts || {};
   host.innerHTML = "";
   if (!user) return;
-  if (!user.is_anonymous && user.email) {
-    host.innerHTML = `<div class="card card-compact" style="margin-bottom:16px;"><p style="margin:0 0 10px;">${escapeHtml(tf("account.signedInAs", { email: user.email }))}</p><button type="button" class="btn btn-secondary btn-sm" id="account-signout-btn">${t("account.signOut")}</button></div>`;
+  const smsOn = window.SMS_LOGIN_ENABLED === true;
+  if (!user.is_anonymous && (user.email || user.phone)) {
+    const who = user.email ? tf("account.signedInAs", { email: user.email }) : tf("account.signedInAsPhone", { phone: user.phone });
+    host.innerHTML = `<div class="card card-compact" style="margin-bottom:16px;"><p style="margin:0 0 10px;">${escapeHtml(who)}</p><button type="button" class="btn btn-secondary btn-sm" id="account-signout-btn">${t("account.signOut")}</button></div>`;
     document.getElementById("account-signout-btn").addEventListener("click", async () => {
       await supabaseClient.auth.signOut();
       try { sessionStorage.clear(); } catch (e) {}
@@ -631,29 +691,104 @@ function renderAccountCard(host, user, opts) {
   }
   const showUpgrade = opts.showUpgrade !== false;
   const parts = [];
+  const tabs = (prefix) => smsOn ? `<div class="method-tabs" role="group" aria-label="${t("account.methodAria")}" style="display:flex; gap:8px; margin-bottom:12px;">
+        <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-method-email" aria-pressed="true">${t("account.methodEmail")}</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-method-phone" aria-pressed="false">${t("account.methodPhone")}</button>
+      </div>` : "";
+  const phonePanel = (prefix, verifyKey) => smsOn ? `<div id="${prefix}-phone-panel" style="display:none;">
+        <div class="field"><label for="${prefix}-phone">${t("account.phoneLabel")}</label><input type="tel" id="${prefix}-phone" placeholder="05XXXXXXXX" autocomplete="tel" dir="ltr"></div>
+        <button type="button" class="btn btn-secondary btn-sm" id="${prefix}-send-code">${t("account.sendCode")}</button>
+        <span class="meta" id="${prefix}-resend-hint" role="status" aria-live="polite" style="margin-inline-start:8px;"></span>
+        <div id="${prefix}-code-row" style="display:none; margin-top:10px;">
+          <div class="field"><label for="${prefix}-code">${t("account.codeLabel")}</label><input type="text" id="${prefix}-code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="123456" dir="ltr"></div>
+          <button type="button" class="btn btn-primary btn-sm" id="${prefix}-verify">${t(verifyKey)}</button>
+        </div>
+      </div>` : "";
   if (showUpgrade) {
     parts.push(`<div class="card card-compact" style="margin-bottom:16px;" id="account-upgrade">
       <div class="section-title" style="margin-top:0;">${t("account.saveTitle")}</div>
-      <p style="color:var(--text-muted); margin-top:0;">${t("account.saveIntro")}</p>
-      <div class="field"><label for="account-email">${t("account.emailLabel")}</label><input type="email" id="account-email" autocomplete="email" dir="ltr"></div>
-      <div class="field"><label for="account-password">${t("account.passwordLabel")}</label><input type="password" id="account-password" autocomplete="new-password" minlength="8" dir="ltr"></div>
+      <p style="color:var(--text-muted); margin-top:0;">${t(smsOn ? "account.saveIntroBoth" : "account.saveIntro")}</p>
+      ${tabs("account")}
+      <div id="account-email-panel">
+        <div class="field"><label for="account-email">${t("account.emailLabel")}</label><input type="email" id="account-email" autocomplete="email" dir="ltr"></div>
+        <div class="field"><label for="account-password">${t("account.passwordLabel")}</label><input type="password" id="account-password" autocomplete="new-password" minlength="8" dir="ltr"></div>
+        <button type="button" class="btn btn-primary btn-sm" id="account-save-btn">${t("account.saveButton")}</button>
+      </div>
+      ${phonePanel("account", "account.verifyLink")}
       <div class="error-msg" id="account-error" role="alert" aria-live="assertive"></div>
       <div class="success-msg" id="account-success" role="status" aria-live="polite"></div>
-      <button type="button" class="btn btn-primary btn-sm" id="account-save-btn">${t("account.saveButton")}</button>
     </div>`);
   }
   if (opts.allowSignIn) {
     parts.push(`<div class="card card-compact" style="margin-bottom:16px;" id="account-signin">
       <a href="#" id="account-signin-toggle">${t("account.haveAccount")}</a>
       <div id="account-signin-form" style="display:none; margin-top:10px;">
-        <div class="field"><label for="signin-email">${t("account.emailLabel")}</label><input type="email" id="signin-email" autocomplete="email" dir="ltr"></div>
-        <div class="field"><label for="signin-password">${t("account.passwordLabel")}</label><input type="password" id="signin-password" autocomplete="current-password" dir="ltr"></div>
+        ${tabs("signin")}
+        <div id="signin-email-panel">
+          <div class="field"><label for="signin-email">${t("account.emailLabel")}</label><input type="email" id="signin-email" autocomplete="email" dir="ltr"></div>
+          <div class="field"><label for="signin-password">${t("account.passwordLabel")}</label><input type="password" id="signin-password" autocomplete="current-password" dir="ltr"></div>
+          <button type="button" class="btn btn-primary btn-sm" id="signin-btn">${t("account.signInButton")}</button>
+        </div>
+        ${phonePanel("signin", "account.verifySignIn")}
         <div class="error-msg" id="signin-error" role="alert" aria-live="assertive"></div>
-        <button type="button" class="btn btn-primary btn-sm" id="signin-btn">${t("account.signInButton")}</button>
       </div>
     </div>`);
   }
   host.innerHTML = parts.join("");
+
+  // בורר שיטה (אימייל / טלפון) — רק כשה-SMS מופעל בהגדרות
+  const wireTabs = (prefix) => {
+    const eBtn = document.getElementById(prefix + "-method-email");
+    const pBtn = document.getElementById(prefix + "-method-phone");
+    if (!eBtn || !pBtn) return;
+    const show = (phone) => {
+      document.getElementById(prefix + "-email-panel").style.display = phone ? "none" : "";
+      document.getElementById(prefix + "-phone-panel").style.display = phone ? "" : "none";
+      eBtn.setAttribute("aria-pressed", String(!phone));
+      pBtn.setAttribute("aria-pressed", String(phone));
+      eBtn.classList.toggle("btn-primary", !phone); eBtn.classList.toggle("btn-secondary", phone);
+      pBtn.classList.toggle("btn-primary", phone); pBtn.classList.toggle("btn-secondary", !phone);
+    };
+    eBtn.addEventListener("click", () => show(false));
+    pBtn.addEventListener("click", () => show(true));
+    show(false);
+  };
+  wireTabs("account"); wireTabs("signin");
+
+  // זרימת טלפון משותפת: שליחת קוד ← אימות. sendFn/verifyFn מחזירים { error }
+  const wirePhone = (prefix, errEl, sendFn, verifyFn, onVerified) => {
+    const sendBtn = document.getElementById(prefix + "-send-code");
+    if (!sendBtn) return;
+    const hint = document.getElementById(prefix + "-resend-hint");
+    let pendingPhone = null;
+    sendBtn.addEventListener("click", async () => {
+      hideError(errEl);
+      const phone = normalizeIsraeliPhone(document.getElementById(prefix + "-phone").value);
+      if (!phone) { showError(errEl, t("account.invalidPhone")); return; }
+      setButtonLoading(sendBtn, true, t("account.sendingCode"));
+      let res;
+      try { res = await sendFn(phone); } catch (err) { res = { error: err }; }
+      setButtonLoading(sendBtn, false);
+      if (res && res.error) { showError(errEl, phoneErrorMessage(res.error)); return; }
+      pendingPhone = phone;
+      document.getElementById(prefix + "-code-row").style.display = "block";
+      document.getElementById(prefix + "-code").focus();
+      hint.textContent = tf("account.codeSent", { phone });
+      setTimeout(() => startResendCooldown(sendBtn, hint, 60), 1500);
+    });
+    const verifyBtn = document.getElementById(prefix + "-verify");
+    verifyBtn.addEventListener("click", async () => {
+      hideError(errEl);
+      const code = document.getElementById(prefix + "-code").value.trim();
+      if (!/^\d{6}$/.test(code) || !pendingPhone) { showError(errEl, t("account.invalidCode")); return; }
+      setButtonLoading(verifyBtn, true, t("account.saving"));
+      let res;
+      try { res = await verifyFn(pendingPhone, code); } catch (err) { res = { error: err }; }
+      setButtonLoading(verifyBtn, false);
+      if (res && res.error) { showError(errEl, phoneErrorMessage(res.error)); return; }
+      onVerified();
+    });
+  };
 
   const saveBtn = document.getElementById("account-save-btn");
   if (saveBtn) saveBtn.addEventListener("click", async () => {
@@ -678,6 +813,17 @@ function renderAccountCard(host, user, opts) {
     if (!pending && opts.onChange) opts.onChange();
   });
 
+  // שדרוג אורח דרך טלפון: אותו משתמש אנונימי ← updateUser({phone}) ואז verifyOtp(phone_change)
+  wirePhone("account", document.getElementById("account-error"),
+    (phone) => supabaseClient.auth.updateUser({ phone }),
+    (phone, token) => supabaseClient.auth.verifyOtp({ phone, token, type: "phone_change" }),
+    () => {
+      const okEl = document.getElementById("account-success");
+      okEl.textContent = t("account.phoneUpgraded");
+      okEl.classList.add("show");
+      if (opts.onChange) opts.onChange();
+    });
+
   const toggle = document.getElementById("account-signin-toggle");
   if (toggle) {
     toggle.addEventListener("click", (e) => {
@@ -699,6 +845,11 @@ function renderAccountCard(host, user, opts) {
       if (res.error) { showError(errEl, friendlyErrorMessageLocalized(res.error)); return; }
       location.reload();
     });
+    // כניסה בטלפון: לא יוצרים משתמש חדש (shouldCreateUser:false) — רק חשבון קיים
+    wirePhone("signin", document.getElementById("signin-error"),
+      (phone) => supabaseClient.auth.signInWithOtp({ phone, options: { shouldCreateUser: false } }),
+      (phone, token) => supabaseClient.auth.verifyOtp({ phone, token, type: "sms" }),
+      () => location.reload());
   }
 }
 

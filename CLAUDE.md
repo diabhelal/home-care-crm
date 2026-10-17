@@ -12,7 +12,7 @@ CRM לחברת שירותי טיפול רפואי וביקורי בית. מטו�
 - **עיצוב**: מערכת עיצוב אחידה ב-`public/styles.css` (טוקני צבע CSS custom properties, 44px touch targets, RTL).
 
 ## מודל זהות: הזמנה כמו טיסה/אוכל, בלי הרשמה (למטופל)
-המטופל גולש חופשי בלי פרטים, וממלא שם/טלפון/כתובת רק בשלב אישור ההזמנה (`booking.html`). מאחורי הקלעים: `ensureGuestSession()` (`app.js`) יוצר session אנונימי שקוף (`signInAnonymously()`) — נותן `auth.uid()` אמיתי מהרגע הראשון, ה-RLS עובד ללא שינוי. הזהות היא per-browser; יש תשתית אופציונלית לקישור טלפון+OTP לגישה חוצת-מכשירים (`my-bookings.html`) אך היא לא פעילה — אין ספק SMS מוגדר (`[auth.sms] enable_signup = false`).
+המטופל גולש חופשי בלי פרטים, וממלא שם/טלפון/כתובת רק בשלב אישור ההזמנה (`booking.html`). מאחורי הקלעים: `ensureGuestSession()` (`app.js`) יוצר session אנונימי שקוף (`signInAnonymously()`) — נותן `auth.uid()` אמיתי מהרגע הראשון, ה-RLS עובד ללא שינוי. הזהות היא per-browser; יש תשתית אופציונלית לקישור טלפון+OTP לגישה חוצת-מכשירים (`my-bookings.html`) אך היא לא פעילה — אין ספק SMS מוגדר (`[auth.sms] enable_signup = false`). ממשק הטלפון+SMS קיים ב-`renderAccountCard` (`public/i18n.js`) ומוסתר ע"י `SMS_LOGIN_ENABLED=false` ב-`config.js`.
 
 ⚠️ `supabase config push` דוחף את **כל** מקטע ה-`[auth]` מ-config.toml המקומי, לא רק שדה בודד — ר' PLAN.md להיסטוריה.
 

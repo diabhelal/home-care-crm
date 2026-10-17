@@ -183,10 +183,38 @@ function fakeSupabaseSource() {
           setSession({ user });
           return Promise.resolve({ data: { user }, error: null });
         },
+        signInWithOtp({ phone }) {
+          const dbo = load();
+          if (!(dbo.phones || {})[phone]) return Promise.resolve({ data: {}, error: { message: "Signups not allowed for otp" } });
+          dbo.pendingSignIn = phone; save(dbo);
+          return Promise.resolve({ data: {}, error: null });
+        },
+        verifyOtp({ phone, token, type }) {
+          const dbv = load(); dbv.phones = dbv.phones || {};
+          if (token !== "123456") return Promise.resolve({ data: { user: null }, error: { message: "Token has expired or is invalid" } });
+          if (type === "phone_change") {
+            const s = session(); if (!s || dbv.pendingPhone !== phone) return Promise.resolve({ data: { user: null }, error: { message: "invalid" } });
+            dbv.phones[phone] = s.user.id; save(dbv);
+            s.user = { ...s.user, phone, is_anonymous: false }; setSession(s);
+            return Promise.resolve({ data: { user: s.user }, error: null });
+          }
+          if (type === "sms" && dbv.phones[phone]) {
+            const user = { id: dbv.phones[phone], phone, is_anonymous: false, app_metadata: {} };
+            setSession({ user });
+            return Promise.resolve({ data: { user }, error: null });
+          }
+          return Promise.resolve({ data: { user: null }, error: { message: "invalid" } });
+        },
         signOut() { setSession(null); return Promise.resolve({ error: null }); },
         onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }),
-        updateUser({ email, password }) {
+        updateUser({ email, password, phone }) {
           const s = session(); if (!s) return Promise.resolve({ data: { user: null }, error: { message: "no session" } });
+          if (phone) {
+            const dbp = load(); dbp.phones = dbp.phones || {};
+            if (dbp.phones[phone] && dbp.phones[phone] !== s.user.id) return Promise.resolve({ data: { user: null }, error: { code: "phone_exists", message: "Phone number already registered" } });
+            dbp.pendingPhone = phone; save(dbp);
+            return Promise.resolve({ data: { user: s.user }, error: null });
+          }
           if (password && password.length < 8) return Promise.resolve({ data: { user: null }, error: { message: "Password should be at least 8 characters" } });
           if (localStorage.getItem("__require_confirm")) return Promise.resolve({ data: { user: { ...s.user, new_email: email } }, error: null });
           const db = load(); db.users = db.users || {}; db.users[email] = { id: s.user.id, password }; save(db);
@@ -200,7 +228,7 @@ function fakeSupabaseSource() {
   }})();`;
 }
 
-async function setup(browser) {
+async function setup(browser, opts) {
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, serviceWorkers: "block" });
   const problems = { consoleErrors: [], pageErrors: [], localhost8000: [], supabaseNetwork: [] };
 
@@ -210,7 +238,8 @@ async function setup(browser) {
     route.fulfill({ contentType: "text/css", body: "" }));
 
   // הזמנות נכתבות רק דרך ה-backend הממוקק (route interception), לא בכתיבה ישירה ל-bookings
-  await installBackendMock(context);
+  // דגל ה-SMS מודלק רק בבדיקות שמבקשות זאת (בפרודקשן הוא כבוי עד שמוגדר ספק)
+  await installBackendMock(context, { extraConfig: opts && opts.sms ? "window.SMS_LOGIN_ENABLED = true;" : "" });
 
   context.on("request", (req) => {
     const url = req.url();
@@ -369,4 +398,80 @@ test("תשלום כאורח עובד בלי חשבון, ושלבי סטטוס מ
   expect(problems.consoleErrors).toEqual([]);
   expect(problems.pageErrors).toEqual([]);
   await context.close();
+});
+
+
+test("SMS כבוי כברירת מחדל: אין בורר טלפון, האימייל נשאר", async ({ browser }) => {
+  const { context, page } = await setup(browser);
+  await patientBooks(page, { name: "מטופל בלי sms", nationalId: "100000018", slotIndex: 0 });
+  await expect(page.locator("#account-save-btn")).toBeVisible();
+  await expect(page.locator("#account-method-phone")).toHaveCount(0);
+  await context.close();
+});
+
+test("שמירת היסטוריה בטלפון עם קוד SMS, כניסה ממכשיר שני, ומספר שכבר רשום", async ({ browser }) => {
+  const { context, page, problems } = await setup(browser, { sms: true });
+  await patientBooks(page, { name: "מטופל טלפון", nationalId: "100000018", slotIndex: 0 });
+  const orderText = (await page.locator("#confirmed-order").textContent()).trim();
+
+  // בורר שיטה: אימייל כברירת מחדל, מעבר לטלפון
+  await expect(page.locator("#account-method-email")).toHaveAttribute("aria-pressed", "true");
+  await page.click("#account-method-phone");
+  await expect(page.locator("#account-phone-panel")).toBeVisible();
+  await expect(page.locator("#account-email-panel")).toBeHidden();
+
+  // מספר לא תקין נדחה; תקין שולח קוד
+  await page.fill("#account-phone", "12345");
+  await page.click("#account-send-code");
+  await expect(page.locator("#account-error")).toBeVisible();
+  await page.fill("#account-phone", "050-123-4567");
+  await page.click("#account-send-code");
+  await expect(page.locator("#account-code-row")).toBeVisible();
+  await expect(page.locator("#account-resend-hint")).toContainText("+972501234567");
+
+  // קוד שגוי נדחה, נכון מצליח
+  await page.fill("#account-code", "000000");
+  await page.click("#account-verify");
+  await expect(page.locator("#account-error")).toBeVisible();
+  await page.fill("#account-code", "123456");
+  await page.click("#account-verify");
+  await expect(page.locator("#account-success")).toContainText("המספר אומת");
+
+  await page.click("#confirmation-panel a");
+  await page.waitForURL(/my-bookings\.html/);
+  await expect(page.locator("#upcoming-list .booking-item")).toHaveCount(1);
+  await expect(page.locator("#account-card-host")).toContainText("+972501234567");
+
+  // "מכשיר שני": כניסה בטלפון
+  const dbState = await page.evaluate(() => localStorage.getItem("__demo_db"));
+  const second = await setup(browser, { sms: true });
+  await second.context.addInitScript((db) => { if (!localStorage.getItem("__demo_db")) localStorage.setItem("__demo_db", db); }, dbState);
+  await second.page.goto(BASE + "/my-bookings.html");
+  await second.page.click("#account-signin-toggle");
+  await second.page.click("#signin-method-phone");
+  await second.page.fill("#signin-phone", "0509999999");
+  await second.page.click("#signin-send-code");
+  await expect(second.page.locator("#signin-error")).toBeVisible(); // מספר לא רשום: לא יוצרים משתמש חדש
+  await second.page.fill("#signin-phone", "0501234567");
+  await second.page.click("#signin-send-code");
+  await second.page.fill("#signin-code", "123456");
+  await second.page.click("#signin-verify");
+  await expect(second.page.locator("#upcoming-list .booking-item")).toHaveCount(1);
+  await expect(second.page.locator("#upcoming-list .booking-item").first()).toContainText(orderText);
+
+  // אורח שלישי מנסה לחבר את אותו מספר: הודעה ברורה, בלי לאבד כלום
+  const third = await setup(browser, { sms: true });
+  await third.context.addInitScript((db) => { if (!localStorage.getItem("__demo_db")) localStorage.setItem("__demo_db", db); },
+    await second.page.evaluate(() => localStorage.getItem("__demo_db")));
+  await patientBooks(third.page, { name: "אורח אחר", nationalId: "100000026", slotIndex: 1 });
+  await third.page.click("#account-method-phone");
+  await third.page.fill("#account-phone", "0501234567");
+  await third.page.click("#account-send-code");
+  await expect(third.page.locator("#account-error")).toContainText("כבר משויך לחשבון");
+
+  for (const pr of [problems, second.problems, third.problems]) {
+    expect(pr.pageErrors).toEqual([]);
+    expect(pr.supabaseNetwork).toEqual([]);
+  }
+  await context.close(); await second.context.close(); await third.context.close();
 });

@@ -6,10 +6,10 @@ const BACKEND = "http://localhost:8001";
 const SLOT_TAKEN_MSG = "המטפל אינו פנוי בשעה זו, אנא בחר משבצת זמן אחרת";
 
 // config.js מגדיר BACKEND_URL לפי hostname; בבדיקות (demo.localhost) מכריחים את הכתובת המוק.
-async function overrideConfig(context, backendUrl = BACKEND) {
+async function overrideConfig(context, backendUrl = BACKEND, extraConfig = "") {
   await context.route("**/config.js", async (route) => {
     const res = await route.fetch();
-    const body = (await res.text()) + `\nwindow.BACKEND_URL = ${JSON.stringify(backendUrl)};\n`;
+    const body = (await res.text()) + `\nwindow.BACKEND_URL = ${JSON.stringify(backendUrl)};\n${extraConfig}\n`;
     await route.fulfill({ response: res, body, contentType: "application/javascript" });
   });
 }
@@ -20,8 +20,8 @@ const CORS = {
   "access-control-allow-methods": "GET, POST, PATCH, OPTIONS",
 };
 
-async function installBackendMock(context, { backendUrl = BACKEND, configure = true } = {}) {
-  if (configure) await overrideConfig(context, backendUrl);
+async function installBackendMock(context, { backendUrl = BACKEND, configure = true, extraConfig = "" } = {}) {
+  if (configure) await overrideConfig(context, backendUrl, extraConfig);
   const ctl = {
     requests: [],          // { method, path, headers, body }
     down: false,           // true => ניתוק רשת (route.abort)
