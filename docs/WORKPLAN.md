@@ -1,9 +1,8 @@
 # WORKPLAN — מסלול הזמנה, עבודת שטח, ארכיטקטורת Python
 
-> רשימת עבודה אחת (הושלם / בטיפול / נותר). עדכון אחרון: 2026-10-15. עבודה מקומית בלבד:
-> אין push, אין פריסה, אין שינוי ב-DB החי. מיגרציות חדשות נכתבות כקבצים ב-`supabase/proposed/`.
+> רשימת עבודה אחת. עדכון אחרון: 2026-10-17. **מצב:** כל הבלוקים למטה הושלמו; SQL 001–007 הוחל על הפרויקט החי ב-2026-10-15 (ר' `supabase/proposed/APPLIED.md`) וכל העבודה נמצאת ב-`main` ב-GitHub. הסעיפים שמתארים "מצב לפני" או "טרם הוחל" שמורים כהיסטוריה של התכנון, ומסומנים ככאלה. מה שנותר: `HANDOFF.md`.
 
-## בלוק 1 — בדיקת מצב (הושלם)
+## בלוק 1 — בדיקת מצב **לפני העבודה** (היסטורי; הטבלה אינה מצב נוכחי)
 | תחום | מצב בפועל |
 |---|---|
 | **הזמנה** | הדפדפן כותב ישירות ל-`bookings` (booking.html). אין מושג "התבקש" מול "אושר". המסלול מתחיל בבחירת איש צוות. |
@@ -22,14 +21,16 @@
 - מרווח נסיעה: קבוע (30 דקות) + אישור מנהל, עד שיהיה חישוב נסיעה אמיתי.
 
 ## בלוקים
-| # | בלוק | מצב | בדיקת הצלחה |
+| # | בלוק | מצב | הוכחה |
 |---|---|---|---|
-| 2 | הגנת טיוטות (מפתח לפי משתמש; לא נמחק מידע שטרם נשמר) | **הושלם** (4 בדיקות יחידה) | בדיקות יחידה: משתמש B לא רואה/מסנכרן טיוטת A; לא נמחק מה שלא נשמר |
-| 2 | שמירת דוח אטומית (RPC) + חותמת זמן שרת (מיגרציה מוצעת, לא מופעלת) | **נכתב, לא מופעל** | pytest + מיגרציה בלבד, לא מופעלת |
-| 3 | Backend Python: הזמנה, זמינות+מרווח, שיבוץ, אישור/דחייה/שיבוץ מחדש | **הושלם** (80 בדיקות pytest, כולל פרטיות כתובות) | pytest (התנגשות, idempotency, זיוף מזהים) |
-| 3 | חיבור הדפדפן ל-API (עם נפילה לנתיב הקיים כשאין backend) | נותר | e2e ממוקק |
-| 4 | עבודת צוות: ביקור הבא, ניווט, התקשרות, התחלה | נותר | e2e ממוקק, מובייל |
-| 5 | עיצוב אחיד, נגישות, מסע מלא | חלקי | צילומי מסך + axe |
+| 1 | הגנת טיוטות (מפתח לפי משתמש; לא נמחק מידע שטרם נשמר) | **הושלם** | בדיקות יחידה ו-`mobile-journey.spec.js` |
+| 2 | שמירת דוח אטומית (RPC) + חותמת זמן שרת | **הושלם והוחל** (001–003, 2026-10-15) | `backend/tests_db` + מחזור חי |
+| 3 | Backend Python: הזמנה, זמינות+מרווח, שיבוץ, אישור/דחייה/שיבוץ מחדש, ביטול | **הושלם** | `backend/tests` (137) |
+| 3א | חיבור הדפדפן ל-API (אין נתיב כתיבה עוקף; בלי backend הזמנה נכשלת בהודעה ברורה) | **הושלם** | `backend-booking.spec.js`, `admin-lifecycle.spec.js` |
+| 4 | עבודת צוות: ביקור הבא, ניווט, התקשרות, check-in, השלמה | **הושלם** | `staff-field-actions.spec.js`, `mobile-journey.spec.js` |
+| 5 | הגנות DB על `bookings` (005), חיזוי/התראות בשרת עם HMAC (006), כפיית זהות כותב (007) | **הושלם והוחל** (2026-10-15) | `backend/tests_db` (47) |
+| 6 | עיצוב (Heebo, נייבי+מנטה) ומסע מובייל | **הושלם** | צילומי מסך ב-`docs/demo-proof/`; בדיקת נגישות WCAG מלאה (axe) **לא בוצעה** |
+| 7 | שמירת היסטוריה למטופל באימייל או בטלפון+SMS | אימייל **פעיל**; SMS **בנוי ובדוק על מוק, כבוי** (`SMS_LOGIN_ENABLED=false`) | `patient-account.spec.js` |
 
 ## פערים שנדרשים לפני שירות אמיתי (לא בהיקף העבודה הזאת)
 מדיניות פרטיות והסכמה מדעת, אירוח backend עם HTTPS ו-CORS מוגדר, מפתחות, ספק אימייל/SMS,
@@ -39,10 +40,11 @@
 - `staff_busy_blocks` המוצע חשף כתובות/קואורדינטות של מטופלים אחרים לכל משתמש מחובר ← תוקן: מחזיר את הכתובת המבוקשת בלבד כשיש התאמה, ללא קואורדינטות (בדיקות ב-`backend/tests/test_privacy.py`).
 - `complete_visit` המוצע לא איפשר השלמה ע"י מנהל ← תוקן: בעלים או `is_admin` מה-JWT.
 
-## נותר לפני הפעלת ה-backend
-1. סקירה והחלה ידנית של `supabase/proposed/*.sql` (workflow המיגרציות; staging קודם).
-2. חיבור הדפדפן ל-API (בלוק 3 המשך) — נתיב נפילה לכתיבה הישירה הקיימת (הושלם: אין נתיב כתיבה עוקף; ה-backend רץ מקומית).
-3. פער ידוע: עד שה-frontend מנתב הזמנות דרך ה-backend, מטופל יכול להכניס ישירות שורה ל-`bookings` (default `approval_status='confirmed'`).
+## נותר (נכון ל-2026-10-17)
+1. ~~סקירה והחלה של `supabase/proposed/*.sql`~~ - **הוחל ב-2026-10-15** על הפרויקט החי (לא על staging נפרד, שאינו קיים).
+2. ~~חיבור הדפדפן ל-API~~ - **הושלם**.
+3. ~~מטופל יכול להכניס ישירות ל-`bookings`~~ - **נסגר** בטריגרי 005 (הוחלו).
+4. עדיין פתוח: אירוח ה-backend (HTTPS, `BACKEND_URL`, CSP, CORS), staging נפרד, MFA, ספק SMS, החלפת `RISK_ATTESTATION_SECRET`, מסמכים משפטיים, בדיקת חדירה, והרצת `backend` pytest ב-CI. ר' `HANDOFF.md`.
 
 ## כתיבות ישירות שנותרו
 נכון ל-2026-10-15 (אחרי סגירת "התחלת ביקור" של מנהל ו-`clinical_outcome_8h`). נסרק: כל `supabaseClient.from(...).insert/update/upsert/delete`, `storage.upload`, `functions.invoke` ב-`public/`.
@@ -50,7 +52,7 @@
 **נסגר במשימה זו:** (1) `work-queue.js startVisit` ← `POST /staff/bookings/{id}/check-in` עם JWT של מנהל (פונקציית `check_in_visit` מקבלת בעלים-או-מנהל כמו `complete_visit`). (2) `visit_reports.update({clinical_outcome_8h})` ב-`employee.html` וב-`patient-record.js` ← `PATCH /visits/{report_id}/clinical-outcome` (צוות משויך או מנהל; ערך מול ה-CHECK; כתיבה עם ה-JWT של הקורא, RLS נשמר; 403/404/422).
 
 **(a) מחזור חיי הזמנה/ביקור: אפס כתיבות ישירות בדפדפן** (`bookings`, `visit_reports`). אומת ב-`__write_log` בבדיקות `admin-lifecycle`, `staff-field-actions`, `mobile-journey`.
-הערה: ברמת ה-DB מדיניות `staff_update_assigned_bookings` / `bookings_update_own` / `staff_full_access_own_visit_reports` עדיין מאפשרות כתיבה ל-PostgREST ישיר; הגנת זה היא `supabase/proposed/005_booking_write_guards.sql` (טריגרים) והיא טרם הוחלה.
+הערה: ברמת ה-DB מדיניות `staff_update_assigned_bookings` / `bookings_update_own` / `staff_full_access_own_visit_reports` עדיין מאפשרות כתיבה ל-PostgREST ישיר; הגנת זה היא `supabase/proposed/005_booking_write_guards.sql` (טריגרים), **שהוחלה ב-2026-10-15**.
 
 | # | קובץ:שורה | טבלה / פעולה | מי יכול | הגנה (RLS / guard) | סיווג |
 |---|---|---|---|---|---|
@@ -71,13 +73,13 @@
 | 15 | `public/js/admin/patient-record.js:814-817` | `patient-documents` storage upload + `patient_documents` insert | מנהל | `admin_full_access_patient_documents[_storage]` (bucket פרטי) | (b) |
 | 16 | `public/js/admin/patient-record.js:843`, `:850`, `public/employee.html:1124`, `:1131` | `alerts` update (acknowledged / resolved) | מנהל / צוות משויך | `admin_full_access_alerts` / `staff_update_assigned_alerts`; **הדפדפן שולח רק `status`**; טריגר `alerts_guard_update` (006, טרם הוחל) כופה `acknowledged_by/at := auth.uid()/now()` ומונע שינוי תוכן ההתראה | (b) — נסגר בקוד, ממתין להחלת 006 |
 | 17 | `public/js/admin/patient-record.js:863`, `:877`, `public/employee.html:1144`, `:1155` | `tasks` insert / update (completed) | מנהל / צוות משויך | `admin_full_access_tasks` / `staff_insert|update_assigned_tasks`; **הדפדפן לא שולח `created_by`/`completed_*`**; טריגרים `tasks_guard_insert/update` (006, טרם הוחלו) כופים `auth.uid()`/`now()` | (b) — נסגר בקוד, ממתין להחלת 006 |
-| ~~18~~ | ~~`patient-record.js:1005`, `employee.html:585`~~ | ~~`alerts` insert~~ | — | **נסגר (מקומי):** `POST /patients/{id}/auto-alert` + `POST /visits/{id}/risk-assessment` ← פונקציית `record_auto_alert` / `record_risk_prediction` (חתימת HMAC מהשרת); `revoke insert on alerts` ב-`proposed/006` (טרם הוחל) | נסגר |
-| ~~19~~ | ~~`admin.html:693`, `employee.html:622`~~ | ~~`risk_predictions` insert~~ | — | **נסגר (מקומי):** `POST /visits/{id}/risk-assessment` ← `record_risk_prediction` (SECURITY DEFINER; `created_by`/`predicted_at`/`expires_at`/`patient_id`/`input_features` נגזרים בשרת); `revoke insert` ב-`proposed/006` (טרם הוחל) | נסגר |
+| ~~18~~ | ~~`patient-record.js:1005`, `employee.html:585`~~ | ~~`alerts` insert~~ | — | **נסגר (הוחל 2026-10-15):** `POST /patients/{id}/auto-alert` + `POST /visits/{id}/risk-assessment` ← פונקציית `record_auto_alert` / `record_risk_prediction` (חתימת HMAC מהשרת); `revoke insert on alerts` ב-`proposed/006` (טרם הוחל) | נסגר |
+| ~~19~~ | ~~`admin.html:693`, `employee.html:622`~~ | ~~`risk_predictions` insert~~ | — | **נסגר (הוחל 2026-10-15):** `POST /visits/{id}/risk-assessment` ← `record_risk_prediction` (SECURITY DEFINER; `created_by`/`predicted_at`/`expires_at`/`patient_id`/`input_features` נגזרים בשרת); `revoke insert` ב-`proposed/006` (טרם הוחל) | נסגר |
 
-### עדכון: זיוף נתונים קליניים (#16-#19) נסגר מקומית — `proposed/006_server_side_risk_and_alerts.sql`
+### עדכון: זיוף נתונים קליניים (#16-#19) נסגר — `proposed/006_server_side_risk_and_alerts.sql`
 - **עיצוב:** `backend/app/risk.py` (אורקסטרציה בלבד; הכללים/ספים/נוסחאות נשארים ב-`predictive-service/` ללא שינוי) טוען דוח+הקשר מטופל+דוח קודם עם JWT של הקורא, קורא ל-`/predict/risk-assessment` ול-`/alerts/evaluate` ב-HTTP, חותם את התוצאה ב-HMAC (`RISK_ATTESTATION_SECRET`) וקורא לפונקציית DB אחת (`record_risk_prediction`) שכותבת תחזית+התראה באותה טרנזקציה. פונקציית SECURITY DEFINER נגישה ל-`authenticated` ב-RPC, ולכן החתימה היא מה שמונע מלקוח לזייף `risk_level`; הסוד נשמר בטבלה `server_secrets` שאין אליה גישה דרך ה-API.
-- **ממתין לאישור:** החלת 006 (+ הכנסת הסוד ידנית), הגדרת `PREDICTIVE_SERVICE_URL`/`RISK_ATTESTATION_SECRET` בשרת. עד אז, מול ה-DB החי, הקוד החדש לא יעבוד (אין פונקציה) וה-insert הישיר עדיין פתוח.
-- אחרי ההחלה נשארים פתוחים: `alerts` delete למנהל/צוות משויך (מחיקת התראה), `tasks.title/due_at` ניתנים לעריכה ע"י צוות משויך (מכוון), ו-`patient_documents`/יתר הטבלאות (b) לא נגעו.
+- **סטטוס:** 006 **הוחל** ב-2026-10-15, הסוד הוכנס ל-`server_secrets`, וה-insert הישיר נשלל. הגדרת `PREDICTIVE_SERVICE_URL`/`RISK_ATTESTATION_SECRET` בשרת מאורח עדיין נדרשת (ה-backend לא מאורח).
+- נשארים פתוחים: `alerts` delete למנהל/צוות משויך (מחיקת התראה), `tasks.title/due_at` ניתנים לעריכה ע"י צוות משויך (מכוון), ו-`patient_documents`/יתר הטבלאות (b) לא נגעו.
 
 ### סיכוני זיוף (b) — תיאור מקורי (לפני 006)
 - **`risk_predictions` (#19)**: `risk_level`, `confidence`, `expires_at`, `model_version`, `input_features`, `created_by` נשלחים מהדפדפן. כל איש צוות משויך (או מנהל) יכול להכניס דירוג סיכון שרירותי שייראה כתוצר המנוע, כולל `model_version` מזויף, ו-`current_patient_risk` מציג אותו. גם `input_features` לא חייב להתאים ל-`visit_report_id`.

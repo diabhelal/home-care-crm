@@ -1,7 +1,7 @@
 # HANDOFF — מצב הפרויקט ומה הלאה
 
-> לשיחה חדשה: `gh repo clone diabhelal/home-care-crm` (הריפו **פרטי** מ-2026-10-15; נדרש `gh auth login` או SSH) ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
-> עודכן: 2026-10-15. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
+> לשיחה חדשה: `git clone https://github.com/diabhelal/home-care-crm.git` (הריפו **ציבורי** מ-2026-10-17, לבקשת הבעלים כדי שמרצה יוכל לצפות; היה פרטי ב-15–17.10) ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
+> עודכן: 2026-10-17. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
 
 ## איפה אנחנו
 - **מוצר:** אב-טיפוס יציב עם נתונים סינתטיים; **לא מוכן למטופלים אמיתיים** (חסרים: מסמכים משפטיים, אירוח backend עם HTTPS, MFA, בדיקת חדירה).
@@ -22,8 +22,8 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 ## הגדרות מקומיות שלא בריפו
 `.claude/settings.local.json` (הרשאות Claude Code, כולל הפעלת Supabase MCP) ו-`backend/.env` הם per-machine ולא נשמרים ב-git. בשיחה חדשה: לאשר/להפעיל את שרת ה-MCP של Supabase ולהוסיף הרשאה לכלי `apply_migration`/`execute_sql` רק אם צריך לשנות DB.
 
-## הגדרות GitHub (ריפו פרטי, תוכנית חינמית)
-מופעל: Dependabot alerts + security updates, סריקת סודות בכל ה-history ב-CI (`secret-scan`), `permissions: contents: read`. **לא זמין בתוכנית חינמית לריפו פרטי:** Secret scanning/Push protection של GitHub ו-Branch protection (נדרש GitHub Pro או ריפו ציבורי). ההגנה על סודות נשענת על ה-hook המקומי (`git config core.hooksPath .githooks`) ועל ה-CI.
+## הגדרות GitHub (ריפו ציבורי)
+מופעל (אומת ב-API ב-2026-10-17): Dependabot security updates, **Secret scanning + Push protection**, סריקת סודות בכל ה-history ב-CI (`secret-scan`), `permissions: contents: read`. **Branch protection על `main` לא הופעל** (החלטת בעלים: כרגע עובדים ישירות על `main`; ר' הוראת ה-push האוטומטי ב-`CLAUDE.md`). ההגנה על סודות נשענת גם על ה-hook המקומי (`git config core.hooksPath .githooks`). אם הריפו יוחזר ל-private בתוכנית החינמית, Secret scanning/Push protection/Branch protection יפסיקו להיות זמינים.
 
 ## חוקים קבועים
 1. אין push/פריסה/שינוי DB בלי אישור מפורש (SQL: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים). `supabase config push` דורס את כל `[auth]`.
@@ -34,10 +34,11 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 6. לפני שאומרים "תוקן": לבדוק בדפדפן אמיתי מול החי באותו מסלול שהמשתמש עושה (לא רק מוקים).
 
 ## בדיקות (אחרון ידוע)
-JS 35/35 · Playwright 44/44 · backend 137/137 · DB מבודד 47/47 · predictive 17/17 · אימות SQL כולל rollback OK.
+JS 35/35 · Playwright (ממוקק) 46/46 · backend 137/137 · DB מבודד 47/47 · predictive 17/17 (הורצו ב-2026-10-17) · אימות SQL כולל rollback OK. **CI ב-GitHub מריץ**: סריקת סודות, JS, predictive-service ו-15 קבצי Playwright ממוקקים - **לא** את `backend/tests` ולא את `backend/tests_db` (רצים מקומית בלבד; ר' "נותר").
 
 ## נותר
 - [ ] **כניסה/שמירת היסטוריה בטלפון (SMS)**: הממשק בנוי ובדוק (ממוקק), מוסתר מאחורי `window.SMS_LOGIN_ENABLED = false` ב-`public/config.js`. להפעלה: ספק SMS (Twilio וכד') ב-Supabase Authentication ← Providers ← Phone, קאפצ'ה, בדיקת מגבלות קצב; ורק אז `true`. אם משתמשים ב-`config push`, לבדוק diff כי הוא דורס את כל `[auth]`.
+- [ ] להוסיף ל-CI job שמריץ `backend` pytest (`--ignore=tests_db`); `tests_db` דורש בדיקה שה-wheel `pixeltable-pgserver` רץ ב-Linux.
 - [ ] ניקוי נתוני בדיקה שיצרתי בפרויקט החי: הזמנות מבוטלות #49 ו-#51, שורות מטופל "בדיקת מערכת…" ומשתמשי אורח אנונימיים (~220) — **רק באישור**.
 - [ ] אירוח backend (HTTPS), `BACKEND_URL`, CSP `connect-src`, CORS.
 - [ ] MFA + Leaked password protection (דאשבורד), החלפת סוד האטסטציה.

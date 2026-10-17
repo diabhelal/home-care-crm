@@ -83,7 +83,7 @@ It was built as a hands-on exercise in designing a real Postgres/RLS security mo
 - The frontend is a set of static HTML pages. **Reads** go to Supabase's REST API (PostgREST) through `supabase-js`; **writes to bookings, visit reports, risk predictions and alerts go through the Python backend (`backend/`)** — the browser has no direct write path to those tables.
 - All data access control is enforced in the database via **Row Level Security (RLS)** policies, not in application code.
 - A separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
-- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs a secret scan over the whole git history, JS and Python tests, and the mocked Playwright E2E suite on every push/PR. There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
+- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs, on every push/PR: a secret scan over the whole git history, the JS unit tests, the `predictive-service` pytest suite, and 15 mocked Playwright specs. **CI does not yet run `backend/tests` or `backend/tests_db`** (they are run locally). There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
 
 ### Python backend for operational logic (`backend/`)
 
@@ -175,7 +175,7 @@ Endpoints that exist but have no current caller in the frontend (kept as working
 - It does not predict specific future medical events (e.g. a heart attack or a hypoglycemic episode) — the repository contains no outcome-labeled dataset (no field anywhere records a real historical adverse-event outcome), so no such classifier could be trained or validated here, and none was built.
 - `risk_predictions.probability` exists as a schema field reserved for a genuine future trained model, but is `null` in every row produced by the current rule-based logic — it is never fabricated.
 - `risk_predictions.confidence` is **not** a statistical/medical probability; it is the fraction of the six vitals that were actually supplied for that reading (a data-completeness score), documented as such directly on the database column.
-- No automatic alerting, paging, or "emergency" workflow exists anywhere — a risk badge is a passive, on-screen indicator that a human must look at; nothing pushes a notification to staff or patients.
+- There is no paging or "emergency" workflow: alert rows are generated server-side and shown on screen (dashboards, patient record), and a risk badge is a passive indicator that a human must look at; nothing is pushed by email, SMS or phone to staff or patients.
 
 ### What is machine learning and what is not
 
@@ -208,7 +208,7 @@ So the system today is a **rule-based decision-support tool with classical stati
 
 ### Prerequisites
 
-- Python 3.10+
+- Python 3.12+ (the backend was developed and tested on 3.13), Node.js 20+ (for the Playwright and unit tests)
 - A modern web browser
 - A Supabase project (or access to the existing one) with the migrations in `supabase/migrations/` applied
 - [Supabase CLI](https://supabase.com/docs/guides/cli) (only needed if you're managing schema migrations yourself)
@@ -231,7 +231,19 @@ window.SUPABASE_ANON_KEY = "<YOUR_SUPABASE_PUBLISHABLE_KEY>";
 
 > This file currently holds these values as plain JS globals rather than being generated from an env file — there is no frontend build step to inject environment variables into. Treat these as the frontend's configuration point; only the **publishable** key belongs here, never a secret/service-role key.
 
-### 3. Set up the predictive service
+### 3. Set up the Python services
+
+Operational backend (needed for booking, approval, check-in and visit completion):
+
+```bash
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt -r requirements-dev.txt   # exact versions: requirements.lock.txt
+cp .env.example .env   # fill SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS, RISK_ATTESTATION_SECRET (git-ignored)
+```
+
+Predictive (risk) service — optional, rule-based clinical engine:
+
 
 ```bash
 cd predictive-service
@@ -246,20 +258,28 @@ If you're pointing at a fresh Supabase project:
 
 ```bash
 supabase link --project-ref <YOUR_PROJECT_REF>
-# Migrations in this repo were applied via `execute_sql` + `supabase migration new` +
-# `supabase migration repair --status applied` rather than `db push` (see supabase/migrations/
-# and CLAUDE.md for the exact workflow this project followed).
+# Migrations in this repo were applied through the Supabase MCP (`apply_migration`) and the same SQL was
+# saved under supabase/migrations/ with the recorded version names (see CLAUDE.md for the workflow).
+# A fresh project needs every supabase/migrations/*.sql applied in order (23 files). Do not run
+# `supabase config push` casually: it overwrites the whole [auth] section.
 ```
 
 ## Environment Variables
 
-**No `.env` file is used by this project today** — the frontend has no build step to consume one, and the predictive service currently takes no configuration at all. The table below lists the values that *would* need to be supplied if you deploy your own instance; placeholder names only.
+The static frontend has no build step, so its configuration lives in `public/config.js` (publishable key only). The Python backend reads environment variables from `backend/.env` (git-ignored; template: `backend/.env.example`). The predictive service takes no configuration.
 
 | Variable | Used by | Purpose |
 |---|---|---|
-| `SUPABASE_URL` | `public/config.js` (hardcoded, not env-driven) | Your Supabase project's API URL |
-| `SUPABASE_PUBLISHABLE_KEY` | `public/config.js` (hardcoded, not env-driven) | Supabase's public/anon API key — safe for the browser |
-| `SUPABASE_SERVICE_ROLE_KEY` | Used only out-of-band (Admin API calls during setup), never in any committed file | Required only for privileged one-off operations like creating synthetic users or setting `app_metadata.is_admin` — **never place this in `public/` or any client-served file** |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (`SUPABASE_ANON_KEY` in the backend) | `public/config.js`; `backend/.env` | Project URL and the **publishable** key - safe for the browser |
+| `ALLOWED_ORIGINS` | `backend/.env` | CORS origins allowed to call the backend (no wildcards) |
+| `RISK_ATTESTATION_SECRET` | `backend/.env` and the DB row `server_secrets.risk_attestation_secret` | HMAC key for risk predictions and alerts (>= 32 random bytes). Required for risk writes; never in git |
+| `SUPABASE_JWT_SECRET` | `backend/.env` | Only for legacy HS256 tokens; ES256/RS256 tokens are verified with the project's JWKS |
+| `PREDICTIVE_SERVICE_URL` | `backend/.env` | Where the backend reaches `predictive-service/` (default `http://localhost:8000`) |
+| `TRAVEL_BUFFER_MINUTES`, `OFFERED_PURPOSES`, `ELIGIBLE_ROLES`, `BUSINESS_TIMEZONE` | `backend/.env` | Business rules (defaults: 30, five purposes, `nurse`, `Asia/Jerusalem`) |
+| `BACKEND_URL`, `SMS_LOGIN_ENABLED`, `DEMO_MODE` | `public/config.js` | Backend address (localhost only by default), phone+SMS option (off), demo banner (on) |
+| `SUPABASE_SERVICE_ROLE_KEY` | Never used by the app or stored in the repo | Only the `create-staff-login` Edge Function (server-side) holds a service key; **never place one in `public/` or any client-served file** |
+
+Full variable list and defaults: `backend/README.md`.
 
 ## Running the Application
 
@@ -270,6 +290,22 @@ cd public
 python3 -m http.server 8080
 ```
 Then open `http://localhost:8080/index.html`.
+
+**Backend** (required for booking; from `backend/`, after creating `.env`):
+
+```bash
+cd backend && source .venv/bin/activate
+uvicorn app.main:app --port 8001 --env-file .env
+```
+Health check: `http://localhost:8001/healthz`. Without it the site shows "service unavailable" when booking, by design.
+
+**Tests** (commands and last verified results are in `HANDOFF.md` and `docs/REVIEW.md`):
+
+```bash
+node --test tests/unit/*.test.js
+ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs npx playwright test   # never booking/visit-report against the live project
+cd backend && pytest -q --ignore=tests_db && pytest tests_db -q
+```
 
 **Predictive service:**
 
@@ -327,8 +363,8 @@ Being transparent about what's *not* built, since the goal of this README is acc
 
 - **Two roles exist (admin, staff), not fully-general RBAC.** Real staff/nurse logins exist (`employee.html`/`employee-login.html`) with their own RLS-enforced scope (`current_staff_id()`/`is_my_patient()` — a staff member sees only their assigned patients/bookings), distinct from the single shared admin role. There's no finer-grained permission system beyond that (no "family member" role, no per-staff feature toggles, and the admin/staff patient-record UIs intentionally differ in which tabs/actions are exposed rather than being driven by a configurable permission model).
 - **No client-side data-fetching/caching layer.** All data fetching is direct `supabase-js` calls per page load; there is no TanStack Query, no optimistic UI updates, and no Supabase Realtime subscriptions — the UI does not update live when another user changes data.
-- **Automated tests exist; two live-database E2E specs are never run.** JS unit tests, backend and predictive-service pytest, database tests on an isolated local Postgres, and the mocked Playwright suite run in CI. `booking.spec.js` and `visit-report.spec.js` write real rows, need a dedicated test Supabase project that does not exist yet, and must **not** be run against the live project. A full end-to-end run on real Supabase was done manually (see `docs/REVIEW.md`). See `tests/e2e/README.md`.
-- **No emergency/alerting mechanism.** As covered above, a Red risk badge is passive and manual-review-only.
+- **Automated tests exist; two live-database E2E specs are never run.** JS unit tests, backend and predictive-service pytest, database tests on an isolated local Postgres, and the mocked Playwright suite run in CI. `booking.spec.js` and `visit-report.spec.js` write real rows, need a dedicated test Supabase project that does not exist yet, and must **not** be run against the live project. One booking cycle (request, approve, check-in, complete, cancel) was run manually against the real project and backend on 2026-10-15; it was not saved as an automated test (`docs/REVIEW.md`). See `tests/e2e/README.md`.
+- **No external emergency notification.** Alerts are created server-side and shown in the admin/staff dashboards (plus an in-app banner for new booking requests), but nothing pushes an email, SMS or page; a Red risk badge needs a human to look at it. Email/SMS notifications for staff would require an external provider.
 - **Background medical conditions are now used in risk scoring, but only as an escalation rule.** A Yellow vital is escalated to Red when a relevant background condition or smoking status is present (see `predictive-service/main.py`, `BACKGROUND_ESCALATION_VITALS`); it never touches an already-Green or already-Red vital, and it's still a hand-written rule, not a learned model.
 - **Guest identity is per-browser by default.** A patient can opt in to cross-device access by saving the history with an email + password (works today) or with phone + SMS code. The SMS option is built and tested against a mock, but disabled (`SMS_LOGIN_ENABLED = false`) because no SMS provider is configured yet (`[auth.sms] enable_signup = false`).
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.

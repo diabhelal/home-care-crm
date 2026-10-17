@@ -9,9 +9,11 @@ The service forwards the caller's JWT to PostgREST (no service_role key), so RLS
 cd backend
 python3.13 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
-pytest -q
-uvicorn app.main:app --port 8001
+cp .env.example .env   # fill SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS, RISK_ATTESTATION_SECRET (git-ignored)
+pytest -q --ignore=tests_db
+uvicorn app.main:app --port 8001 --env-file .env
 ```
+Last verified run (2026-10-17): `pytest -q --ignore=tests_db` 137 passed; `pytest tests_db -q` 47 passed. CI does not run these yet.
 
 ## Layout
 `app/auth.py` JWT verification (pluggable `TokenVerifier`) - `app/state.py` transitions + `display_state` -
@@ -21,6 +23,7 @@ uvicorn app.main:app --port 8001
 ## Endpoints
 | Method | Path | Who |
 |---|---|---|
+| GET | `/healthz` | none (liveness) |
 | POST | `/bookings/request` (`Idempotency-Key` header optional) | any signed-in user incl. guests |
 | GET | `/availability?start&end[&staff_id][&address]` | signed-in |
 | POST | `/bookings/{id}/cancel` | the booking's patient only (404 for anyone else; 409 when completed/checked-in; idempotent) |
@@ -39,7 +42,7 @@ Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition o
 |---|---|---|
 | `SUPABASE_URL` | project URL | required |
 | `SUPABASE_ANON_KEY` | publishable key (sent as `apikey`) | required |
-| `SUPABASE_JWT_SECRET` | HS256 secret to verify user JWTs | required |
+| `SUPABASE_JWT_SECRET` | HS256 secret to verify legacy HS256 user JWTs (optional when the project signs with ES256/RS256: those are verified via `<SUPABASE_URL>/auth/v1/.well-known/jwks.json`) | optional |
 | `ALLOWED_ORIGINS` | comma-separated CORS origins | none (CORS off) |
 | `TRAVEL_BUFFER_MINUTES` | buffer between visits at different addresses | 30 |
 | `OFFERED_PURPOSES` | allowed visit purposes | checkup,wound_care,blood_test,medication,other |
@@ -66,7 +69,7 @@ Browser inserts into `risk_predictions`/`alerts` are revoked by that migration. 
 
 ## Database
 The SQL in `supabase/proposed/001–007` was applied to the live project on 2026-10-15 (see `supabase/proposed/APPLIED.md`); a fresh Supabase project needs all `supabase/migrations/*.sql` applied in order.
-Known gap: until the frontend stops inserting bookings directly, a direct insert still gets `approval_status='confirmed'`.
+The browser no longer writes `bookings`/`visit_reports`/`risk_predictions`/`alerts` directly, and migration `005` triggers reject a direct PostgREST insert/update that bypasses the approval, buffer and ownership rules (verified in `tests_db`).
 Geocoding is a no-op by default; implement `Geocoder` to enable proximity ranking.
 
 ## Isolated database tests (never the live project)
