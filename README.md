@@ -92,7 +92,7 @@ Neither Python service is hosted yet; both run locally.
 - The frontend is a set of static HTML pages. **Reads** go to Supabase's REST API (PostgREST) through `supabase-js`; **writes to bookings, visit reports, risk predictions and alerts go through the Python backend (`backend/`)** — the browser has no direct write path to those tables.
 - All data access control is enforced in the database via **Row Level Security (RLS)** policies, not in application code.
 - A separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — it receives numbers (from the browser for the live preview and capacity forecast, and from the backend when a risk assessment is stored) and returns a classification.
-- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs, on every push/PR: a secret scan over the whole git history, the JS unit tests, the `predictive-service` pytest suite, the `backend` pytest suite plus its isolated-database tests (`backend/tests_db`, throwaway local Postgres), and 15 mocked Playwright specs. There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
+- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs, on every push/PR: a secret scan over the whole git history, the JS unit tests, the `predictive-service` pytest suite, the `backend` pytest suite plus its isolated-database tests (`backend/tests_db`, throwaway local Postgres), and 16 mocked Playwright specs. There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
 
 ### Python backend for operational logic (`backend/`)
 
@@ -379,6 +379,7 @@ Being transparent about what's *not* built, since the goal of this README is acc
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.
 
 - **Backend not hosted.** The Python backend works locally against the live Supabase project; booking from the site requires it to be running. A hosted deployment needs HTTPS, `BACKEND_URL` in `public/config.js`, the backend origin in the CSP `connect-src`, and CORS (`ALLOWED_ORIGINS`).
+- **Three hardening migrations are written and tested but NOT yet applied to the live database:** `supabase/proposed/008` (visit-report integrity guard), `009` (deactivate instead of delete staff; no cascade of history) and `010` (overlap/travel-buffer enforcement on booking updates). They were verified only on an isolated local Postgres with synthetic data. Until they are applied, the live database still cascades history when a staff member is deleted, and a direct administrator write can bypass the booking-conflict check. The site code that supports them (staff deactivation, offline-draft sync) works with or without them. See `supabase/proposed/APPLIED.md` and `HANDOFF.md`.
 - **Travel buffer is a constant (30 min)**, not computed travel time; proximity ranking needs staff/patient coordinates and a geocoder (a no-op geocoder is the default).
 - **Offline drafts live in `localStorage`** (namespaced per user, unencrypted). This is logical separation, not encryption.
 - **Completed visit reports are read-only** in the UI; corrections should be new clinical notes.
