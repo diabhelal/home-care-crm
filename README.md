@@ -2,7 +2,7 @@
 
 A booking and visit-management platform for a home healthcare service. Patients book home visits with nurses, doctors, physiotherapists, or caregivers with no registration step (a guest-checkout flow, similar to booking a flight); staff document each visit's vitals and procedures; an admin panel manages staff, bookings, and a rule-based clinical decision-support layer for vitals trends and capacity planning.
 
-> **Status:** working prototype / portfolio project, not a certified medical device or a production healthcare deployment. See [Disclaimer](#disclaimer--medical-risk-functionality) and [Known Limitations](#known-limitations).
+> **Status:** working prototype / portfolio project with **synthetic data only**, not a certified medical device or a production healthcare deployment. Staff are nurses only (configurable in `public/config.js`). For a reviewer: start with [`docs/DEMO.md`](docs/DEMO.md) (walkthrough) and [`docs/REVIEW.md`](docs/REVIEW.md) (what is tested, what is rule-based vs. ML, security). See [Disclaimer](#disclaimer--medical-risk-functionality) and [Known Limitations](#known-limitations).
 
 ---
 
@@ -36,35 +36,32 @@ It was built as a hands-on exercise in designing a real Postgres/RLS security mo
 
 ## Main Features
 
-- **No-registration patient booking** — browse services, pick a staff member, pick an open time slot, and only enter name/phone/address at final confirmation (an anonymous Supabase Auth session is created transparently in the background).
-- **Staff/service catalog** with role-based filtering (nurse, doctor, physiotherapist, caregiver).
-- **Availability-aware time-slot generation** computed client-side from each staff member's weekly schedule minus their existing bookings.
-- **Patient self-service booking management** — view upcoming/past bookings, cancel a booking.
-- **Visit reports** — vitals, procedures performed, treatment summary, and an on-screen captured patient signature, tied to a specific booking.
-- **Admin panel** — manage bookings (status changes), manage staff (add/edit/delete + availability), view patients and edit their background medical conditions, view/author visit reports.
-- **Rule-based risk assessment** (Green/Yellow/Red) computed from a visit's vitals, with a time-bound validity window and trend detection against the patient's previous visit.
-- **Capacity forecasting** — a simple formula projecting next month's expected visit volume from current volume, patient count, and an assumed growth rate.
-- **Password recovery** for the admin account via Supabase Auth's standard email-link flow.
+- **No-registration patient booking, service first** — choose a service (default: general check-up), an address, a day and a time; name / national ID / phone are asked only at the final step (an anonymous Supabase Auth session is created transparently in the background). The booking is a **request**: it shows "requested — waiting for approval" with an order number until an admin approves it.
+- **Server-side availability** — computed by the Python backend from each nurse's weekly schedule, existing bookings and a **30-minute travel buffer** between visits. Days without free slots are greyed out.
+- **Admin approval lifecycle** — approve / reject / reassign / cancel, with conflict checks enforced both in the backend and by database triggers.
+- **Staff field actions** — "next visit" card with navigation and call buttons, check-in (**server time**, not browser time), and atomic visit completion.
+- **Visit reports** — vitals, procedures, treatment summary and an on-screen patient signature. Works **offline**: drafts are stored per user on the device and synced when the network returns (deleted only after a confirmed save).
+- **Optional history saving for patients** — after booking, a patient may save their history with **email + password**, or with **phone + SMS code** (the SMS option is built and tested but hidden behind `SMS_LOGIN_ENABLED` in `public/config.js` until an SMS provider is configured). Booking never requires an account.
+- **Rule-based risk assessment** (Green/Yellow/Red) with trend detection, attested server-side before it is stored (see Security). Labelled "rule-based — demonstration" in the UI.
+- **Admin panel** — bookings, staff, patients and their records, capacity forecast, alerts.
+- **Healthcare-style Hebrew RTL design** (Heebo, navy/mint palette), responsive down to phone width, installable as a PWA.
 
 ## Workflows
 
 **Patient (guest, no login):**
-1. Land on the homepage, browse services by staff role.
-2. Pick a staff member (optionally pre-filtered by role).
-3. Pick a visit purpose, a date, and an open time slot.
-4. Enter name/phone/address and confirm — this is the only point personal details are collected.
-5. View or cancel bookings later from "My Bookings" (tied to that browser's anonymous session — there is no cross-device login for patients).
+1. Land on the homepage and choose a service.
+2. Enter the visit address, then pick a day and a time that has free slots.
+3. Enter name, national ID, phone — the only point personal details are collected — and confirm. The request is sent to the backend (idempotent: a retry never creates a duplicate).
+4. See "requested — waiting for approval" and an order number; follow the status (requested → confirmed → in progress → completed) in "My Bookings", or cancel.
+5. Optionally save the history by email or SMS to see bookings from another device.
 
-**Nurse/Staff (via the admin panel, using a shared admin login):**
-1. Log in with the admin email/password account.
-2. Open a booking, fill in vitals, procedures performed, a treatment summary, and capture the patient's signature.
-3. Save the report — this recalculates the patient's rule-based risk level and trend automatically.
-4. Mark a booking complete or cancelled.
+**Nurse (own login, `employee.html`):**
+1. Sees only the patients/bookings assigned to them (enforced by RLS).
+2. Opens "next visit" → navigate / call → check in (server time).
+3. Records vitals, procedures, summary and signature, then saves; the risk level and trend are recalculated server-side. Works offline.
 
-**Admin:**
-- Everything staff can do, plus: add/edit/deactivate/delete staff members and their weekly availability; view all patients and edit their recorded background conditions; view all bookings across all patients; run a capacity forecast for the next month.
-
-There is currently a **single shared admin role** — see [RBAC status](#known-limitations) for why "nurse" and "admin" are not yet separate accounts.
+**Admin (`admin.html`):**
+- Approves, rejects, reassigns or cancels booking requests; manages staff and availability; views patients and records; sees alerts and a capacity forecast.
 
 ## Architecture
 
@@ -83,10 +80,10 @@ There is currently a **single shared admin role** — see [RBAC status](#known-l
 └──────────────────────────────────────────────┘
 ```
 
-- The frontend is a set of static HTML pages that talk **directly** to Supabase's auto-generated REST API (PostgREST) using `supabase-js` from the browser — there is no application backend server for the CRM itself.
+- The frontend is a set of static HTML pages. **Reads** go to Supabase's REST API (PostgREST) through `supabase-js`; **writes to bookings, visit reports, risk predictions and alerts go through the Python backend (`backend/`)** — the browser has no direct write path to those tables.
 - All data access control is enforced in the database via **Row Level Security (RLS)** policies, not in application code.
-- A small, separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
-- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs JS and Python unit tests on every push/PR; there is no separate staging/production environment configuration at this time (see [Known Limitations](#known-limitations)).
+- A separate, **local-only** Python service (`predictive-service/`) provides the rule-based risk/trend/capacity calculations over HTTP. It holds no database connection and no patient data of its own — the frontend sends it numbers, it sends back a classification.
+- A GitHub Actions CI pipeline (`.github/workflows/ci.yml`) runs a secret scan over the whole git history, JS and Python tests, and the mocked Playwright E2E suite on every push/PR. There is no separate staging/production environment yet (see [Known Limitations](#known-limitations)).
 
 ### Python backend for operational logic (`backend/`)
 
@@ -110,13 +107,13 @@ browser ──(Bearer = Supabase session JWT)──▶ backend/ (FastAPI) ──
 | Frontend | Static HTML5 + CSS3 + vanilla JavaScript (ES2017+), no framework, no build step, no bundler |
 | Frontend/DB client | [`supabase-js`](https://github.com/supabase/supabase-js) v2, loaded from a CDN `<script>` tag |
 | Database | PostgreSQL (managed by Supabase) |
-| Auth | Supabase Auth — anonymous sign-ins for patients, email/password for the admin account |
+| Auth | Supabase Auth — anonymous sign-ins for patients (optionally upgraded to email/password or phone+SMS), email/password for admin and staff |
 | API layer | Supabase PostgREST Data API for reads; **FastAPI backend (`backend/`) for booking and visit-lifecycle writes** |
 | Access control | PostgreSQL Row Level Security (RLS) policies |
 | Decision-support service | Python 3, [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), served by [Uvicorn](https://www.uvicorn.org/) |
-| Fonts | Google Fonts (Inter, Manrope) |
+| Fonts | Google Fonts (Heebo) |
 
-**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, a Node/Express/Flask backend, Docker. GitHub Actions CI (`.github/workflows/ci.yml`) runs the unit test suites (`node --test`, `pytest`) on every push, plus a manually-triggered Playwright E2E job.
+**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, Docker. The operational backend is Python/FastAPI (not Node). Tests: `node --test` (35), Playwright (mocked, 46 specs), `pytest` for the backend (137) and the predictive service (17), plus 47 database tests on an isolated local Postgres.
 
 ## Database
 
@@ -137,15 +134,15 @@ All tables live in the `public` schema, have RLS enabled, and follow a consisten
 
 16 tables in total, plus a `current_patient_risk` database view (defined with `security_invoker` so it respects RLS rather than bypassing it) that resolves each patient's *current, non-expired* risk assessment — the most recent prediction whose validity window hasn't elapsed.
 
-13 migrations currently exist under `supabase/migrations/` (run `ls supabase/migrations/` for the exact list) — the original schema, the identity-model pivot, visit reports, the risk-prediction system, the full Patient Medical Record module (10 tables in one migration), real staff/nurse login, and several targeted follow-ups including two grant-drift security fixes.
+23 migrations are recorded under `supabase/migrations/` and match the live project one-to-one (run `ls supabase/migrations/`). The first 16 are the original schema, identity-model pivot, visit reports, risk predictions, the Patient Medical Record module, staff login and security follow-ups. The last 7 (`001–007`, applied on 2026-10-15) add the approval lifecycle (`approval_status`: requested / confirmed / rejected), visit address and check-in columns, atomic completion functions, **trigger guards on `bookings`** (no self-approval, no double booking, 30-minute buffer), server-attested risk predictions and alerts (HMAC), and writer-identity enforcement on clinical notes.
 
 ## Home-Visit Booking Flow
 
-1. On every page load, `ensureGuestSession()` (`public/app.js`) checks for an existing Supabase session and, if none exists, transparently calls `supabaseClient.auth.signInAnonymously()`. This gives every visitor a real `auth.uid()` from the first click, so ownership-based RLS policies work without a visible login step.
-2. The patient browses `staff.html` (optionally filtered by role via a `?role=` query param) and picks a staff member.
-3. On `booking.html`, available dates are generated from the staff member's `available_weekdays`; available time slots for a chosen date are computed **client-side** as: the staff member's working hours, divided into `slot_duration_minutes` increments, minus any slot already present in `bookings` for that staff member on that day. Past and already-taken slots are disabled.
-4. On confirming, the patient's name/phone/address are `upsert`ed into `patients`, then a row is inserted into `bookings`. The `(staff_id, scheduled_at)` unique constraint provides a server-side guarantee against a double-booking race condition; the client shows a friendly "someone just took that slot" message and refreshes if it occurs.
-5. `my-bookings.html` shows the guest's own upcoming and past bookings (via RLS-scoped `SELECT`) and allows cancellation (an `UPDATE` to `status = 'cancelled'`, not a delete).
+1. On every page load, `ensureGuestSession()` (`public/app.js`) creates an anonymous Supabase session if none exists, so every visitor has a real `auth.uid()` and ownership-based RLS works without a visible login.
+2. On `booking.html` the patient picks a service, enters the address, and the page asks the backend (`GET /availability`) for each day's free slots; days with none are disabled. Slots already include the 30-minute travel buffer.
+3. After choosing a slot, the patient enters name / national ID / phone. Details are saved to `patients` (RLS-scoped), then `POST /bookings/request` is sent with an **idempotency key**, so a retry after a network failure does not create a second booking.
+4. The booking is created as `requested`. An admin approves / rejects / reassigns it; database triggers refuse overlapping slots, buffer violations and self-approval even if the API is bypassed.
+5. `my-bookings.html` shows the patient's bookings with an order number and status steps, and allows cancellation through the backend.
 
 ## Visit Reports & Vital-Sign Tracking
 
@@ -202,6 +199,8 @@ So the system today is a **rule-based decision-support tool with classical stati
 - **Publishable-key-only frontend.** The browser only ever holds Supabase's public `sb_publishable_...` key (`public/config.js`); the service-role key is never present in any client-side file, and is used only inside the Edge Function above (server-side) and out-of-band (via the Supabase MCP/Admin API during setup) to create synthetic auth users and flag the admin account.
 - **Security-invoker views.** The `current_patient_risk` view is explicitly created with `security_invoker = true` — without it, Postgres views default to running with the view creator's privileges, which would silently bypass RLS for anyone querying it (this was caught by Supabase's automated security advisor during development and fixed before shipping).
 - **XSS mitigation.** Free-text fields rendered back to patients (e.g. a visit report's treatment summary) are HTML-escaped before insertion into the DOM; a captured signature is only rendered if it matches the expected `data:image/png;base64,` format.
+- **No direct browser writes to critical tables.** Bookings, visit reports, risk predictions and alerts are written by the backend using the caller's own JWT (never a `service_role` key); database triggers and column-level grants block the same writes from the browser. Risk predictions and alerts must carry an HMAC attestation produced by the backend; the secret lives only in a database table and in `backend/.env`, never in git.
+- **Repository hygiene.** CI scans the whole git history for secrets, Dependabot is enabled, workflow permissions are `contents: read`, dependencies are pinned (`supabase-js@2.118.0`, `backend/requirements.lock.txt`), and `SECURITY.md` describes how to report an issue.
 - **Pre-commit secret scanning.** A git hook (`.githooks/pre-commit`, opt-in via `git config core.hooksPath .githooks`) blocks commits containing patterns resembling Supabase secret keys, private-key headers, AWS keys, or generic password/token assignments.
 - **Anonymous booking is a deliberate trade-off, not an oversight.** Because there is no registration step, anyone can create bookings with unverified name/phone/address data; Supabase Auth's IP-based rate limits apply, but no CAPTCHA is currently configured.
 
@@ -291,7 +290,7 @@ home-care-crm/
 │   ├── index.html            # Landing page + service catalog + public contact form
 │   ├── staff.html            # Staff selection (supports ?role= filter)
 │   ├── booking.html          # Purpose/date/time selection + guest checkout form
-│   ├── my-bookings.html      # Patient's own bookings + saved visit reports + optional phone linking
+│   ├── my-bookings.html      # Patient's own bookings, status, saved reports, optional email/SMS history saving
 │   ├── admin.html            # Admin panel (work queue, staff, patients, contacts, patient records)
 │   ├── employee.html         # Staff/nurse panel ("My Work" + patient records, same predictive features)
 │   ├── employee-login.html   # Staff email/password login + password reset
@@ -302,13 +301,18 @@ home-care-crm/
 │   ├── config.js              # Supabase URL + publishable key + predictive-service URL
 │   ├── service-worker.js / manifest.json  # PWA: offline app-shell caching, installability
 │   └── styles.css            # Shared design system
+├── backend/                  # Python/FastAPI operational backend: booking, availability, approval, check-in, completion, risk
+│   ├── app/, tests/ (unit), tests_db/ (isolated local Postgres), scripts/verify_proposed_sql.py
 ├── predictive-service/       # Local-only Python decision-support API (13 endpoints)
 │   ├── main.py, clinical_baseline.py, timeseries.py, ml_targets.py, lstm_interface.py
 │   └── requirements.txt / requirements-dev.txt / tests/
 ├── supabase/
 │   ├── config.toml            # Supabase CLI project config (incl. Auth settings)
 │   ├── functions/create-staff-login/  # Edge Function: provisions a staff Auth login (holds service-role key)
-│   └── migrations/            # 13 ordered, applied SQL migrations
+│   ├── migrations/            # 23 ordered, applied SQL migrations
+│   └── proposed/              # SQL 001–007 as reviewed before application (+ APPLIED.md)
+├── docs/                      # DEMO.md, REVIEW.md, WORKPLAN.md, STAGING_PLAN.md, demo-proof/ screenshots
+├── HANDOFF.md, SECURITY.md    # Current state / next steps; vulnerability reporting
 ├── tests/unit/, tests/e2e/   # node:test unit tests + Playwright E2E specs (see tests/e2e/README.md)
 ├── .github/workflows/ci.yml  # Unit tests on every push; E2E split safe/live-DB (see tests/e2e/README.md)
 ├── .githooks/pre-commit       # Optional secret-scanning git hook
@@ -323,14 +327,13 @@ Being transparent about what's *not* built, since the goal of this README is acc
 
 - **Two roles exist (admin, staff), not fully-general RBAC.** Real staff/nurse logins exist (`employee.html`/`employee-login.html`) with their own RLS-enforced scope (`current_staff_id()`/`is_my_patient()` — a staff member sees only their assigned patients/bookings), distinct from the single shared admin role. There's no finer-grained permission system beyond that (no "family member" role, no per-staff feature toggles, and the admin/staff patient-record UIs intentionally differ in which tabs/actions are exposed rather than being driven by a configurable permission model).
 - **No client-side data-fetching/caching layer.** All data fetching is direct `supabase-js` calls per page load; there is no TanStack Query, no optimistic UI updates, and no Supabase Realtime subscriptions — the UI does not update live when another user changes data.
-- **Automated tests exist; 3 of 5 E2E specs run in CI, 2 remain unverified.** Unit tests (`tests/unit/`, JS; `predictive-service/tests/`, Python) run on every push/PR via GitHub Actions CI. Of the 5 Playwright E2E specs (`tests/e2e/`), 3 use a mocked Supabase client and run automatically on every push; the other 2 (`booking.spec.js`, `visit-report.spec.js`) write real bookings/reports and require a dedicated test Supabase project that hasn't been set up yet — those two are gated to manual `workflow_dispatch` only and have never actually been executed; treat them as unverified. See `tests/e2e/README.md`.
+- **Automated tests exist; two live-database E2E specs are never run.** JS unit tests, backend and predictive-service pytest, database tests on an isolated local Postgres, and the mocked Playwright suite run in CI. `booking.spec.js` and `visit-report.spec.js` write real rows, need a dedicated test Supabase project that does not exist yet, and must **not** be run against the live project. A full end-to-end run on real Supabase was done manually (see `docs/REVIEW.md`). See `tests/e2e/README.md`.
 - **No emergency/alerting mechanism.** As covered above, a Red risk badge is passive and manual-review-only.
 - **Background medical conditions are now used in risk scoring, but only as an escalation rule.** A Yellow vital is escalated to Red when a relevant background condition or smoking status is present (see `predictive-service/main.py`, `BACKGROUND_ESCALATION_VITALS`); it never touches an already-Green or already-Red vital, and it's still a hand-written rule, not a learned model.
-- **Guest identity is per-browser by default.** A patient cannot access their booking history from a different device or browser out of the box. Optional phone+OTP identity-linking infrastructure exists (`public/my-bookings.html`, Supabase Auth's anonymous-upgrade flow) so a patient *can* opt in to cross-device access, but it's inert today — no real SMS provider is configured (`[auth.sms] enable_signup = false` in `supabase/config.toml`), so the phone-linking UI is present but non-functional until one is wired up.
+- **Guest identity is per-browser by default.** A patient can opt in to cross-device access by saving the history with an email + password (works today) or with phone + SMS code. The SMS option is built and tested against a mock, but disabled (`SMS_LOGIN_ENABLED = false`) because no SMS provider is configured yet (`[auth.sms] enable_signup = false`).
 - **Two Supabase Auth project-level settings** (leaked-password protection, additional MFA methods) show as advisory warnings and haven't been enabled.
 
 - **Backend not hosted.** The Python backend works locally against the live Supabase project; booking from the site requires it to be running. A hosted deployment needs HTTPS, `BACKEND_URL` in `public/config.js`, the backend origin in the CSP `connect-src`, and CORS (`ALLOWED_ORIGINS`).
-- **Client-written clinical rows.** `risk_predictions` and `alerts` inserts (and acknowledgement fields) were browser-written; a server-side path is being added (see `docs/WORKPLAN.md`).
 - **Travel buffer is a constant (30 min)**, not computed travel time; proximity ranking needs staff/patient coordinates and a geocoder (a no-op geocoder is the default).
 - **Offline drafts live in `localStorage`** (namespaced per user, unencrypted). This is logical separation, not encryption.
 - **Completed visit reports are read-only** in the UI; corrections should be new clinical notes.
@@ -345,7 +348,7 @@ Roughly in order of likely value:
 3. A live-update layer (Supabase Realtime or a client-side caching/query library) so admin views reflect changes without a manual refresh.
 4. An audit trail for who viewed or changed a patient's clinical data and when.
 5. A patient data retention/deletion mechanism.
-6. A real SMS provider for the phone+OTP identity-linking flow that already exists in the code but is currently inert.
+6. Configure a real SMS provider (plus CAPTCHA and rate limits), then set `SMS_LOGIN_ENABLED = true` — the phone+SMS flow is already implemented.
 7. If a genuine outcome-labeled dataset is ever collected, a properly trained and *validated* statistical/ML model as a distinct, clearly-labeled addition alongside (not replacing) the current rule-based layer.
 
 ## Disclaimer — Medical Risk Functionality
