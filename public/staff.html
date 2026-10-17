@@ -112,7 +112,7 @@
 
     let staff, error;
     try {
-      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("id, full_name, role, specialization, available_weekdays, work_start_time, work_end_time, slot_duration_minutes, is_active").order("role"));
+      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("id, full_name, role, specialization, available_weekdays, work_start_time, work_end_time, slot_duration_minutes, is_active").eq("is_active", true).order("role"));
       if (!error && staff) staff = staff.filter((s) => offeredRoles.includes(s.role));
     } catch (err) {
       error = err;

@@ -57,11 +57,16 @@ async function loadStaff() {
     editBtn.className = "btn btn-secondary btn-sm";
     editBtn.textContent = "עריכה";
     editBtn.addEventListener("click", () => openStaffModal(s));
+    const activeBtn = document.createElement("button");
+    activeBtn.className = "btn btn-secondary btn-sm";
+    activeBtn.textContent = s.is_active ? "השבתה" : "הפעלה";
+    activeBtn.addEventListener("click", () => setStaffActive(s.id, s.full_name, !s.is_active, activeBtn));
     const delBtn = document.createElement("button");
     delBtn.className = "btn btn-danger btn-sm";
     delBtn.textContent = "מחיקה";
     delBtn.addEventListener("click", () => deleteStaff(s.id, s.full_name, delBtn));
     actionsTd.appendChild(editBtn);
+    actionsTd.appendChild(activeBtn);
     actionsTd.appendChild(delBtn);
     tbody.appendChild(tr);
   });
@@ -107,8 +112,31 @@ async function createStaffLogin(staff, btn) {
   loadStaff();
 }
 
+// השבתה (is_active=false) היא הדרך הנתמכת להוצאת איש צוות משימוש: ההיסטוריה (ביקורים ודוחות) נשמרת
+// והוא/היא לא מקבלים שיבוצים חדשים. ה-DB מונע מחיקה של מי שיש לו היסטוריה (ON DELETE RESTRICT).
+async function setStaffActive(id, name, active, btn) {
+  const question = active
+    ? `להפעיל מחדש את ${name}? אפשר יהיה לשבץ לו/ה ביקורים חדשים.`
+    : `להשבית את ${name}? ההיסטוריה (ביקורים ודוחות) נשמרת, אך לא ניתן יהיה לשבץ ביקורים חדשים. ביקורים עתידיים קיימים יש לשייך מחדש.`;
+  if (!confirm(question)) return;
+  hideError(appError);
+  if (btn) setButtonLoading(btn, true, "מעדכן...");
+  let error;
+  try {
+    ({ error } = await supabaseClient.from("medical_staff").update({ is_active: active }).eq("id", id));
+  } catch (err) {
+    error = err;
+  } finally {
+    if (btn) setButtonLoading(btn, false);
+  }
+  if (error) { showError(appError, friendlyErrorMessage(error)); return; }
+  flashSuccess(active ? "איש הצוות הופעל מחדש" : "איש הצוות הושבת וההיסטוריה נשמרה");
+  loadStaff();
+  loadBookings();
+}
+
 async function deleteStaff(id, name, btn) {
-  if (!confirm(`למחוק את ${name}? פעולה זו תמחק גם את כל ההזמנות המשויכות אליו/ה.`)) return;
+  if (!confirm(`למחוק את ${name} לצמיתות? אפשרי רק אם אין לו/ה שום היסטוריית ביקורים או דוחות. אחרת השתמשו ב"השבתה".`)) return;
   hideError(appError);
   if (btn) setButtonLoading(btn, true, "מוחק...");
   let error;
@@ -119,7 +147,15 @@ async function deleteStaff(id, name, btn) {
   } finally {
     if (btn) setButtonLoading(btn, false);
   }
-  if (error) { showError(appError, friendlyErrorMessage(error)); return; }
+  if (error) {
+    // 23001/23503: מפתח זר (ON DELETE RESTRICT) — יש היסטוריה, אסור למחוק
+    if (error.code === "23001" || error.code === "23503") {
+      showError(appError, "לא ניתן למחוק איש צוות שיש לו היסטוריית ביקורים או דוחות רפואיים. השתמשו ב\"השבתה\" כדי לשמור את ההיסטוריה.");
+    } else {
+      showError(appError, friendlyErrorMessage(error));
+    }
+    return;
+  }
   flashSuccess("איש הצוות נמחק");
   loadStaff();
   loadBookings();

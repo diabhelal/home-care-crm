@@ -129,7 +129,7 @@
 
     let staff, error;
     try {
-      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("role"));
+      ({ data: staff, error } = await supabaseClient.from("medical_staff").select("role").eq("is_active", true));
     } catch (err) {
       error = err;
     }
