@@ -38,6 +38,7 @@ JS 35/35 · Playwright (ממוקק) 46/46 · backend 137/137 · DB מבודד 47
 
 ## נותר
 - [ ] **כניסה/שמירת היסטוריה בטלפון (SMS)**: הממשק בנוי ובדוק (ממוקק), מוסתר מאחורי `window.SMS_LOGIN_ENABLED = false` ב-`public/config.js`. להפעלה: ספק SMS (Twilio וכד') ב-Supabase Authentication ← Providers ← Phone, קאפצ'ה, בדיקת מגבלות קצב; ורק אז `true`. אם משתמשים ב-`config push`, לבדוק diff כי הוא דורס את כל `[auth]`.
+- [ ] **להחיל `supabase/proposed/008_visit_report_integrity.sql`** (טריגר שמונע כתיבה ישירה ל-`visit_reports` שעוקפת אישור/התאמת הזמנה-מטופל-איש צוות, נועל דוח שהושלם ומונע מחיקה ע"י צוות). נבדק רק על Postgres מבודד (58 בדיקות DB); לא הוחל על הפרויקט החי — דורש אישור, ואז העתקה ל-`supabase/migrations/` בשם הגרסה הרשום.
 - [ ] ניקוי נתוני בדיקה שיצרתי בפרויקט החי: הזמנות מבוטלות #49 ו-#51, שורות מטופל "בדיקת מערכת…" ומשתמשי אורח אנונימיים (~220) — **רק באישור**.
 - [ ] אירוח backend (HTTPS), `BACKEND_URL`, CSP `connect-src`, CORS.
 - [ ] MFA + Leaked password protection (דאשבורד), החלפת סוד האטסטציה.

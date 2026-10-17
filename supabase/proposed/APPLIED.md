@@ -12,5 +12,7 @@
 | 006_server_side_risk_and_alerts | 20261015155034 (+ סוד אטסטציה הוכנס ל-`server_secrets`; לא ב-git) |
 | 007_server_derived_authorship | 20261015155238 (גרסה מתוקנת: DELETE בטריגר clinical_notes לא בולע cascade) |
 
-הקבצים הועתקו ל-`supabase/migrations/` עם הגרסה הרשומה. התיקייה הזאת נשארת כמקור וכקלט לבדיקות
+| 008_visit_report_integrity | **לא הוחל** (נבדק רק על Postgres מבודד; ממתין לאישור החלה) |
+
+הקבצים 001–007 הועתקו ל-`supabase/migrations/` עם הגרסה הרשומה. התיקייה הזאת נשארת כמקור וכקלט לבדיקות
 (`backend/scripts/verify_proposed_sql.py`). **לפני שימוש אמיתי יש להחליף את סוד האטסטציה לערך חדש** (הערך הנוכחי הופיע בשיחת העבודה).
