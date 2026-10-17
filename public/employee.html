@@ -628,7 +628,13 @@
     }
     if (error) {
       if (isRetryableCompletionError(error) || (error && error.kind === "auth")) {
-        queueVisitReportDraft({ ...payload, _markCompleted: true });
+        try {
+          queueVisitReportDraft({ ...payload, _markCompleted: true });
+        } catch (storageErr) {
+          // השמירה המקומית נכשלה: לא מציגים "נשמר" — הטופס נשאר פתוח עם הנתונים.
+          showError(modalError, offlineStorageFailureMessage(storageErr));
+          return;
+        }
         updateOfflineDraftBanner();
         visitReportModal.style.display = "none";
         if (error.kind === "auth") flashError(visitCompletionErrorMessage(error, true));

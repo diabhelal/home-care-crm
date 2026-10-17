@@ -95,28 +95,85 @@ function offlineQueueFlushMessage(synced, partial) {
   return `${synced} דוחות ביקור שנשמרו במכשיר סונכרנו בהצלחה`;
 }
 
+// כשל אחסון מקומי מוצג לקורא כשגיאה אמיתית: "נשמר מקומית" מותר להציג רק אחרי שהכתיבה הצליחה.
+// הערה: מפתחות לפי משתמש והסרה אחרי סנכרון משפרים הגנה לוגית בלבד; localStorage אינו מוצפן
+// ואינו מבטיח מחיקה מלאה של מידע מהמכשיר.
+class OfflineStorageError extends Error {
+  constructor(message, cause) { super(message); this.name = "OfflineStorageError"; this.cause = cause; }
+}
+
+function offlineStorageFailureMessage() {
+  return "השמירה המקומית במכשיר נכשלה (אחסון מלא או חסום), ולכן הדוח לא נשמר ולא נשלח — הנתונים נשארו בטופס. אל תסגרו את העמוד; נסו שוב כשיש חיבור, או שחררו מקום באחסון הדפדפן.";
+}
+
+// קריאה סובלנית (לספירה ולסנכרון): תוכן לא קריא נחשב ריק.
 function getOfflineQueue(key = offlineQueueKey()) {
   try {
-    return JSON.parse(localStorage.getItem(key) || "[]");
+    const q = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(q) ? q : [];
   } catch (e) {
     return [];
   }
 }
 
+// קריאה לפני כתיבה: תוכן שאינו קריא לא נדרס בשקט — נשמר עותק תחת מפתח גיבוי לפני שממשיכים.
+function readQueueForWrite(key) {
+  let raw;
+  try { raw = localStorage.getItem(key); } catch (e) { throw new OfflineStorageError("storage_unavailable", e); }
+  if (!raw) return [];
+  try {
+    const q = JSON.parse(raw);
+    if (Array.isArray(q)) return q;
+  } catch (e) { /* תוכן פגום — מגבים למטה */ }
+  try { localStorage.setItem(`${key}:unreadable:${Date.now()}`, raw); } catch (e) { throw new OfflineStorageError("storage_write_failed", e); }
+  return [];
+}
+
+// כותבת ומאמתת בקריאה חוזרת. זורקת OfflineStorageError בכל כשל. תור ריק => המפתח נמחק.
 function setOfflineQueue(queue, key = offlineQueueKey()) {
   try {
-    if (!queue.length && key !== OFFLINE_QUEUE_KEY) localStorage.removeItem(key);
-    else localStorage.setItem(key, JSON.stringify(queue));
+    if (!queue.length) {
+      localStorage.removeItem(key);
+      return;
+    }
+    const serialized = JSON.stringify(queue);
+    localStorage.setItem(key, serialized);
+    if (localStorage.getItem(key) !== serialized) throw new Error("write not persisted");
   } catch (e) {
     console.error("offline queue save failed", e);
+    throw new OfflineStorageError("storage_write_failed", e);
   }
 }
 
-// טיוטה חדשה לאותה הזמנה (booking_id) מחליפה טיוטה קודמת שממתינה לה — לא מצטברות כפילויות.
+function newDraftId() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
+  return "d" + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
+}
+
+// כל טיוטה מקבלת זהות יציבה (_draftId, נשמרת בין עריכות של אותה הזמנה) וגרסה (_rev, עולה בכל שמירה).
+// כך סנכרון שאושר מסיר רק את הגרסה ששלח, וגרסה חדשה יותר נשארת. זורקת OfflineStorageError בכשל אחסון;
+// מחזירה {draftId, rev} רק אחרי שהכתיבה הצליחה.
 function queueVisitReportDraft(payload) {
-  const queue = getOfflineQueue().filter((d) => d.booking_id !== payload.booking_id);
-  queue.push({ ...payload, _queuedAt: new Date().toISOString() });
-  setOfflineQueue(queue);
+  const key = offlineQueueKey();
+  const queue = readQueueForWrite(key);
+  const prev = queue.find((d) => d.booking_id === payload.booking_id);
+  const entry = {
+    ...payload,
+    _draftId: prev && prev._draftId ? prev._draftId : newDraftId(),
+    _rev: ((prev && prev._rev) || 0) + 1,
+    _queuedAt: new Date().toISOString(),
+  };
+  const next = queue.filter((d) => d.booking_id !== payload.booking_id);
+  next.push(entry);
+  setOfflineQueue(next, key);
+  return { draftId: entry._draftId, rev: entry._rev };
+}
+
+// מסירה של הגרסה שאושרה בלבד, מתוך מצב האחסון העדכני (לא מתמונת המצב של תחילת הסנכרון).
+function removeAcknowledgedDraft(key, draft) {
+  const queue = getOfflineQueue(key);
+  const next = queue.filter((d) => !(d.booking_id === draft.booking_id && d._draftId === draft._draftId && d._rev === draft._rev));
+  if (next.length !== queue.length) setOfflineQueue(next, key);
 }
 
 function getQueuedDraftCount() {
@@ -128,28 +185,54 @@ function getQueuedDraftCount() {
 //   POST /staff/visits/{booking_id}/complete  — אטומית, הזהות מה-JWT, חותמת זמן בשרת.
 // הדפדפן לא כותב ישירות ל-visit_reports/bookings. טיוטה נמחקת מהתור *רק* אחרי תשובת
 // הצלחה מאושרת מהשרת; כל כשל (רשת/401/403/409/422/5xx) משאיר אותה במכשיר.
+const VISIT_BODY_KEYS = ["treatment_summary", "systolic_bp", "diastolic_bp", "blood_sugar", "pulse", "temperature",
+  "oxygen_saturation", "performed_blood_draw", "performed_injection", "performed_infusion",
+  "performed_dressing_change", "performed_catheter_change", "patient_signature_data"];
+
 function visitCompletionBody(p) {
-  const keys = ["treatment_summary", "systolic_bp", "diastolic_bp", "blood_sugar", "pulse", "temperature",
-    "oxygen_saturation", "performed_blood_draw", "performed_injection", "performed_infusion",
-    "performed_dressing_change", "performed_catheter_change", "patient_signature_data"];
   const body = {};
-  keys.forEach((k) => { if (p[k] !== undefined) body[k] = p[k]; });
+  VISIT_BODY_KEYS.forEach((k) => { if (p[k] !== undefined) body[k] = p[k]; });
   return body;
 }
 
+// השוואת ערך שנשלח לערך שנשמר בשרת (null/ריק שקולים; מספרים לפי ערך; בוליאנים ברירת מחדל false).
+function sameReportValue(key, a, b) {
+  if (/^performed_/.test(key)) return !!a === !!b;
+  const na = a === undefined || a === "" ? null : a;
+  const nb = b === undefined || b === "" ? null : b;
+  if (na === null || nb === null) return na === nb;
+  if (typeof na === "number" || typeof nb === "number") return Number(na) === Number(nb);
+  return String(na).trim() === String(nb).trim();
+}
+
+// אימות אחרי 409: האם תוכן הטיוטה אכן נשמר בדוח של ההזמנה בשרת? "same" | "different" | "unverified".
+// רק "same" מאפשר להסיר את הטיוטה. ההשוואה נעשית מול הדוח בשרת בקריאה בלבד, עם אותו משתמש.
+async function verifyReportPersisted(draft, ownerId) {
+  try {
+    if (offlineQueueOwnerId !== ownerId) return "unverified";
+    const { data, error } = await supabaseClient.from("visit_reports").select(VISIT_BODY_KEYS.join(",")).eq("booking_id", draft.booking_id).maybeSingle();
+    if (error || !data) return "unverified";
+    const body = visitCompletionBody(draft);
+    return VISIT_BODY_KEYS.every((k) => sameReportValue(k, body[k], data[k])) ? "same" : "different";
+  } catch (e) {
+    return "unverified";
+  }
+}
+
 // מחזירה את תשובת השרת ({report}); זורקת BackendError אחרת. לא נוגעת בתור.
-async function submitVisitCompletion(payload) {
+async function submitVisitCompletion(payload, expectUserId) {
   return backendFetch(`/staff/visits/${encodeURIComponent(payload.booking_id)}/complete`, {
     method: "POST",
     body: visitCompletionBody(payload),
+    expectUserId,
   });
 }
 
 // הערכת סיכון קלינית: נעשית אך ורק בשרת (backend קורא ל-predictive-service ושומר דרך פונקציית DB).
 // הדפדפן לא כותב ל-risk_predictions/alerts. נקראת *אחרי* השלמה מאושרת; כישלון כאן לעולם לא
 // מבטל או חוסם את הדוח שנשמר — רק הודעה.
-async function requestRiskAssessment(reportId) {
-  return backendFetch(`/visits/${encodeURIComponent(reportId)}/risk-assessment`, { method: "POST", timeoutMs: 20000 });
+async function requestRiskAssessment(reportId, expectUserId) {
+  return backendFetch(`/visits/${encodeURIComponent(reportId)}/risk-assessment`, { method: "POST", timeoutMs: 20000, expectUserId });
 }
 // ===== תור ניסיון-חוזר להערכת סיכון (אחרי השלמה מאושרת בסנכרון אופליין) =====
 // אם השלמת הביקור אושרה אך קריאת הערכת הסיכון נכשלה (רשת/5xx/503), לא מוותרים: שומרים
@@ -158,12 +241,12 @@ async function requestRiskAssessment(reportId) {
 // אחרי הצלחה מאושרת או סירוב סופי (403/404). אף כשל כאן לא חוסם ולא מבטל את הדוח שהושלם.
 const RISK_PENDING_KEY = "visitRiskPending";
 
-function riskPendingKey() {
-  return offlineQueueOwnerId ? `${RISK_PENDING_KEY}:${offlineQueueOwnerId}` : null;
+function riskPendingKey(ownerId = offlineQueueOwnerId) {
+  return ownerId ? `${RISK_PENDING_KEY}:${ownerId}` : null;
 }
 
-function getPendingRiskList() {
-  const key = riskPendingKey();
+function getPendingRiskList(ownerId) {
+  const key = riskPendingKey(ownerId);
   if (!key) return [];
   try {
     const list = JSON.parse(localStorage.getItem(key) || "[]");
@@ -171,8 +254,8 @@ function getPendingRiskList() {
   } catch (e) { return []; }
 }
 
-function setPendingRiskList(list) {
-  const key = riskPendingKey();
+function setPendingRiskList(list, ownerId) {
+  const key = riskPendingKey(ownerId);
   if (!key) return;
   try {
     if (!list.length) localStorage.removeItem(key);
@@ -182,12 +265,12 @@ function setPendingRiskList(list) {
 
 let riskQueuedThisFlush = new Set();
 
-function queuePendingRisk(reportId, bookingId) {
+function queuePendingRisk(reportId, bookingId, ownerId = offlineQueueOwnerId) {
   riskQueuedThisFlush.add(reportId);
-  if (!riskPendingKey() || reportId === undefined || reportId === null) return;
-  const list = getPendingRiskList().filter((x) => x.report_id !== reportId);
+  if (!riskPendingKey(ownerId) || reportId === undefined || reportId === null) return;
+  const list = getPendingRiskList(ownerId).filter((x) => x.report_id !== reportId);
   list.push({ report_id: reportId, booking_id: bookingId === undefined ? null : bookingId, queuedAt: new Date().toISOString() });
-  setPendingRiskList(list);
+  setPendingRiskList(list, ownerId);
 }
 
 // סירוב סופי של השרת: אין טעם לנסות שוב (אין הרשאה / הדוח לא קיים).
@@ -251,24 +334,40 @@ function visitCompletionErrorMessage(err, queued = true) {
 // מחזירה {synced, failed, partial, errors}. partial תמיד 0 (השמירה אטומית בשרת) ונשמר
 // לתאימות. errors: [{booking_id, kind, status, message}] לכשלים שאינם רשת.
 let offlineQueueSyncing = false;
+let offlineFlushPromise = null;
 
-async function flushOfflineQueue() {
+// סנכרון אחד בכל רגע: קריאה בזמן שסנכרון רץ מצטרפת לאותה ריצה ולא פותחת לולאה שנייה על אותו תור.
+// בין לשוניות: Web Locks כשזמין (אחרת ההגנה היא בתוך הלשונית; שליחה כפולה בין לשוניות מטופלת באימות 409).
+function flushOfflineQueue() {
+  if (offlineFlushPromise) return offlineFlushPromise;
   riskQueuedThisFlush = new Set();
-  try {
-    return await flushOfflineQueueDrafts();
-  } finally {
-    // ניסיון חוזר של הערכות סיכון שנכשלו אחרי השלמה; לא משפיע על תוצאת הסנכרון.
-    try { await retryPendingRiskAssessments(riskQueuedThisFlush); } catch (e) { /* הודעה בלבד */ }
-  }
+  offlineFlushPromise = (async () => {
+    try {
+      return await withQueueLock(() => flushOfflineQueueDrafts());
+    } finally {
+      // ניסיון חוזר של הערכות סיכון שנכשלו אחרי השלמה; לא משפיע על תוצאת הסנכרון.
+      try { await retryPendingRiskAssessments(riskQueuedThisFlush); } catch (e) { /* הודעה בלבד */ }
+    }
+  })().finally(() => { offlineFlushPromise = null; });
+  return offlineFlushPromise;
+}
+
+async function withQueueLock(fn) {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : null;
+  if (!locks || typeof locks.request !== "function") return fn();
+  const name = "visit-report-queue:" + (offlineQueueOwnerId || "legacy");
+  const res = await locks.request(name, { ifAvailable: true }, async (lock) => (lock ? fn() : null));
+  return res || { synced: 0, failed: getQueuedDraftCount(), partial: 0, errors: [], busy: true };
 }
 
 async function flushOfflineQueueDrafts() {
+  const ownerId = offlineQueueOwnerId; // כל הסנכרון קשור למשתמש הזה בלבד
   const ownKey = offlineQueueKey();
-  const own = await flushOfflineQueueKey(ownKey);
+  const own = await flushOfflineQueueKey(ownKey, ownerId);
   // טיוטות ממפתח ישן (לפני הפרדת משתמשים): מנסים לסנכרן, אך רק מה שנשמר בפועל נמחק
   // ממנו. משתמש שאינו הבעלים נכשל ב-403 והטיוטה נשארת במקומה, ללא אובדן וללא העברה.
   if (ownKey !== OFFLINE_QUEUE_KEY && getOfflineQueue(OFFLINE_QUEUE_KEY).length) {
-    const legacy = await flushOfflineQueueKey(OFFLINE_QUEUE_KEY);
+    const legacy = await flushOfflineQueueKey(OFFLINE_QUEUE_KEY, ownerId);
     return {
       synced: own.synced + legacy.synced, failed: own.failed + legacy.failed,
       partial: own.partial + legacy.partial, errors: own.errors.concat(legacy.errors),
@@ -277,62 +376,79 @@ async function flushOfflineQueueDrafts() {
   return own;
 }
 
-// 409 לאחר ניסיון חוזר: אם התשובה הקודמת אבדה, השרת כבר השלים. מאשרים מול ה-DB
-// (קריאה בלבד) שההזמנה אכן "הושלם" לפני שמסירים את הטיוטה.
-async function isBookingAlreadyCompleted(bookingId) {
-  try {
-    const { data, error } = await supabaseClient.from("bookings").select("status").eq("id", bookingId).maybeSingle();
-    return !error && !!data && data.status === "completed";
-  } catch (e) {
-    return false;
-  }
-}
-
-async function flushOfflineQueueKey(queueKey) {
-  const queue = getOfflineQueue(queueKey);
-  if (!queue.length) return { synced: 0, failed: 0, partial: 0, errors: [] };
+// סנכרון תור אחד. תמונת מצב נלקחת בתחילה, אבל שום כתיבה בסוף לא דורסת את האחסון:
+// כל טיוטה שאושרה בשרת מוסרת מיד (גרסה מסוימת בלבד, מתוך האחסון העדכני); כל השאר, כולל
+// טיוטות חדשות/מעודכנות שנוספו בזמן הסנכרון, נשארות כמו שהן.
+async function flushOfflineQueueKey(queueKey, ownerId) {
+  const snapshot = getOfflineQueue(queueKey);
+  if (!snapshot.length) return { synced: 0, failed: 0, partial: 0, errors: [] };
   offlineQueueSyncing = true;
   if (typeof document !== "undefined") updateOfflineDraftBanner();
   let synced = 0;
   const errors = [];
-  const stillPending = [];
   let offline = false;
-  for (const draft of queue) {
-    if (offline) { stillPending.push(draft); continue; }
-    if (draft._markCompleted === false) {
-      // טיוטת "שמירה בלי השלמה" ממצב ישן: אין מסלול שרת לשמירת דוח בלי השלמה. נשארת.
-      stillPending.push(draft);
-      errors.push({ booking_id: draft.booking_id, kind: "unsupported", status: 0,
-        message: "טיוטה ישנה שנשמרה בלי סימון הושלם — אינה נתמכת עוד. הטיוטה נשמרה במכשיר." });
-      continue;
+  const acknowledge = (draft) => {
+    try { removeAcknowledgedDraft(queueKey, draft); return true; }
+    catch (e) {
+      errors.push({ booking_id: draft.booking_id, kind: "storage", status: 0,
+        message: "הדוח נשמר בשרת, אך לא ניתן היה להסיר את הטיוטה מהמכשיר. היא תאומת ותוסר בסנכרון הבא." });
+      return false;
     }
-    try {
-      const done = await submitVisitCompletion(draft);
-      synced++; // תשובת הצלחה מאושרת — רק עכשיו הטיוטה יורדת מהתור
-      // הערכת סיכון אחרי השלמה מאושרת, בכל מקרה לא חוסמת: כישלון = בלי הערכה, הדוח נשמר.
+  };
+  try {
+    for (const draft of snapshot) {
+      if (offlineQueueOwnerId !== ownerId) {
+        errors.push({ booking_id: draft.booking_id, kind: "auth", status: 0,
+          message: "הסנכרון הופסק כי החשבון הוחלף. הטיוטות נשארו במכשיר ויסונכרנו בכניסה של בעליהן." });
+        break;
+      }
+      if (offline) continue;
+      if (draft._markCompleted === false) {
+        // טיוטת "שמירה בלי השלמה" ממצב ישן: אין מסלול שרת לשמירת דוח בלי השלמה. נשארת.
+        errors.push({ booking_id: draft.booking_id, kind: "unsupported", status: 0,
+          message: "טיוטה ישנה שנשמרה בלי סימון הושלם — אינה נתמכת עוד. הטיוטה נשמרה במכשיר." });
+        continue;
+      }
+      let done;
+      try {
+        done = await submitVisitCompletion(draft, ownerId);
+      } catch (err) {
+        if (err && err.kind === "conflict") {
+          // 409 לא מוכיח שהתוכן נשמר: מסירים את הטיוטה רק אם הדוח בשרת זהה לה.
+          const verdict = await verifyReportPersisted(draft, ownerId);
+          if (verdict === "same") { synced++; acknowledge(draft); continue; }
+          const why = verdict === "different"
+            ? " תוכן הדוח השמור בשרת שונה מהטיוטה שבמכשיר, והטיוטה לא נמחקה."
+            : " לא ניתן היה לאמת שהתוכן נשמר בשרת, והטיוטה לא נמחקה.";
+          errors.push({ booking_id: draft.booking_id, kind: "conflict", status: 409,
+            message: visitCompletionErrorMessage(err) + why });
+          continue;
+        }
+        if (isRetryableCompletionError(err)) {
+          if (err.kind !== "server") offline = true;
+        } else {
+          errors.push({ booking_id: draft.booking_id, kind: (err && err.kind) || "unknown",
+            status: (err && err.status) || 0, message: visitCompletionErrorMessage(err) });
+        }
+        continue;
+      }
+      // תשובת הצלחה מאושרת: מסירים את הגרסה שנשלחה מיד, לפני כל בקשת המשך (הערכת סיכון).
+      synced++;
+      acknowledge(draft);
       const doneId = done && done.report && done.report.id;
       if (doneId) {
-        try { await requestRiskAssessment(doneId); }
+        try { await requestRiskAssessment(doneId, ownerId); }
         catch (riskErr) {
           // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
-          if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(doneId, draft.booking_id);
+          if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(doneId, draft.booking_id, ownerId);
         }
       }
-    } catch (err) {
-      if (err && err.kind === "conflict" && await isBookingAlreadyCompleted(draft.booking_id)) { synced++; continue; }
-      stillPending.push(draft);
-      if (isRetryableCompletionError(err)) {
-        if (err.kind !== "server") offline = true;
-      } else {
-        errors.push({ booking_id: draft.booking_id, kind: (err && err.kind) || "unknown",
-          status: (err && err.status) || 0, message: visitCompletionErrorMessage(err) });
-      }
     }
+  } finally {
+    offlineQueueSyncing = false;
+    if (typeof document !== "undefined") updateOfflineDraftBanner();
   }
-  setOfflineQueue(stillPending, queueKey);
-  offlineQueueSyncing = false;
-  if (typeof document !== "undefined") updateOfflineDraftBanner();
-  return { synced, failed: stillPending.length, partial: 0, errors };
+  return { synced, failed: getOfflineQueue(queueKey).length, partial: 0, errors };
 }
 
 // מדווח תוצאת סנכרון לעמוד: הצלחות דרך onOfflineQueueFlushed, כשלים (403/409/401) דרך
@@ -769,14 +885,20 @@ class BackendError extends Error {
   }
 }
 
-async function backendFetch(path, { method = "GET", body, idempotencyKey, timeoutMs = 15000 } = {}) {
+async function backendFetch(path, { method = "GET", body, idempotencyKey, timeoutMs = 15000, expectUserId } = {}) {
   const base = String(window.BACKEND_URL || "").trim().replace(/\/+$/, "");
   if (!base) throw new BackendError("unconfigured", "שירות ההזמנות אינו מוגדר. נא לנסות מאוחר יותר.");
   let token = null;
+  let sessionUserId = null;
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     token = session && session.access_token;
+    sessionUserId = session && session.user ? session.user.id : null;
   } catch (e) { /* ממשיכים בלי טוקן — השרת יחזיר 401 */ }
+  // קריאה שנועדה למשתמש מסוים (סנכרון טיוטות) לעולם לא נשלחת עם פרטי ההתחברות של משתמש אחר.
+  if (expectUserId && sessionUserId !== expectUserId) {
+    throw new BackendError("auth", "החשבון הוחלף באמצע הפעולה — הפעולה לא נשלחה.", { status: 0 });
+  }
   const headers = { Accept: "application/json" };
   if (token) headers.Authorization = "Bearer " + token;
   if (body !== undefined) headers["Content-Type"] = "application/json";

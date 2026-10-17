@@ -28,17 +28,18 @@ async function createContext({ userId = "user-1" } = {}) {
     calls: [],
     respond: () => ({ status: 200, json: { report: { id: 1 } } }),
   };
-  const bookingsRead = { status: "scheduled", throws: false };
+  // הדוח השמור בשרת כפי שהוא נקרא לאימות אחרי 409: row=null => אין דוח; throws => שגיאת קריאה.
+  const reportRead = { row: null, throws: false };
   const supabaseClient = {
     auth: {
       getSession: () => Promise.resolve({ data: { session: { access_token: "tok-" + userId, user: { id: userId } } } }),
       onAuthStateChange: () => {},
     },
     from(table) {
-      if (table !== "bookings") throw new Error("unexpected table in test: " + table);
+      if (table !== "visit_reports") throw new Error("unexpected table in test: " + table);
       return { select: () => ({ eq: () => ({ maybeSingle: () => {
-        if (bookingsRead.throws) return Promise.reject(new Error("Failed to fetch"));
-        return Promise.resolve({ data: { status: bookingsRead.status }, error: null });
+        if (reportRead.throws) return Promise.reject(new Error("Failed to fetch"));
+        return Promise.resolve({ data: reportRead.row, error: null });
       } }) }) };
     },
   };
@@ -56,7 +57,7 @@ async function createContext({ userId = "user-1" } = {}) {
   });
   vm.runInContext(APP_JS_SOURCE, ctx, { filename: "public/app.js" });
   await new Promise((r) => setImmediate(r)); // getSession() resolves => queue owner set
-  return { ctx, backend, bookingsRead };
+  return { ctx, backend, reportRead };
 }
 
 const draft = (id, extra = {}) => ({
@@ -165,21 +166,38 @@ test("flush: 409 — הטיוטה נשארת (גם כשאין אימות שהה�
   assert.match(r.errors[0].message, /ההזמנה לא אושרה/);
 });
 
-test("flush: 409 לאחר אובדן תשובה — ההזמנה כבר הושלמה בשרת (נקרא מה-DB) => הטיוטה יורדת", async () => {
-  const { ctx, backend, bookingsRead } = await createContext();
-  ctx.queueVisitReportDraft(draft(8));
+test("flush: 409 והדוח בשרת זהה לטיוטה (תשובה אבדה) => הטיוטה יורדת", async () => {
+  const { ctx, backend, reportRead } = await createContext();
+  const d = draft(8);
+  ctx.queueVisitReportDraft(d);
   backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "מעבר לא חוקי" } });
-  bookingsRead.status = "completed";
+  reportRead.row = { ...d, temperature: null, blood_sugar: null, pulse: null, oxygen_saturation: null,
+    performed_blood_draw: false, performed_infusion: false, performed_dressing_change: false, performed_catheter_change: false };
   const r = await ctx.flushOfflineQueue();
   assert.equal(r.synced, 1); assert.equal(ctx.getQueuedDraftCount(), 0);
 });
 
-test("flush: 409 ושגיאה בקריאת האימות — הטיוטה נשארת", async () => {
-  const { ctx, backend, bookingsRead } = await createContext();
+test("flush: 409 והדוח בשרת שונה מהטיוטה => הטיוטה נשארת ומדווח קונפליקט", async () => {
+  const { ctx, backend, reportRead } = await createContext();
+  const d = draft(8);
+  ctx.queueVisitReportDraft(d);
+  backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "מעבר לא חוקי" } });
+  reportRead.row = { ...d, treatment_summary: "סיכום אחר שנשמר בשרת" };
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.equal(r.errors[0].kind, "conflict");
+  assert.match(r.errors[0].message, /שונה מהטיוטה/);
+});
+
+test("flush: 409 ואין דוח בשרת / שגיאת קריאה => הטיוטה נשארת (לא מאומת)", async () => {
+  const { ctx, backend, reportRead } = await createContext();
   ctx.queueVisitReportDraft(draft(9));
   backend.respond = () => ({ status: 409, json: { code: "illegal_transition", detail: "x" } });
-  bookingsRead.throws = true;
-  const r = await ctx.flushOfflineQueue();
+  let r = await ctx.flushOfflineQueue();                       // row=null: ההזמנה "הושלמה" אך אין דוח של הטיוטה
+  assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
+  assert.match(r.errors[0].message, /לא ניתן היה לאמת/);
+  reportRead.throws = true;
+  r = await ctx.flushOfflineQueue();
   assert.equal(r.synced, 0); assert.equal(ctx.getQueuedDraftCount(), 1);
 });
 

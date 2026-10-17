@@ -155,3 +155,39 @@ test("400px: אין גלישה אופקית, כפתורי המודאל נגיש�
   }
   expect(await page.locator("#vr-systolic").getAttribute("inputmode")).toBe("numeric");
 });
+
+test("אופליין + כשל באחסון המקומי: שגיאה אמיתית, הטופס נשאר פתוח עם הנתונים, ואין 'נשמר מקומית'", async ({ browser }) => {
+  const { page, backend } = await setup(browser);
+  await seed(page, { patients: [P1], bookings: [base({ id: 3, patient_id: "p-1", scheduled_at: inHours(1), approval_status: "confirmed" })] });
+  await page.locator("#my-work .pr-card").first().getByRole("button", { name: "התחלת ביקור" }).click();
+  await expect(page.locator("#visit-report-modal")).toBeVisible();
+  await page.fill("#vr-summary", "סיכום סינתטי חשוב");
+  backend.completeFail = "abort";                       // אין רשת לשרת
+  await page.evaluate(() => {                           // והאחסון המקומי מסרב לכתיבה
+    const orig = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (k, v) {
+      if (String(k).startsWith("visitReportOfflineQueue")) throw new Error("QuotaExceededError");
+      return orig.call(this, k, v);
+    };
+  });
+  await page.click("#visit-report-modal-save");
+  await expect(page.locator("#visit-report-modal-error")).toContainText("הדוח לא נשמר");
+  await expect(page.locator("#visit-report-modal")).toBeVisible();
+  await expect(page.locator("#vr-summary")).toHaveValue("סיכום סינתטי חשוב");
+  await expect(page.locator("body")).not.toContainText("הדוח נשמר מקומית");
+  expect(await page.evaluate(() => Object.keys(localStorage).some((k) => k.startsWith("visitReportOfflineQueue")))).toBe(false);
+});
+
+test("אופליין עם אחסון תקין: 'נשמר מקומית' מוצג רק אחרי שהטיוטה נשמרה בפועל", async ({ browser }) => {
+  const { page, backend } = await setup(browser);
+  await seed(page, { patients: [P1], bookings: [base({ id: 3, patient_id: "p-1", scheduled_at: inHours(1), approval_status: "confirmed" })] });
+  await page.locator("#my-work .pr-card").first().getByRole("button", { name: "התחלת ביקור" }).click();
+  await page.fill("#vr-summary", "סיכום סינתטי");
+  backend.completeFail = "abort";
+  await page.click("#visit-report-modal-save");
+  await expect(page.locator("body")).toContainText("הדוח נשמר מקומית");
+  const stored = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("visitReportOfflineQueue")).map(([, v]) => JSON.parse(v)));
+  expect(stored).toHaveLength(1);
+  expect(stored[0][0].treatment_summary).toBe("סיכום סינתטי");
+  expect(stored[0][0]._rev).toBe(1);
+});

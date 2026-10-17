@@ -34,7 +34,7 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 6. לפני שאומרים "תוקן": לבדוק בדפדפן אמיתי מול החי באותו מסלול שהמשתמש עושה (לא רק מוקים).
 
 ## בדיקות (אחרון ידוע)
-JS 35/35 · Playwright (ממוקק) 49/49 · backend 137/137 · DB מבודד 66/66 · predictive 17/17 (הורצו ב-2026-10-17) · אימות SQL כולל rollback OK. **CI ב-GitHub מריץ**: סריקת סודות, JS, predictive-service, `backend` (`backend/tests` + `backend/tests_db`) ו-15 קבצי Playwright ממוקקים.
+JS 46/46 · Playwright (ממוקק) 51/51 · backend 137/137 · DB מבודד 66/66 · predictive 17/17 (הורצו ב-2026-10-17) · אימות SQL כולל rollback OK. **CI ב-GitHub מריץ**: סריקת סודות, JS, predictive-service, `backend` (`backend/tests` + `backend/tests_db`) ו-15 קבצי Playwright ממוקקים.
 
 ## נותר
 - [ ] **כניסה/שמירת היסטוריה בטלפון (SMS)**: הממשק בנוי ובדוק (ממוקק), מוסתר מאחורי `window.SMS_LOGIN_ENABLED = false` ב-`public/config.js`. להפעלה: ספק SMS (Twilio וכד') ב-Supabase Authentication ← Providers ← Phone, קאפצ'ה, בדיקת מגבלות קצב; ורק אז `true`. אם משתמשים ב-`config push`, לבדוק diff כי הוא דורס את כל `[auth]`.
