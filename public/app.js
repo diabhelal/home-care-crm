@@ -531,6 +531,50 @@ const VITALS_META = [
   { key: "oxygen_saturation", label: "סטורציה", unit: "%" },
 ];
 
+// ===== היסטוריית מדידות: כל בדיקה נשמרת, והשינוי מוצג מול המדידה הקודמת של אותו מדד =====
+// בדיקה חדשה אינה דורסת ישנה (כל ביקור = דוח נפרד). ההשוואה היא מספרית בלבד (▲/▼ וההפרש): הסיווג
+// הקליני (ירוק/צהוב/אדום) נשאר בשירות החיזוי ואינו משוכפל בצד הלקוח.
+function vitalsHistoryRows(visits) {
+  const chrono = (visits || []).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date));
+  const prev = {};
+  const rows = chrono.map((visit) => {
+    const cells = VITALS_META.map((m) => {
+      const raw = visit[m.key];
+      if (raw == null) return { key: m.key, value: null, delta: null };
+      const value = Number(raw);
+      const delta = prev[m.key] === undefined ? null : Math.round((value - prev[m.key]) * 10) / 10;
+      prev[m.key] = value;
+      return { key: m.key, value, delta };
+    });
+    return { visit, cells };
+  });
+  return rows.reverse(); // החדש ביותר למעלה
+}
+
+function vitalsDeltaHtml(delta) {
+  if (delta === null) return "";
+  if (delta === 0) return ` <span class="vh-delta vh-same" title="ללא שינוי מהמדידה הקודמת">＝</span>`;
+  const up = delta > 0;
+  const text = `${up ? "▲ +" : "▼ "}${delta}`;
+  return ` <span class="vh-delta ${up ? "vh-up" : "vh-down"}" title="שינוי מהמדידה הקודמת של אותו מדד">${text}</span>`;
+}
+
+function vitalsHistoryTableHtml(visits) {
+  const rows = vitalsHistoryRows(visits);
+  const metas = VITALS_META.filter((m) => rows.some((r) => r.cells.find((c) => c.key === m.key).value !== null));
+  if (!rows.length || !metas.length) return `<p style="color:var(--text-muted);">אין עדיין מדידות.</p>`;
+  const head = metas.map((m) => `<th scope="col">${m.label}${m.unit ? ` <span class="vh-unit">(${m.unit})</span>` : ""}</th>`).join("");
+  const body = rows.map(({ visit, cells }) => {
+    const d = new Date(visit.visit_date);
+    const tds = metas.map((m) => {
+      const c = cells.find((x) => x.key === m.key);
+      return `<td>${c.value === null ? "—" : `<strong>${c.value}</strong>${vitalsDeltaHtml(c.delta)}`}</td>`;
+    }).join("");
+    return `<tr><th scope="row">${formatDateHe(d)} ${formatTimeHe(d)}</th>${tds}</tr>`;
+  }).join("");
+  return `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table vh-table"><thead><tr><th scope="col">תאריך ושעה</th>${head}</tr></thead><tbody>${body}</tbody></table></div><p style="color:var(--text-muted); font-size:12px; margin:8px 0 0;">כל בדיקה נשמרת בתיק ואינה נמחקת. החץ מציג את השינוי מהמדידה הקודמת של אותו מדד.</p>`;
+}
+
 const CONDITION_META = [
   { key: "diabetes", label: "סוכרת" },
   { key: "hypertension", label: "יתר לחץ דם" },

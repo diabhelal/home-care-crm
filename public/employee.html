@@ -952,6 +952,7 @@
         </div>
         <div id="pr-vitals-chart"></div>
       </div>
+      <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits)}</div>
     `;
     const renderChartFor = (key) => {
       const points = visits.filter((r) => r[key] != null).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date)).map((r) => ({ value: r[key] }));

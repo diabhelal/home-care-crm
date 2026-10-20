@@ -122,3 +122,17 @@ test("תור העבודה: סיכון אדום ישן לא נעלם — מוצג
   await expect(row).toContainText("מיושן");
   await expect(row).toContainText("קיים דוח חדש יותר שטרם הוערך");
 });
+
+test("תיק מטופל, לשונית מדדים: שתי בדיקות נשמרות זו לצד זו עם השינוי מהקודמת", async ({ browser }) => {
+  const rep = (id, booking_id, daysAgo, o) => ({ id, booking_id, patient_id: "p-1", staff_id: 1, visit_date: new Date(Date.now() - daysAgo * 86400000).toISOString(), treatment_summary: "x", ...o });
+  const { page } = await setup(browser, { bookings: [booking({ id: 7 }), booking({ id: 8, scheduled_at: inHours(48) })],
+    visit_reports: [rep(1, 7, 7, { systolic_bp: 140, diastolic_bp: 90 }), rep(2, 8, 0, { systolic_bp: 125, diastolic_bp: 90 })] });
+  await page.evaluate(() => openPatientRecord("p-1"));
+  await page.getByRole("button", { name: "מדדים", exact: true }).click();
+  const table = page.locator(".vh-table");
+  await expect(table).toBeVisible();
+  await expect(table.locator("tbody tr")).toHaveCount(2);                       // שתי הבדיקות נשמרו, אף אחת לא נדרסה
+  await expect(table.locator("tbody tr").first()).toContainText("125");           // החדשה למעלה
+  await expect(table.locator("tbody tr").first()).toContainText("▼ -15");
+  await expect(table.locator("tbody tr").last()).toContainText("140");
+});

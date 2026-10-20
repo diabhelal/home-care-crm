@@ -419,6 +419,7 @@ async function prRenderVitalsTab(content) {
       </div>
       <div id="pr-vitals-chart"></div>
     </div>
+    <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits)}</div>
     <div id="pr-vitals-baseline"><p style="color:var(--text-muted);">טוען ניתוח בסיס אישי...</p></div>
   `;
 
