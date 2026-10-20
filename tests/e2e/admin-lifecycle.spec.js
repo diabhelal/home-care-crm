@@ -163,3 +163,35 @@ test("תיקון בדיעבד לדוח שהושלם: נוסף כרשומה חד�
   await expect(rows.last()).toContainText("135");
   await expect(rows.last()).toContainText("מקור 140");
 });
+
+test("ארכיון משפטי: העברה לארכיון בלי מחיקה, והוצאת תיק מלא נרשמת ביומן גישה עם בסיס הבקשה", async ({ browser }) => {
+  const rep = (id, booking_id, daysAgo, o) => ({ id, booking_id, patient_id: "p-1", staff_id: 1, visit_date: new Date(Date.now() - daysAgo * 86400000).toISOString(), treatment_summary: "סיכום סינתטי", ...o });
+  const { page, context } = await setup(browser, { bookings: [booking({ id: 7 })], visit_reports: [rep(1, 7, 3, { systolic_bp: 140, performed_injection: true })] });
+  await page.evaluate(() => openPatientRecord("p-1"));
+  await page.locator(".archive-panel summary").click();
+  await page.click("#pr-archive-btn");                                            // בלי סיבה: נחסם
+  await expect(page.locator("#pr-archive-error")).toContainText("סיבה");
+  await page.fill("#pr-archive-reason", "סיום טיפול");
+  await page.click("#pr-archive-btn");
+  await expect(page.locator(".pr-archived-banner")).toContainText("סיום טיפול");
+  let db = await page.evaluate(() => JSON.parse(localStorage.getItem("__demo_db")));
+  expect(db.patients.find((p) => p.id === "p-1").archived_at).toBeTruthy();
+  expect(db.visit_reports).toHaveLength(1);                                       // כלום לא נמחק
+  // הוצאת תיק: בסיס חובה
+  await page.locator(".archive-panel summary").click();
+  await page.click("#pr-export-btn");
+  await expect(page.locator("#pr-export-error")).toContainText("בסיס");
+  await page.selectOption("#pr-export-type", "legal");
+  await page.fill("#pr-export-name", "עו\"ד דנה לוי");
+  await page.fill("#pr-export-basis", "צו בית משפט 123/26");
+  const [download, popup] = await Promise.all([page.waitForEvent("download"), context.waitForEvent("page"), page.click("#pr-export-btn")]);
+  expect(download.suggestedFilename()).toMatch(/^patient-record-p-1-.*\.json$/);
+  await popup.waitForLoadState();
+  await expect(popup.locator("body")).toContainText("תיק מטופל מלא");
+  await expect(popup.locator("body")).toContainText("צו בית משפט 123/26");
+  await expect(popup.locator("body")).toContainText("סיכום סינתטי");
+  await expect(page.locator("#app-success")).toContainText("נרשם ביומן הגישה");
+  db = await page.evaluate(() => JSON.parse(localStorage.getItem("__demo_db")));
+  expect(db.record_access_log).toHaveLength(1);
+  expect(db.record_access_log[0]).toMatchObject({ patient_id: "p-1", requester_type: "legal", basis: "צו בית משפט 123/26" });
+});

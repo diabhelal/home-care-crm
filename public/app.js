@@ -644,6 +644,41 @@ function bindAmendmentForms(container, onSaved) {
   });
 }
 
+// ===== ארכיון משפטי: הוצאת תיק מלא (לבקשת מטופל או גורם משפטי) =====
+// הנתונים מגיעים מפונקציית השרת export_patient_record (מנהל בלבד), שרושמת ביומן גישה באותה טרנזקציה.
+const EXPORT_REQUESTER_LABELS = { patient: "המטופל/ת", legal: "גורם משפטי / בית משפט", authority: "רשות / גוף מוסמך", internal: "שימוש פנימי", other: "אחר" };
+
+function patientRecordFilename(record) {
+  const stamp = String((record.export && record.export.exported_at) || new Date().toISOString()).slice(0, 10);
+  return `patient-record-${String(record.patient && record.patient.id || "unknown").slice(0, 8)}-${stamp}.json`;
+}
+
+function patientRecordPrintHtml(record) {
+  const e = escapeHtml;
+  const dt = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? "" : `${formatDateHe(d)} ${formatTimeHe(d)}`; };
+  const p = record.patient || {};
+  const ex = record.export || {};
+  const vitals = (v) => VITALS_META.filter((m) => v[m.key] != null).map((m) => `${m.label}: ${v[m.key]}${m.unit}`).join(" · ");
+  const procs = (v) => PROCEDURE_META.filter((m) => v[m.key]).map((m) => m.label).join(", ");
+  const section = (title, rows) => `<h2>${e(title)}</h2>${rows.length ? `<ul>${rows.map((r) => `<li>${r}</li>`).join("")}</ul>` : "<p>אין רשומות.</p>"}`;
+  const amend = (record.visit_report_amendments || []);
+  return `<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8"><title>תיק מטופל — ${e(p.full_name || "")}</title>
+<style>body{font-family:Arial,sans-serif;margin:24px;line-height:1.5}h1{margin:0 0 4px}h2{border-bottom:1px solid #999;margin-top:22px}li{margin-bottom:6px}.meta{color:#444;font-size:13px}@media print{.noprint{display:none}}</style></head><body>
+<button class="noprint" onclick="window.print()">הדפסה / שמירה כ-PDF</button>
+<h1>תיק מטופל מלא</h1>
+<p class="meta">הופק ${e(dt(ex.exported_at))} · מספר רישום ביומן הגישה: ${e(String(ex.log_id ?? ""))} · מבקש: ${e(EXPORT_REQUESTER_LABELS[ex.requester_type] || ex.requester_type || "")}${ex.requester_name ? " (" + e(ex.requester_name) + ")" : ""} · בסיס הבקשה: ${e(ex.basis || "")}</p>
+<h2>פרטי המטופל</h2><p>${e(p.full_name || "")}${p.national_id ? " · ת.ז. " + e(p.national_id) : ""}${p.date_of_birth ? " · נולד/ה " + e(String(p.date_of_birth)) : ""}${p.phone ? " · " + e(p.phone) : ""}${p.address ? " · " + e(p.address) : ""}${p.archived_at ? ` · <strong>בארכיון מאז ${e(dt(p.archived_at))}${p.archive_reason ? " (" + e(p.archive_reason) + ")" : ""}</strong>` : ""}</p>
+${section("ביקורים ודוחות", (record.visit_reports || []).map((v) => `<strong>${e(dt(v.visit_date))}</strong> — ${e(vitals(v) || "ללא מדדים")}${procs(v) ? " · בוצע: " + e(procs(v)) : ""}${v.treatment_summary ? "<br>" + e(v.treatment_summary) : ""}${v.clinical_outcome_8h ? "<br>תוצאה קלינית (8ש'): " + e(v.clinical_outcome_8h) : ""}`))}
+${section("תיקונים והבהרות לדוחות (המקור נשמר)", amend.map((a) => `${e(dt(a.created_at))} — ${e(a.reason)}${a.corrections && Object.keys(a.corrections).length ? " · " + e(JSON.stringify(a.corrections)) : ""} · לדוח #${e(String(a.visit_report_id))}`))}
+${section("הערכות סיכון", (record.risk_predictions || []).map((r) => `${e(dt(r.predicted_at))} — ${e(RISK_LEVEL_HE[r.risk_level] || r.risk_level)}${r.trend ? " (" + e(r.trend) + ")" : ""}`))}
+${section("הערות קליניות", (record.clinical_notes || []).map((n) => `${e(dt(n.created_at))} — ${e(n.content || "")}`))}
+${section("תרופות וטיפולים", (record.medication_events || []).map((m) => `${e(dt(m.administered_at))} — ${e(m.medication_name || "")}${m.dose ? " " + e(m.dose) : ""}`))}
+${section("התראות", (record.alerts || []).map((a) => `${e(dt(a.created_at))} — ${e(a.alert_type || "")} (${e(a.severity || "")}, ${e(a.status || "")})`))}
+${section("אלרגיות", (record.allergies || []).map((a) => `${e(a.substance || "")}${a.severity ? " (" + e(a.severity) + ")" : ""}`))}
+<p class="meta">הנתונים המלאים (כולל יומן השינויים) נמצאים בקובץ ה-JSON שהופק יחד עם מסמך זה.</p>
+</body></html>`;
+}
+
 const CONDITION_META = [
   { key: "diabetes", label: "סוכרת" },
   { key: "hypertension", label: "יתר לחץ דם" },

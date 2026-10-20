@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -81,6 +81,15 @@ POSTFLIGHT = [
      "and not has_table_privilege('authenticated','public.visit_report_amendments','update') "
      "and not has_table_privilege('authenticated','public.visit_report_amendments','delete') "
      "and not has_table_privilege('anon','public.visit_report_amendments','select')"),
+    ("013 archive columns, append-only access log, admin-only export function",
+     "select (select count(*) from information_schema.columns where table_schema='public' and table_name='patients' "
+     "and column_name in ('archived_at','archived_by','archive_reason')) = 3 "
+     "and (select relrowsecurity from pg_class where oid='public.record_access_log'::regclass) "
+     "and not has_table_privilege('authenticated','public.record_access_log','insert') "
+     "and not has_table_privilege('authenticated','public.record_access_log','update') "
+     "and not has_table_privilege('anon','public.record_access_log','select') "
+     "and has_function_privilege('authenticated','public.export_patient_record(uuid,text,text,text)','execute') "
+     "and not has_function_privilege('anon','public.export_patient_record(uuid,text,text,text)','execute')"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -88,6 +97,10 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "013": [("013 objects gone", "select to_regclass('public.record_access_log') is null "
+                                 "and to_regprocedure('public.export_patient_record(uuid,text,text,text)') is null "
+                                 "and (select count(*) from information_schema.columns where table_schema='public' and table_name='patients' "
+                                 "and column_name in ('archived_at','archived_by','archive_reason')) = 0")],
     "012": [("012 table and function gone", "select to_regclass('public.visit_report_amendments') is null "
                                            "and to_regprocedure('public.visit_report_amendments_guard()') is null")],
     "011": [("011 view back to the previous definition (no staleness columns, still selectable)",

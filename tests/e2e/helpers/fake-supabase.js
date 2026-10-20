@@ -147,6 +147,26 @@ function fakeSupabaseSource() {
     const client = {
       from: (name) => builder(name),
       rpc(fn, args) {
+        if (fn === "export_patient_record") {   // כמו הפונקציה בשרת: מנהל בלבד, רושמת ביומן הגישה ומחזירה את התיק
+          const db = load();
+          const u = session() && session().user;
+          if (!(u && u.app_metadata && u.app_metadata.is_admin)) return Promise.resolve({ data: null, error: { code: "42501", message: "only an administrator may export a patient record" } });
+          const pid = args.p_patient_id;
+          const mine = (t) => table(db, t).filter((r) => r.patient_id === pid);
+          const rec = {
+            patient: table(db, "patients").find((x) => x.id === pid) || { id: pid },
+            allergies: mine("patient_allergies"), bookings: mine("bookings"), visit_reports: mine("visit_reports"),
+            visit_report_amendments: mine("visit_report_amendments"), risk_predictions: mine("risk_predictions"),
+            alerts: mine("alerts"), tasks: mine("tasks"), clinical_notes: mine("clinical_notes"), medication_events: mine("medication_events"),
+          };
+          const log = { id: ++db.seq, patient_id: pid, requester_type: args.p_requester_type, requester_name: args.p_requester_name || null,
+            basis: args.p_basis, exported_by: u.id, exported_at: new Date().toISOString(),
+            scope: Object.fromEntries(Object.entries(rec).filter(([k]) => k !== "patient").map(([k, v]) => [k, v.length])) };
+          table(db, "record_access_log").push(log);
+          save(db);
+          return Promise.resolve({ data: { ...rec, export: { log_id: log.id, exported_at: log.exported_at, exported_by: u.id,
+            requester_type: log.requester_type, requester_name: log.requester_name, basis: log.basis, scope: log.scope } }, error: null });
+        }
         if (fn === "taken_slots") {
           const db = load();
           const data = table(db, "bookings")

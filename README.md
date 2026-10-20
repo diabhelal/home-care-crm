@@ -122,7 +122,7 @@ browser ──(Bearer = Supabase session JWT)──▶ backend/ (FastAPI) ──
 | Decision-support service | Python 3, [FastAPI](https://fastapi.tiangolo.com/), [Pydantic](https://docs.pydantic.dev/), served by [Uvicorn](https://www.uvicorn.org/) |
 | Fonts | Google Fonts (Heebo) |
 
-**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, Docker. The operational backend is Python/FastAPI (not Node). Tests: `node --test` (55), Playwright (mocked, 54 tests), `pytest` for the backend (139) and the predictive service (17), plus 89 database tests on an isolated local Postgres.
+**Not currently used, despite being common in comparable stacks:** React or any frontend framework, TanStack Query, Supabase Realtime, Docker. The operational backend is Python/FastAPI (not Node). Tests: `node --test` (57), Playwright (mocked, 55 tests), `pytest` for the backend (139) and the predictive service (17), plus 95 database tests on an isolated local Postgres.
 
 ## Database
 
@@ -381,6 +381,7 @@ Being transparent about what's *not* built, since the goal of this README is acc
 - **Backend not hosted.** The Python backend works locally against the live Supabase project; booking from the site requires it to be running. A hosted deployment needs HTTPS, `BACKEND_URL` in `public/config.js`, the backend origin in the CSP `connect-src`, and CORS (`ALLOWED_ORIGINS`).
 - **Three hardening migrations are written and tested but NOT yet applied to the live database:** `supabase/proposed/008` (visit-report integrity guard), `009` (deactivate instead of delete staff; no cascade of history) and `010` (overlap/travel-buffer enforcement on booking updates). They were verified only on an isolated local Postgres with synthetic data. Until they are applied, the live database still cascades history when a staff member is deleted, and a direct administrator write can bypass the booking-conflict check. The site code that supports them (staff deactivation, offline-draft sync) works with or without them. See `supabase/proposed/APPLIED.md` and `HANDOFF.md`.
 - **Risk colour status:** `supabase/proposed/011` (not yet applied to the live database) makes the traffic-light status show the latest assessment with its age instead of disappearing 8 hours after the visit. The predictive service runs locally and manually; without it no new assessment is produced.
+- **Medical-record keeping (written and tested, not yet applied to the live database):** `supabase/proposed/012` (append-only amendments to completed visit reports; the original is never edited) and `013` (archive a patient instead of deleting; administrator-only full-record export that always writes an append-only access log). The retention period and the legal grounds for disclosure are legal decisions: nothing is deleted automatically and the system makes no claim of legal compliance.
 - **Travel buffer is a constant (30 min)**, not computed travel time; proximity ranking needs staff/patient coordinates and a geocoder (a no-op geocoder is the default).
 - **Offline drafts live in `localStorage`** (namespaced per user, unencrypted). This is logical separation, not encryption.
 - **Completed visit reports are read-only** in the UI; corrections should be new clinical notes.

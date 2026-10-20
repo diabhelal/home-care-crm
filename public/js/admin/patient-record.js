@@ -35,7 +35,7 @@ async function prRunSearch() {
   showLoadingRow(resultsEl, "מחפש...");
   const { data, error } = await supabaseClient
     .from("patients")
-    .select("id, full_name, phone, national_id")
+    .select("*")
     .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
     .limit(10);
   if (requestToken !== prSearchRequestToken) return; // תוצאה מיושנת — חיפוש חדש יותר כבר בדרך
@@ -47,7 +47,7 @@ async function prRunSearch() {
     row.className = "pr-search-result";
     row.setAttribute("role", "button");
     row.setAttribute("tabindex", "0");
-    row.innerHTML = `<span>${escapeHtml(p.full_name)}</span><span style="color:var(--text-muted); font-size:13px;">${escapeHtml(p.phone || "")}${p.national_id ? " · " + escapeHtml(p.national_id) : ""}</span>`;
+    row.innerHTML = `<span>${escapeHtml(p.full_name)}${p.archived_at ? " 🗄️ בארכיון" : ""}</span><span style="color:var(--text-muted); font-size:13px;">${escapeHtml(p.phone || "")}${p.national_id ? " · " + escapeHtml(p.national_id) : ""}</span>`;
     row.addEventListener("click", () => openPatientRecord(p.id));
     row.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openPatientRecord(p.id); } });
     resultsEl.appendChild(row);
@@ -109,8 +109,30 @@ async function prRenderHeader() {
     <div class="actions-row" style="justify-content:flex-start; margin-top:12px;">
       <button class="btn btn-secondary btn-sm" id="pr-edit-header-btn">עריכת פרטי קשר</button>
     </div>
+    ${patient.archived_at ? `<div class="pr-archived-banner" role="status">🗄️ התיק בארכיון מאז ${formatDateHe(new Date(patient.archived_at))}${patient.archive_reason ? " — " + escapeHtml(patient.archive_reason) : ""}. כל ההיסטוריה נשמרת וזמינה להוצאה.</div>` : ""}
+    <details class="archive-panel"><summary>ארכיון והוצאת תיק משפטי</summary>
+      <div class="archive-grid">
+        <div>
+          <h4>${patient.archived_at ? "החזרה מארכיון" : "העברה לארכיון"}</h4>
+          ${patient.archived_at ? "" : `<div class="field"><label for="pr-archive-reason">סיבה (חובה)</label><input type="text" id="pr-archive-reason"></div>`}
+          <button type="button" class="btn btn-secondary btn-sm" id="pr-archive-btn">${patient.archived_at ? "החזרה מארכיון" : "העברה לארכיון (לא נמחק דבר)"}</button>
+          <div class="error-msg" id="pr-archive-error" role="alert"></div>
+        </div>
+        <div>
+          <h4>הוצאת תיק מלא</h4>
+          <div class="field"><label for="pr-export-type">מי ביקש</label><select id="pr-export-type">${Object.entries(EXPORT_REQUESTER_LABELS).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></div>
+          <div class="field"><label for="pr-export-name">שם המבקש</label><input type="text" id="pr-export-name"></div>
+          <div class="field"><label for="pr-export-basis">בסיס הבקשה (חובה, למשל "בקשת מטופל" / "צו מס' ...")</label><textarea id="pr-export-basis" rows="2"></textarea></div>
+          <button type="button" class="btn btn-primary btn-sm" id="pr-export-btn">הוצאת תיק (JSON + מסמך להדפסה)</button>
+          <div class="error-msg" id="pr-export-error" role="alert"></div>
+          <p class="amend-note">כל הוצאה נרשמת ביומן גישה שאי אפשר לערוך או למחוק: מי הוציא, מתי, עבור מי ועל איזה בסיס.</p>
+        </div>
+      </div>
+    </details>
   `;
   document.getElementById("pr-edit-header-btn").addEventListener("click", prOpenEditHeaderModal);
+  document.getElementById("pr-archive-btn").addEventListener("click", () => prToggleArchive(patient));
+  document.getElementById("pr-export-btn").addEventListener("click", () => prExportRecord(patient));
 }
 
 // אין הרשמה/login במערכת — מטופל שמזמין ממכשיר/דפדפן אחר מקבל session אנונימי חדש
@@ -135,6 +157,56 @@ async function prRenderDuplicateBanner(patient) {
   banner.querySelectorAll(".pr-duplicate-link").forEach((btn) => {
     btn.addEventListener("click", () => openPatientRecord(btn.dataset.patientId));
   });
+}
+
+async function prToggleArchive(patient) {
+  const errEl = document.getElementById("pr-archive-error");
+  hideError(errEl);
+  const btn = document.getElementById("pr-archive-btn");
+  let patch;
+  if (patient.archived_at) {
+    patch = { archived_at: null };
+  } else {
+    const reason = document.getElementById("pr-archive-reason").value.trim();
+    if (reason.length < 3) { showError(errEl, "יש לציין סיבה להעברה לארכיון"); return; }
+    patch = { archived_at: new Date().toISOString(), archive_reason: reason };
+  }
+  setButtonLoading(btn, true, "שומר...");
+  let error = null;
+  try { ({ error } = await supabaseClient.from("patients").update(patch).eq("id", patient.id)); } catch (e) { error = e; }
+  setButtonLoading(btn, false);
+  if (error) { showError(errEl, "הפעולה נכשלה: " + friendlyErrorMessage(error)); return; }
+  prInvalidate("patient");
+  flashSuccess(patient.archived_at ? "התיק הוחזר מהארכיון" : "התיק הועבר לארכיון; כל ההיסטוריה נשמרה");
+  await prRenderHeader();
+  loadAttentionDashboard();
+}
+
+// הוצאת תיק מלא: הפונקציה בשרת רושמת ביומן הגישה *לפני* שהנתונים חוזרים, ולכן אין הוצאה בלי רישום.
+async function prExportRecord(patient) {
+  const errEl = document.getElementById("pr-export-error");
+  hideError(errEl);
+  const basis = document.getElementById("pr-export-basis").value.trim();
+  if (basis.length < 3) { showError(errEl, "יש לציין את בסיס הבקשה"); return; }
+  const btn = document.getElementById("pr-export-btn");
+  setButtonLoading(btn, true, "מפיק...");
+  let data = null, error = null;
+  try {
+    ({ data, error } = await supabaseClient.rpc("export_patient_record", {
+      p_patient_id: patient.id, p_requester_type: document.getElementById("pr-export-type").value,
+      p_requester_name: document.getElementById("pr-export-name").value.trim(), p_basis: basis }));
+  } catch (e) { error = e; }
+  setButtonLoading(btn, false);
+  if (error || !data) { showError(errEl, "ההוצאה נכשלה ולא נרשמה: " + friendlyErrorMessage(error || "אין נתונים")); return; }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = patientRecordFilename(data);
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+  const win = window.open("", "_blank");
+  if (win) { win.document.open(); win.document.write(patientRecordPrintHtml(data)); win.document.close(); }
+  flashSuccess(`התיק הופק ונרשם ביומן הגישה (מס' ${data.export && data.export.log_id})`);
 }
 
 function prOpenEditHeaderModal() {
@@ -1009,7 +1081,7 @@ async function loadAttentionDashboard() {
   showLoadingRow(el, "טוען...");
   const [{ data: risks }, { data: patientsList }, { data: openAlerts }] = await Promise.all([
     supabaseClient.from("current_patient_risk").select("*"),
-    supabaseClient.from("patients").select("id, full_name"),
+    supabaseClient.from("patients").select("*"),   // "*": archived_at קיים רק אחרי מיגרציה 013; מסננים בצד הלקוח
     supabaseClient.from("alerts").select("patient_id, severity").eq("status", "open"),
   ]);
   const riskByPatient = new Map((risks || []).map((r) => [r.patient_id, r]));
@@ -1021,7 +1093,7 @@ async function loadAttentionDashboard() {
     alertInfoByPatient.set(a.patient_id, cur);
   });
 
-  const rows = (patientsList || []).map((p) => {
+  const rows = (patientsList || []).filter((p) => !p.archived_at).map((p) => {
     const risk = riskByPatient.get(p.id);
     const alertInfo = alertInfoByPatient.get(p.id) || { count: 0, hasHigh: false };
     const level = risk ? risk.risk_level : "no_data";
