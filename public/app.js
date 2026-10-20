@@ -534,17 +534,26 @@ const VITALS_META = [
 // ===== היסטוריית מדידות: כל בדיקה נשמרת, והשינוי מוצג מול המדידה הקודמת של אותו מדד =====
 // בדיקה חדשה אינה דורסת ישנה (כל ביקור = דוח נפרד). ההשוואה היא מספרית בלבד (▲/▼ וההפרש): הסיווג
 // הקליני (ירוק/צהוב/אדום) נשאר בשירות החיזוי ואינו משוכפל בצד הלקוח.
-function vitalsHistoryRows(visits) {
+// תיקון מאוחר (amendment) אינו עורך את הדוח המקורי: הערך המתוקן מוצג מסומן, והמקורי נשמר ונראה.
+function latestCorrection(amendments, visitId, key) {
+  const list = (amendments || []).filter((a) => a.visit_report_id === visitId && a.corrections && a.corrections[key] !== undefined)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  return list.length ? list[0].corrections[key] : undefined;
+}
+
+function vitalsHistoryRows(visits, amendments) {
   const chrono = (visits || []).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date));
   const prev = {};
   const rows = chrono.map((visit) => {
     const cells = VITALS_META.map((m) => {
-      const raw = visit[m.key];
+      const original = visit[m.key];
+      const fix = latestCorrection(amendments, visit.id, m.key);
+      const raw = fix !== undefined ? fix : original;
       if (raw == null) return { key: m.key, value: null, delta: null };
       const value = Number(raw);
       const delta = prev[m.key] === undefined ? null : Math.round((value - prev[m.key]) * 10) / 10;
       prev[m.key] = value;
-      return { key: m.key, value, delta };
+      return { key: m.key, value, delta, corrected: fix !== undefined && Number(original) !== value, original: original == null ? null : Number(original) };
     });
     return { visit, cells };
   });
@@ -559,8 +568,8 @@ function vitalsDeltaHtml(delta) {
   return ` <span class="vh-delta ${up ? "vh-up" : "vh-down"}" title="שינוי מהמדידה הקודמת של אותו מדד">${text}</span>`;
 }
 
-function vitalsHistoryTableHtml(visits) {
-  const rows = vitalsHistoryRows(visits);
+function vitalsHistoryTableHtml(visits, amendments) {
+  const rows = vitalsHistoryRows(visits, amendments);
   const metas = VITALS_META.filter((m) => rows.some((r) => r.cells.find((c) => c.key === m.key).value !== null));
   if (!rows.length || !metas.length) return `<p style="color:var(--text-muted);">אין עדיין מדידות.</p>`;
   const head = metas.map((m) => `<th scope="col">${m.label}${m.unit ? ` <span class="vh-unit">(${m.unit})</span>` : ""}</th>`).join("");
@@ -568,11 +577,71 @@ function vitalsHistoryTableHtml(visits) {
     const d = new Date(visit.visit_date);
     const tds = metas.map((m) => {
       const c = cells.find((x) => x.key === m.key);
-      return `<td>${c.value === null ? "—" : `<strong>${c.value}</strong>${vitalsDeltaHtml(c.delta)}`}</td>`;
+      const fixed = c.corrected ? ` <span class="vh-corrected" title="תוקן בדיעבד; הערך המקורי שנרשם בביקור: ${c.original ?? "—"}">✎ מקור ${c.original ?? "—"}</span>` : "";
+      return `<td>${c.value === null ? "—" : `<strong>${c.value}</strong>${vitalsDeltaHtml(c.delta)}${fixed}`}</td>`;
     }).join("");
     return `<tr><th scope="row">${formatDateHe(d)} ${formatTimeHe(d)}</th>${tds}</tr>`;
   }).join("");
   return `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table vh-table"><thead><tr><th scope="col">תאריך ושעה</th>${head}</tr></thead><tbody>${body}</tbody></table></div><p style="color:var(--text-muted); font-size:12px; margin:8px 0 0;">כל בדיקה נשמרת בתיק ואינה נמחקת. החץ מציג את השינוי מהמדידה הקודמת של אותו מדד.</p>`;
+}
+
+// ===== תיקון/הבהרה לדוח ביקור שהושלם: רשומה חדשה (append-only), המקור לא נערך ולא נמחק =====
+const AMEND_FIELD_LABELS = Object.fromEntries(VITALS_META.map((m) => [m.key, m.label]).concat([["treatment_summary", "סיכום טיפול"]]));
+
+function amendmentsListHtml(list) {
+  if (!list.length) return "";
+  return `<div class="amend-list"><div class="amend-title">תיקונים והבהרות (המקור נשמר)</div>${list.map((a) => {
+    const d = new Date(a.created_at);
+    const fixes = Object.entries(a.corrections || {}).map(([k, v]) => `${AMEND_FIELD_LABELS[k] || k}: ${typeof v === "string" ? v : v} (תוקן)`).join(" · ");
+    const who = a.amended_by_role ? (a.amended_by_role === "admin" ? "מנהל/ת" : (ROLE_LABELS[a.amended_by_role] || a.amended_by_role)) : "";
+    return `<div class="amend-item"><div class="amend-meta">${formatDateHe(d)} ${formatTimeHe(d)}${who ? " · " + escapeHtml(who) : ""}</div>
+      <div>${escapeHtml(a.reason)}</div>${fixes ? `<div class="amend-fixes">${escapeHtml(fixes)}</div>` : ""}</div>`;
+  }).join("")}</div>`;
+}
+
+function amendmentBlockHtml(visit, amendments, canAmend = true) {
+  const mine = (amendments || []).filter((a) => a.visit_report_id === visit.id);
+  const fieldOpts = `<option value="">הבהרה בלבד (בלי שינוי ערך)</option>${VITALS_META.map((m) => `<option value="${m.key}">${m.label}</option>`).join("")}`;
+  return `${amendmentsListHtml(mine)}${canAmend ? `
+    <details class="amend-form" data-visit-id="${visit.id}"><summary>הוספת תיקון / הבהרה</summary>
+      <div class="field"><label>מה לתקן</label><select class="amend-field">${fieldOpts}</select></div>
+      <div class="field amend-value-wrap" hidden><label>הערך הנכון</label><input type="number" step="any" class="amend-value"></div>
+      <div class="field"><label>סיבה (חובה)</label><textarea class="amend-reason" rows="2"></textarea></div>
+      <div class="error-msg amend-error" role="alert"></div>
+      <button type="button" class="btn btn-secondary btn-sm amend-save">שמירת התיקון</button>
+      <p class="amend-note">הדוח המקורי לא ישתנה ולא יימחק; התיקון נוסף כרשומה חדשה עם שם, תאריך ושעה.</p>
+    </details>` : ""}`;
+}
+
+// מחבר את טפסי התיקון בתוך container. onSaved נקרא אחרי שמירה מוצלחת (לרענון התצוגה).
+function bindAmendmentForms(container, onSaved) {
+  container.querySelectorAll(".amend-form").forEach((form) => {
+    const fieldSel = form.querySelector(".amend-field");
+    const wrap = form.querySelector(".amend-value-wrap");
+    fieldSel.addEventListener("change", () => { wrap.hidden = !fieldSel.value; });
+    form.querySelector(".amend-save").addEventListener("click", async (ev) => {
+      const btn = ev.currentTarget;
+      const errEl = form.querySelector(".amend-error");
+      hideError(errEl);
+      const reason = form.querySelector(".amend-reason").value.trim();
+      if (reason.length < 3) { showError(errEl, "יש לציין סיבה לתיקון"); return; }
+      const corrections = {};
+      if (fieldSel.value) {
+        const raw = form.querySelector(".amend-value").value;
+        if (raw === "" || !Number.isFinite(Number(raw))) { showError(errEl, "יש להזין את הערך הנכון"); return; }
+        corrections[fieldSel.value] = Number(raw);
+      }
+      setButtonLoading(btn, true, "שומר...");
+      let error = null;
+      try {
+        ({ error } = await supabaseClient.from("visit_report_amendments").insert({ visit_report_id: Number(form.dataset.visitId), reason, corrections }));
+      } catch (e) { error = e; }
+      setButtonLoading(btn, false);
+      if (error) { showError(errEl, "התיקון לא נשמר: " + friendlyErrorMessage(error)); return; }
+      prInvalidate("amendments");
+      if (typeof onSaved === "function") onSaved();
+    });
+  });
 }
 
 const CONDITION_META = [
@@ -804,7 +873,7 @@ function prResetState(patientId) {
     patient: null, allergies: null, medicalHistory: null, currentRisk: null,
     bookings: null, visitReports: null, medications: null, servicePlans: null,
     servicePlanVisits: null, clinicalNotes: null, documents: null, alerts: null,
-    tasks: null, auditLog: null, riskHistory: null,
+    tasks: null, auditLog: null, riskHistory: null, amendments: null,
   };
 }
 
@@ -844,6 +913,11 @@ async function prFetchVisitReports() {
 async function prFetchRiskHistory() {
   const { data, error } = await supabaseClient.from("risk_predictions").select("id, risk_level, trend, predicted_at, visit_report_id").eq("patient_id", window.currentPatientState.patientId).order("predicted_at", { ascending: false }).limit(200);
   if (error) { console.error("risk_predictions", error); return []; }
+  return data || [];
+}
+async function prFetchAmendments() {
+  const { data, error } = await supabaseClient.from("visit_report_amendments").select("*").eq("patient_id", window.currentPatientState.patientId).order("created_at", { ascending: true });
+  if (error) { console.error("visit_report_amendments", error); return []; }
   return data || [];
 }
 async function prFetchMedications() {

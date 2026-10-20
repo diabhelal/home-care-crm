@@ -97,6 +97,12 @@ function fakeSupabaseSource() {
                 return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint" } };
               row.status = "scheduled"; row.workflow_status = "unassigned";
             }
+            if (name === "visit_report_amendments") {   // מה שהטריגר בשרת עושה: מטופל מהדוח, מחבר ותפקיד מהשרת
+              const rep = table(db, "visit_reports").find((r) => r.id === row.visit_report_id);
+              row.patient_id = rep ? rep.patient_id : row.patient_id;
+              row.amended_by = (session() && session().user && session().user.id) || null;
+              row.amended_by_role = (session() && session().user && session().user.app_metadata && session().user.app_metadata.is_admin) ? "admin" : "nurse";
+            }
             if (row.id === undefined && name !== "patients") row.id = ++db.seq;
             row.created_at = new Date().toISOString();
             rows.push(row); out.push(row);

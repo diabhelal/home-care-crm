@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -75,6 +75,12 @@ POSTFLIGHT = [
      "and column_name in ('age_hours','is_stale','newer_report_exists')) = 3 "
      "and has_table_privilege('authenticated','public.current_patient_risk','select') "
      "and not has_table_privilege('anon','public.current_patient_risk','select')"),
+    ("012 amendments table: RLS on, append-only grants for authenticated, nothing for anon",
+     "select (select relrowsecurity from pg_class where oid='public.visit_report_amendments'::regclass) "
+     "and has_table_privilege('authenticated','public.visit_report_amendments','insert') "
+     "and not has_table_privilege('authenticated','public.visit_report_amendments','update') "
+     "and not has_table_privilege('authenticated','public.visit_report_amendments','delete') "
+     "and not has_table_privilege('anon','public.visit_report_amendments','select')"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -82,6 +88,8 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "012": [("012 table and function gone", "select to_regclass('public.visit_report_amendments') is null "
+                                           "and to_regprocedure('public.visit_report_amendments_guard()') is null")],
     "011": [("011 view back to the previous definition (no staleness columns, still selectable)",
              "select (select count(*) from information_schema.columns where table_schema='public' and table_name='current_patient_risk' "
              "and column_name in ('age_hours','is_stale','newer_report_exists')) = 0 "

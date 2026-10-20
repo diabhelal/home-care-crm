@@ -13,6 +13,7 @@
 | 007_server_derived_authorship | 20261015155238 (גרסה מתוקנת: DELETE בטריגר clinical_notes לא בולע cascade) |
 
 | 008_visit_report_integrity | **לא הוחל** (נבדק רק על Postgres מבודד; ממתין לאישור החלה) |
+| 012_visit_report_amendments | **לא הוחלה** (טבלה חדשה append-only; נבדקה על Postgres מבודד) |
 | 011_risk_status_always_visible | **לא הוחלה** (view בלבד; נבדקה על Postgres מבודד) |
 | 010_booking_update_conflict_guard | **לא הוחל** (נבדק על Postgres מבודד, כולל בדיקות מקביליות) |
 | 009_staff_deactivate_not_delete | **לא הוחל** (כנ"ל; כולל מדיניות SELECT אחת צרה, ראו כותרת הקובץ) |

@@ -294,9 +294,10 @@ async function prRenderOverviewTab(content) {
 
 // ----- ביקורים -----
 async function prRenderVisitsTab(content) {
-  const [visits, bookings] = await Promise.all([
+  const [visits, bookings, amendments] = await Promise.all([
     prCached("visitReports", prFetchVisitReports),
     prCached("bookings", prFetchBookings),
+    prCached("amendments", prFetchAmendments),
   ]);
   if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין ביקורים מתועדים</div>`; return; }
   content.innerHTML = visits.map((v) => {
@@ -314,6 +315,7 @@ async function prRenderVisitsTab(content) {
         ${v.treatment_summary ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(v.treatment_summary)}</div>` : ""}
         <button class="btn btn-secondary btn-sm pr-visit-open" data-visit-id="${v.id}" style="margin-top:8px;">פתיחת הדוח המלא</button>
         ${clinicalOutcomeSelectHtml(v)}
+        ${amendmentBlockHtml(v, amendments)}
       </div>
     `;
   }).join("");
@@ -325,6 +327,7 @@ async function prRenderVisitsTab(content) {
     });
   });
   bindClinicalOutcomeSelects(content, visits);
+  bindAmendmentForms(content, () => prRenderVisitsTab(content));
 }
 
 // ===== תיעוד תוצאה קלינית בדיעבד — הדאטה המתויג היחיד שחסר כדי שמודל 6
@@ -404,7 +407,7 @@ function prVitalChartSvg(points) {
 }
 
 async function prRenderVitalsTab(content) {
-  const visits = await prCached("visitReports", prFetchVisitReports);
+  const [visits, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments)]);
   if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין מדידות למטופל זה</div>`; return; }
   const latest = visits[0];
   const latestHtml = VITALS_META.filter((v) => latest[v.key] != null).map((v) => `<div>${v.label}: <strong>${latest[v.key]}${v.unit}</strong></div>`).join("");
@@ -419,7 +422,7 @@ async function prRenderVitalsTab(content) {
       </div>
       <div id="pr-vitals-chart"></div>
     </div>
-    <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits)}</div>
+    <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits, amendments)}</div>
     <div id="pr-vitals-baseline"><p style="color:var(--text-muted);">טוען ניתוח בסיס אישי...</p></div>
   `;
 
@@ -955,13 +958,14 @@ async function prRenderAlertsTab(content) {
 
 // ----- ציר זמן -----
 async function prRenderTimelineTab(content) {
-  const [bookings, visits, meds, notes, alerts, riskHistory] = await Promise.all([
+  const [bookings, visits, meds, notes, alerts, riskHistory, amendments] = await Promise.all([
     prCached("bookings", prFetchBookings),
     prCached("visitReports", prFetchVisitReports),
     prCached("medications", prFetchMedications),
     prCached("clinicalNotes", prFetchClinicalNotes),
     prCached("alerts", prFetchAlerts),
     prCached("riskHistory", prFetchRiskHistory),
+    prCached("amendments", prFetchAmendments),
   ]);
   const events = [];
   bookings.forEach((b) => events.push({ ts: new Date(b.scheduled_at), summary: `ביקור ${PURPOSE_LABELS[b.visit_purpose] || ""} — ${STATUS_LABELS[b.status] || b.status}`, icon: "📅" }));
@@ -970,6 +974,7 @@ async function prRenderTimelineTab(content) {
     const done = PROCEDURE_META.filter((m) => v[m.key]).map((m) => m.label).join(", ");
     events.push({ ts: new Date(v.visit_date), summary: `דוח ביקור נשמר${vitalsSummary ? " — " + vitalsSummary : ""}${done ? " · בוצע: " + done : ""}`, icon: "🩺" });
   });
+  amendments.forEach((a) => events.push({ ts: new Date(a.created_at), summary: `תיקון/הבהרה לדוח ביקור: ${a.reason}`, icon: "✎" }));
   // היסטוריית הערכות הסיכון (ירוק/צהוב/אדום) — כל הערכה נשמרת לצמיתות ולא נמחקת כשהיא מתיישנת
   riskHistory.forEach((r) => events.push({ ts: new Date(r.predicted_at), summary: `הערכת סיכון: ${RISK_LEVEL_HE[r.risk_level] || r.risk_level}${r.trend ? " (" + (r.trend === "worsening" ? "מחמיר" : r.trend === "improving" ? "משתפר" : "יציב") + ")" : ""}`, icon: r.risk_level === "red" ? "🔴" : r.risk_level === "yellow" ? "🟡" : r.risk_level === "green" ? "🟢" : "⚪" }));
   meds.forEach((m) => events.push({ ts: new Date(m.administered_at), summary: `${m.medication_name}${m.dose ? " " + m.dose : ""} ניתן`, icon: "💊" }));

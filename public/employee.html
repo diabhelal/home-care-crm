@@ -841,7 +841,7 @@
   }
 
   async function prRenderVisitsTab(content) {
-    const [visits, bookings] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("bookings", prFetchBookings)]);
+    const [visits, bookings, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("bookings", prFetchBookings), prCached("amendments", prFetchAmendments)]);
     if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין ביקורים מתועדים</div>`; return; }
     content.innerHTML = visits.map((v) => {
       const booking = bookings.find((b) => b.id === v.booking_id);
@@ -855,6 +855,7 @@
           ${v.treatment_summary ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(v.treatment_summary)}</div>` : ""}
           <button class="btn btn-secondary btn-sm pr-visit-open" data-visit-id="${v.id}" style="margin-top:8px;">פתיחת הדוח המלא</button>
           ${clinicalOutcomeSelectHtml(v)}
+          ${amendmentBlockHtml(v, amendments)}
         </div>
       `;
     }).join("");
@@ -866,6 +867,7 @@
       });
     });
     bindClinicalOutcomeSelects(content, visits);
+    bindAmendmentForms(content, () => prRenderVisitsTab(content));
   }
 
   // ===== תיעוד תוצאה קלינית בדיעבד — הדאטה המתויג היחיד שחסר כדי שמודל 6
@@ -939,7 +941,7 @@
   }
 
   async function prRenderVitalsTab(content) {
-    const visits = await prCached("visitReports", prFetchVisitReports);
+    const [visits, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments)]);
     if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין מדידות למטופל זה</div>`; return; }
     const latest = visits[0];
     const latestHtml = VITALS_META.filter((v) => latest[v.key] != null).map((v) => `<div>${v.label}: <strong>${latest[v.key]}${v.unit}</strong></div>`).join("");
@@ -952,7 +954,7 @@
         </div>
         <div id="pr-vitals-chart"></div>
       </div>
-      <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits)}</div>
+      <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits, amendments)}</div>
     `;
     const renderChartFor = (key) => {
       const points = visits.filter((r) => r[key] != null).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date)).map((r) => ({ value: r[key] }));

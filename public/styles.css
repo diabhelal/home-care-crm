@@ -628,6 +628,14 @@ section { margin-bottom: 48px; }
 .risk-badge-red { background: var(--danger-light); color: var(--danger); }
 .risk-badge-muted { background: var(--border); color: #4d5a57; } /* var(--text-muted) על רקע var(--border) נותן רק 4.47:1 — מתחת ל-WCAG AA לטקסט 15px; #4d5a57 נותן 5.68:1 (תואם ל-.pr-badge-low) */
 
+.vh-corrected { font-size: 11px; color: #8f5f0e; white-space: nowrap; }
+.amend-list { margin-top: 10px; border-inline-start: 3px solid var(--border); padding-inline-start: 10px; }
+.amend-title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+.amend-item { font-size: 13px; margin-bottom: 6px; }
+.amend-meta, .amend-note { color: var(--text-muted); font-size: 12px; }
+.amend-fixes { color: #8f5f0e; font-weight: 600; }
+.amend-form { margin-top: 10px; }
+.amend-form summary { cursor: pointer; font-size: 13px; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
 .vh-table th[scope=row] { white-space: nowrap; font-weight: 600; }
 .vh-unit { font-weight: 400; color: var(--text-muted); font-size: 11px; }
 .vh-delta { font-size: 12px; font-weight: 600; white-space: nowrap; }

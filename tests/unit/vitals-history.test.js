@@ -54,3 +54,18 @@ test("ערכים עשרוניים: ההפרש מעוגל לספרה אחת", () 
   const rows = ctx.vitalsHistoryRows([v("2026-10-13T08:00:00Z", { temperature: 36.6 }), v("2026-10-20T08:00:00Z", { temperature: 37.4 })]);
   assert.equal(rows[0].cells.find((c) => c.key === "temperature").delta, 0.8);
 });
+
+test("תיקון בדיעבד: הערך המתוקן מוצג מסומן, המקורי נשמר ונראה, וההשוואה לפי הערך המתוקן", () => {
+  const visits = [{ id: 1, ...week1 }, { id: 2, ...week2 }];
+  const amendments = [{ visit_report_id: 1, created_at: "2026-10-21T08:00:00Z", reason: "טעות הקלדה", corrections: { systolic_bp: 135 } }];
+  const rows = ctx.vitalsHistoryRows(visits, amendments);
+  const sys = (r) => r.cells.find((c) => c.key === "systolic_bp");
+  assert.equal(sys(rows[1]).value, 135); assert.equal(sys(rows[1]).original, 140); assert.equal(sys(rows[1]).corrected, true);
+  assert.equal(sys(rows[0]).delta, -10);                       // 125 מול 135 (המתוקן), לא מול 140
+  const html = ctx.vitalsHistoryTableHtml(visits, amendments);
+  assert.match(html, /✎ מקור 140/); assert.match(html, /<strong>135<\/strong>/);
+  // תיקון אחרון קובע; ללא תיקון לא מסומן
+  const two = amendments.concat([{ visit_report_id: 1, created_at: "2026-10-22T08:00:00Z", reason: "שוב", corrections: { systolic_bp: 138 } }]);
+  assert.equal(ctx.vitalsHistoryRows(visits, two)[1].cells.find((c) => c.key === "systolic_bp").value, 138);
+  assert.equal(sys(ctx.vitalsHistoryRows(visits, [])[0]).corrected, false);
+});

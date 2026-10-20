@@ -136,3 +136,30 @@ test("תיק מטופל, לשונית מדדים: שתי בדיקות נשמרו
   await expect(table.locator("tbody tr").first()).toContainText("▼ -15");
   await expect(table.locator("tbody tr").last()).toContainText("140");
 });
+
+test("תיקון בדיעבד לדוח שהושלם: נוסף כרשומה חדשה, המקור נשמר, וההיסטוריה מציגה את שניהם", async ({ browser }) => {
+  const rep = (id, booking_id, daysAgo, o) => ({ id, booking_id, patient_id: "p-1", staff_id: 1, visit_date: new Date(Date.now() - daysAgo * 86400000).toISOString(), treatment_summary: "x", ...o });
+  const { page } = await setup(browser, { bookings: [booking({ id: 7 }), booking({ id: 8, scheduled_at: inHours(48) })],
+    visit_reports: [rep(1, 7, 7, { systolic_bp: 140, diastolic_bp: 90 }), rep(2, 8, 0, { systolic_bp: 125, diastolic_bp: 90 })] });
+  await page.evaluate(() => openPatientRecord("p-1"));
+  await page.getByRole("button", { name: "ביקורים", exact: true }).click();
+  const card = page.locator("#pr-tab-content .pr-card").last();                   // הביקור הישן (140), הרשימה ממוינת מהחדש לישן
+  await card.locator("summary", { hasText: "הוספת תיקון" }).click();
+  await card.locator(".amend-field").selectOption("systolic_bp");
+  await card.locator(".amend-value").fill("135");
+  await card.locator(".amend-save").click();                                      // בלי סיבה: נחסם בצד הלקוח
+  await expect(card.locator(".amend-error")).toContainText("סיבה");
+  await card.locator(".amend-reason").fill("טעות הקלדה בלחץ דם");
+  await card.locator(".amend-save").click();
+  await expect(page.locator("#pr-tab-content")).toContainText("טעות הקלדה בלחץ דם");
+  await expect(page.locator("#pr-tab-content")).toContainText("המקור נשמר");
+  const db = await page.evaluate(() => JSON.parse(localStorage.getItem("__demo_db")));
+  expect(db.visit_reports.find((r) => r.id === 1).systolic_bp).toBe(140);          // המקור לא נערך
+  expect(db.visit_report_amendments).toHaveLength(1);
+  expect(db.visit_report_amendments[0].corrections).toEqual({ systolic_bp: 135 });
+  await page.getByRole("button", { name: "מדדים", exact: true }).click();
+  const rows = page.locator(".vh-table tbody tr");
+  await expect(rows).toHaveCount(2);
+  await expect(rows.last()).toContainText("135");
+  await expect(rows.last()).toContainText("מקור 140");
+});
