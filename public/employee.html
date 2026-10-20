@@ -578,6 +578,7 @@
     if (!out || out.risk_level === "no_data" || !out.prediction) { renderRiskPanel(null); return; }
     const p = out.prediction;
     renderRiskPanel({ risk_level: p.risk_level, trend: p.trend, predicted_at: p.predicted_at, expires_at: p.expires_at, prediction_horizon_hours: p.prediction_horizon_hours });
+    prInvalidate("currentRisk", "riskHistory");
     if (out.alert) prInvalidate("alerts");
   }
 
@@ -806,7 +807,7 @@
 
     html += `
       <div class="pr-card" style="${riskCardTone}">
-        <h3 style="margin-top:0;">רמת סיכון נוכחית</h3>
+        <h3 style="margin-top:0;">רמת סיכון אחרונה</h3>
         ${currentRisk
           ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">${riskBadgeHtml(currentRisk)}<strong class="${riskStatusClass}" style="font-size:15px;">${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}</strong></div>`
           : `<span style="color:var(--text-muted);">אין הערכת סיכון עדכנית</span>`}

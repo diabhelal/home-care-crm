@@ -107,3 +107,18 @@ test("כשל בשמירת תוצאה קלינית: הודעה ברורה, הבח
   expect(ctl.outcomes).toEqual([]);
   expect(await writes(page)).toEqual([]);
 });
+
+test("תור העבודה: סיכון אדום ישן לא נעלם — מוצג עם גיל ('מיושן'), ודוח חדש שלא הוערך מסומן", async ({ browser }) => {
+  const { page } = await setup(browser, { bookings: [booking({})] });
+  await page.evaluate(({ old }) => {
+    const db = JSON.parse(localStorage.getItem("__demo_db"));
+    db.current_patient_risk = [{ patient_id: "p-1", risk_level: "red", trend: "worsening", predicted_at: old, is_stale: true, newer_report_exists: true }];
+    localStorage.setItem("__demo_db", JSON.stringify(db));
+  }, { old: new Date(Date.now() - 3 * 86400000).toISOString() });
+  await page.reload();
+  const row = page.locator("#work-queue tbody tr", { hasText: "דנה כהן" });
+  await expect(row).toContainText("אדום");
+  await expect(row).toContainText("לפני 3 ימים");
+  await expect(row).toContainText("מיושן");
+  await expect(row).toContainText("קיים דוח חדש יותר שטרם הוערך");
+});

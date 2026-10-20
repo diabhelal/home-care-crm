@@ -628,6 +628,10 @@ section { margin-bottom: 48px; }
 .risk-badge-red { background: var(--danger-light); color: var(--danger); }
 .risk-badge-muted { background: var(--border); color: #4d5a57; } /* var(--text-muted) על רקע var(--border) נותן רק 4.47:1 — מתחת ל-WCAG AA לטקסט 15px; #4d5a57 נותן 5.68:1 (תואם ל-.pr-badge-low) */
 
+.risk-badge-stale { opacity: .8; outline: 1px dashed currentColor; outline-offset: 2px; }
+.risk-age { font-size: 12px; color: var(--text-muted); margin-inline-start: 6px; }
+.risk-age-warn { color: #8f5f0e; font-weight: 600; }
+
 .caregiver-status-red { color: var(--danger); }
 .caregiver-status-yellow { color: #8f5f0e; }
 .caregiver-status-green { color: #1f7a3f; }

@@ -670,6 +670,7 @@
     if (!out || out.risk_level === "no_data" || !out.prediction) { renderRiskPanel(null); return; }
     const p = out.prediction;
     renderRiskPanel({ risk_level: p.risk_level, trend: p.trend, predicted_at: p.predicted_at, expires_at: p.expires_at, prediction_horizon_hours: p.prediction_horizon_hours });
+    prInvalidate("currentRisk", "riskHistory");
     if (out.alert) { prInvalidate("alerts"); loadAttentionDashboard(); }
   }
 

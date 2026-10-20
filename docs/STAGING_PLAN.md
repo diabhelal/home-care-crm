@@ -54,8 +54,19 @@ on conflict (name) do update set value = excluded.value;
 
 אחר כך: `get_advisors` שוב והשוואה לבסיס, והרצת מסע מלא (מטופל ← מנהל ← אחות ← השלמה ← חיזוי) מול ה-backend המקומי המצביע על staging.
 
-## 6. Rollback (לפי סדר הפוך: 010 ← 001)
+## 6. Rollback (לפי סדר הפוך: 011 ← 001)
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
+
+```sql
+-- ROLLBACK 011
+drop view if exists public.current_patient_risk;
+create view public.current_patient_risk with (security_invoker = true) as
+  select distinct on (patient_id) patient_id, risk_level, trend, confidence, probability, predicted_at, expires_at,
+         prediction_horizon_hours, visit_report_id
+    from public.risk_predictions where expires_at > now() order by patient_id, predicted_at desc;
+revoke all on public.current_patient_risk from anon;
+grant select on public.current_patient_risk to authenticated;
+```
 
 ```sql
 -- ROLLBACK 010

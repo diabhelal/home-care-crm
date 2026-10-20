@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -70,6 +70,11 @@ POSTFLIGHT = [
      "and exists (select 1 from pg_policies where tablename = 'medical_staff' and policyname = 'medical_staff_select_own_history')"),
     ("010 booking update conflict trigger exists",
      "select count(*) = 1 from pg_trigger where not tgisinternal and tgname = 'bookings_update_conflict_guard'"),
+    ("011 risk status view returns the latest prediction with staleness columns",
+     "select (select count(*) from information_schema.columns where table_schema='public' and table_name='current_patient_risk' "
+     "and column_name in ('age_hours','is_stale','newer_report_exists')) = 3 "
+     "and has_table_privilege('authenticated','public.current_patient_risk','select') "
+     "and not has_table_privilege('anon','public.current_patient_risk','select')"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -77,6 +82,10 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "011": [("011 view back to the previous definition (no staleness columns, still selectable)",
+             "select (select count(*) from information_schema.columns where table_schema='public' and table_name='current_patient_risk' "
+             "and column_name in ('age_hours','is_stale','newer_report_exists')) = 0 "
+             "and has_table_privilege('authenticated','public.current_patient_risk','select')")],
     "010": [("010 trigger gone", "select count(*) = 0 from pg_trigger where tgname = 'bookings_update_conflict_guard'")],
     "009": [("009 objects gone, FKs cascade again",
              "select count(*) = 0 from pg_trigger where tgname = 'bookings_assign_active_staff_guard' "

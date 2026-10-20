@@ -250,7 +250,7 @@ async function prRenderOverviewTab(content) {
   // 2. רמת סיכון — הכרטיס הבולט ביותר בעמוד
   html += `
     <div class="pr-card" style="${riskCardTone}">
-      <h3 style="margin-top:0;">רמת סיכון נוכחית</h3>
+      <h3 style="margin-top:0;">רמת סיכון אחרונה</h3>
       ${currentRisk
         ? `<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">${riskBadgeHtml(currentRisk)}<strong class="${riskStatusClass}" style="font-size:15px;">${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}</strong></div>`
         : `<span style="color:var(--text-muted);">אין הערכת סיכון עדכנית</span>`}
@@ -954,19 +954,23 @@ async function prRenderAlertsTab(content) {
 
 // ----- ציר זמן -----
 async function prRenderTimelineTab(content) {
-  const [bookings, visits, meds, notes, alerts] = await Promise.all([
+  const [bookings, visits, meds, notes, alerts, riskHistory] = await Promise.all([
     prCached("bookings", prFetchBookings),
     prCached("visitReports", prFetchVisitReports),
     prCached("medications", prFetchMedications),
     prCached("clinicalNotes", prFetchClinicalNotes),
     prCached("alerts", prFetchAlerts),
+    prCached("riskHistory", prFetchRiskHistory),
   ]);
   const events = [];
   bookings.forEach((b) => events.push({ ts: new Date(b.scheduled_at), summary: `ביקור ${PURPOSE_LABELS[b.visit_purpose] || ""} — ${STATUS_LABELS[b.status] || b.status}`, icon: "📅" }));
   visits.forEach((v) => {
     const vitalsSummary = VITALS_META.filter((m) => v[m.key] != null).map((m) => `${m.label} ${v[m.key]}${m.unit}`).join(", ");
-    events.push({ ts: new Date(v.visit_date), summary: `דוח ביקור נשמר${vitalsSummary ? " — " + vitalsSummary : ""}`, icon: "🩺" });
+    const done = PROCEDURE_META.filter((m) => v[m.key]).map((m) => m.label).join(", ");
+    events.push({ ts: new Date(v.visit_date), summary: `דוח ביקור נשמר${vitalsSummary ? " — " + vitalsSummary : ""}${done ? " · בוצע: " + done : ""}`, icon: "🩺" });
   });
+  // היסטוריית הערכות הסיכון (ירוק/צהוב/אדום) — כל הערכה נשמרת לצמיתות ולא נמחקת כשהיא מתיישנת
+  riskHistory.forEach((r) => events.push({ ts: new Date(r.predicted_at), summary: `הערכת סיכון: ${RISK_LEVEL_HE[r.risk_level] || r.risk_level}${r.trend ? " (" + (r.trend === "worsening" ? "מחמיר" : r.trend === "improving" ? "משתפר" : "יציב") + ")" : ""}`, icon: r.risk_level === "red" ? "🔴" : r.risk_level === "yellow" ? "🟡" : r.risk_level === "green" ? "🟢" : "⚪" }));
   meds.forEach((m) => events.push({ ts: new Date(m.administered_at), summary: `${m.medication_name}${m.dose ? " " + m.dose : ""} ניתן`, icon: "💊" }));
   notes.forEach((n) => events.push({ ts: new Date(n.created_at), summary: `${NOTE_TYPE_LABELS[n.note_type] || ""}: ${n.content.slice(0, 80)}`, icon: "📝" }));
   alerts.forEach((a) => events.push({ ts: new Date(a.created_at), summary: `התראה: ${ALERT_TYPE_LABELS[a.alert_type] || a.alert_type}`, icon: "🚨" }));

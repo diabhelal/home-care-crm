@@ -594,12 +594,36 @@ function caregiverStatusMessage(level, trend) {
 }
 
 // תג רמת סיכון קטן לשימוש בטבלאות (למשל עמודת "רמת סיכון" בטבלת ההזמנות)
-function riskBadgeHtml(currentRisk) {
+// "לפני 3 שעות" / "לפני 2 ימים" — מתי נקבעה ההערכה. nowMs ניתן להזרקה לצורך בדיקות.
+function riskAgeText(predictedAt, nowMs = Date.now()) {
+  const t = new Date(predictedAt).getTime();
+  if (!Number.isFinite(t)) return "";
+  const minutes = Math.max(0, Math.round((nowMs - t) / 60000));
+  if (minutes < 1) return "הרגע";
+  if (minutes < 60) return minutes === 1 ? "לפני דקה" : `לפני ${minutes} דקות`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return hours === 1 ? "לפני שעה" : `לפני ${hours} שעות`;
+  const days = Math.round(hours / 24);
+  return days === 1 ? "לפני יום" : `לפני ${days} ימים`;
+}
+
+// ההערכה האחרונה מוצגת תמיד (אדום אינו נעלם אחרי 8 שעות). מעבר ל-24 שעות היא מסומנת "מיושנת", וכשנשמר
+// דוח חדש יותר שטרם הוערך (למשל שירות החיזוי לא היה זמין) מוצג גם זה — כדי שצבע ישן לא יתפרש כמצב נוכחי.
+const RISK_STALE_HOURS = 24;
+function riskBadgeHtml(currentRisk, nowMs = Date.now()) {
   if (!currentRisk) {
     return `<span class="risk-badge risk-badge-muted">לא נבדק</span>`;
   }
   const cls = RISK_BADGE_CLASS[currentRisk.risk_level] || "risk-badge-muted";
-  return `<span class="risk-badge ${cls}">${RISK_LEVEL_HE[currentRisk.risk_level] || currentRisk.risk_level}</span>`;
+  const ageMs = nowMs - new Date(currentRisk.predicted_at).getTime();
+  const stale = currentRisk.is_stale === true || (currentRisk.is_stale === undefined && ageMs > RISK_STALE_HOURS * 3600 * 1000);
+  const notes = [];
+  const age = currentRisk.predicted_at ? riskAgeText(currentRisk.predicted_at, nowMs) : "";
+  if (age) notes.push(`נקבע ${age}`);
+  if (stale) notes.push("מיושן");
+  if (currentRisk.newer_report_exists) notes.push("קיים דוח חדש יותר שטרם הוערך");
+  const note = notes.length ? ` <span class="risk-age${stale || currentRisk.newer_report_exists ? " risk-age-warn" : ""}">${escapeHtml(notes.join(" · "))}</span>` : "";
+  return `<span class="risk-badge ${cls}${stale ? " risk-badge-stale" : ""}">${RISK_LEVEL_HE[currentRisk.risk_level] || currentRisk.risk_level}</span>${note}`;
 }
 
 // בונה תצוגת HTML (read-only) לדוח ביקור, לשימוש במסך "ההזמנות שלי" של המטופל
@@ -736,7 +760,7 @@ function prResetState(patientId) {
     patient: null, allergies: null, medicalHistory: null, currentRisk: null,
     bookings: null, visitReports: null, medications: null, servicePlans: null,
     servicePlanVisits: null, clinicalNotes: null, documents: null, alerts: null,
-    tasks: null, auditLog: null,
+    tasks: null, auditLog: null, riskHistory: null,
   };
 }
 
@@ -771,6 +795,11 @@ async function prFetchBookings() {
 async function prFetchVisitReports() {
   const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
   if (error) { console.error("visit_reports", error); return []; }
+  return data || [];
+}
+async function prFetchRiskHistory() {
+  const { data, error } = await supabaseClient.from("risk_predictions").select("id, risk_level, trend, predicted_at, visit_report_id").eq("patient_id", window.currentPatientState.patientId).order("predicted_at", { ascending: false }).limit(200);
+  if (error) { console.error("risk_predictions", error); return []; }
   return data || [];
 }
 async function prFetchMedications() {
