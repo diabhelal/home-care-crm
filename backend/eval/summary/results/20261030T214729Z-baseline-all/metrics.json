@@ -1,0 +1,23 @@
+{
+ "cases_total": 32,
+ "cases_with_a_draft": 32,
+ "cases_failed": 0,
+ "success_rate": 1.0,
+ "required_fact_recall": 1.0,
+ "required_facts": "109/109",
+ "numerical_accuracy": 1.0,
+ "numbers_in_drafts": "62/62",
+ "unsupported_claim_rate_PROXY": 0.025,
+ "unsupported_signals": 3,
+ "sentences": 120,
+ "critical_error_cases": 3,
+ "critical_error_case_rate": 0.094,
+ "critical_missing_fact_cases": 0,
+ "warning_recall_on_expected": 0.0,
+ "latency_ms_mean": 0.3,
+ "latency_ms_p50": 0.2,
+ "latency_ms_p95": 0.6,
+ "input_tokens_total": null,
+ "output_tokens_total": null,
+ "failures_by_code": {}
+}

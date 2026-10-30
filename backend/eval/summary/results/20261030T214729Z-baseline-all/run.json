@@ -1,0 +1,19 @@
+{
+ "run_id": "20261030T214729Z-baseline-all",
+ "results_status": "baseline-deterministic (not an LLM)",
+ "system": "baseline",
+ "model": null,
+ "prompt_version": "visit-summary-he-v1",
+ "dataset_version": "1.0",
+ "split": "all",
+ "n_cases": 32,
+ "date_utc": "2026-10-30T21:47:29+00:00",
+ "git_commit": "6846b40",
+ "settings": {
+  "temperature": null,
+  "max_output_tokens": 2000,
+  "timeout_s": 25.0,
+  "retries": 0
+ },
+ "note": "Automatic metrics only; human review pending. Clinical validation not established."
+}
