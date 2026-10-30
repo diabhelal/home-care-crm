@@ -192,6 +192,9 @@ const VISIT_BODY_KEYS = ["treatment_summary", "systolic_bp", "diastolic_bp", "bl
 function visitCompletionBody(p) {
   const body = {};
   VISIT_BODY_KEYS.forEach((k) => { if (p[k] !== undefined) body[k] = p[k]; });
+  // סיכום בסיוע AI (רק כשאושר): הערות המקור והטוקן החתום. הטיוטה עצמה לא נשמרת בדפדפן; זה חלק מהדוח הסופי בתור האופליין הקיים.
+  if (p.source_notes !== undefined) body.source_notes = p.source_notes;
+  if (p.ai !== undefined) body.ai = p.ai;
   return body;
 }
 
@@ -1111,6 +1114,8 @@ async function backendFetch(path, { method = "GET", body, idempotencyKey, timeou
   if (res.status === 400 || res.status === 404 || res.status === 422) {
     throw new BackendError("validation", detail || "הפרטים שנשלחו אינם תקינים.", extra);
   }
+  // שגיאות טיוטת ה-AI נושאות הודעה ברורה מהשרת (אינן קשורות להזמנה)
+  if (code && code.startsWith("summary_") && detail) throw new BackendError("server", detail, extra);
   throw new BackendError("server", "אירעה שגיאה בשירות. לא נשמרה הזמנה — נא לנסות שוב.", extra);
 }
 

@@ -25,4 +25,6 @@ window.SERVICE_CONFIG = { roles: ["nurse"], purposes: ["checkup", "wound_care", 
 window.BACKEND_URL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "http://localhost:8001" : "";
 
 // מזהה גרסה שמוצג בתחתית העמודים (קטן): מאפשר לראות מיד אם הדפדפן מגיש קבצים ישנים מהמטמון.
-window.APP_BUILD = "2026-10-20.48";
+// טיוטת סיכום AI לדוח ביקור: opt-in, כבוי כברירת מחדל. דורש גם SUMMARY_ENABLED בצד השרת. נתונים סינתטיים בלבד בשלב זה.
+window.AI_SUMMARY_ENABLED = false;
+window.APP_BUILD = "2026-10-30.49";
