@@ -93,6 +93,25 @@
       <textarea id="vr-summary" rows="4" placeholder="פרוט מהלך הביקור, מצב הפצע, או דגשים מיוחדים למשפחה..."></textarea>
     </div>
 
+    <div id="vr-ai" class="ai-panel" hidden>
+      <div class="ai-head"><strong>סיכום בסיוע AI</strong> <span id="vr-ai-badge" class="ai-badge" hidden></span></div>
+      <p class="ai-note">הטיוטה נוצרת רק מהמדדים, הפרוצדורות וההערות שהוזנו בטופס. אל תכתבו בהערות שמות, ת"ז או טלפון. זו טיוטה לבדיקה ולעריכה: אינה ממצא קליני מאומת ואינה נשמרת עד שתאשרו אותה ותשלימו את הביקור. אפשר תמיד להשלים בתיעוד ידני.</p>
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-ai-generate">יצירת טיוטת סיכום AI</button>
+      <div id="vr-ai-status" class="ai-status" role="status" aria-live="polite"></div>
+      <div id="vr-ai-draft-wrap" hidden>
+        <div class="field">
+          <label for="vr-ai-draft">טיוטת AI לעריכה (טיוטה שלא אושרה)</label>
+          <textarea id="vr-ai-draft" rows="5"></textarea>
+        </div>
+        <ul id="vr-ai-warnings" class="ai-warnings"></ul>
+        <div class="actions-row" style="justify-content:flex-start; gap:8px;">
+          <button type="button" class="btn btn-primary btn-sm" id="vr-ai-approve">אישור הטיוטה כסיכום הסופי</button>
+          <button type="button" class="btn btn-ghost btn-sm" id="vr-ai-discard">הסרת הטיוטה</button>
+        </div>
+        <p class="ai-note">הערות המקור שכתבתם למעלה נשמרות כפי שהן. כשהטיוטה מאושרת, היא הופכת לסיכום הסופי בדוח והערות המקור נשמרות לצידה.</p>
+      </div>
+    </div>
+
     <div class="field">
       <label>חתימת מטופל</label>
       <canvas id="vr-signature-canvas" class="signature-canvas" width="500" height="150"></canvas>
@@ -113,6 +132,7 @@
 <script src="config.js"></script>
 <script src="app.js"></script>
 <script src="js/shared/visit-report-shared.js"></script>
+<script src="js/shared/ai-summary.js"></script>
 <script>
   // PREDICTIVE_SERVICE_URL מוגדר ב-config.js (מקור יחיד, לא כפול בין admin/employee).
   initPredictiveServiceHealthCheck();
@@ -614,6 +634,12 @@
     PROCEDURE_META.forEach((p) => {
       payload[p.key] = vrProceduresEl.querySelector(`input[data-proc="${p.key}"]`).checked;
     });
+    // סיכום בסיוע AI: רק טיוטה שאושרה במפורש; שמירה ידנית לעולם אינה תלויה ב-AI (extras=null).
+    if (typeof AiSummary !== "undefined") {
+      const ai = AiSummary.beforeSave();
+      if (!ai.ok) { showError(modalError, ai.error); return; }
+      if (ai.extras) Object.assign(payload, ai.extras);
+    }
 
     const btn = document.getElementById("visit-report-modal-save");
     setButtonLoading(btn, true, "שומר...");
@@ -650,6 +676,7 @@
 
     visitReportModal.style.display = "none";
     flashSuccess("דוח הביקור נשמר וסומן כהושלם");
+    if (res && res.ai_provenance_saved === false) flashWarning("הדוח נשמר, אך מקור ה-AI (דגל וגרסת מודל) לא תועד: נדרש עדכון מסד הנתונים.");
     loadMyBookings();
     if (savedReport.id) { try { await recalculateRiskAfterSave(payload.patient_id, savedReport.id); } catch (riskErr) { console.error("risk step", riskErr); } }
     refreshOpenPatientRecordIfMatching(payload.patient_id);

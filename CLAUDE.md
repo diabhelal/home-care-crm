@@ -41,12 +41,13 @@ cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload 
 ```
 
 ## טסטים / CI
-CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות על כל ההיסטוריה, `node --test tests/unit/*.test.js`, `pytest` של `predictive-service/`, `pytest` של `backend/` (כולל `backend/tests_db` על Postgres חד-פעמי, ה-job `backend-tests`), ו-16 קבצי Playwright ממוקקים (בלי DB חי). `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא הורצו (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים) ואסור להריצם מול הפרויקט החי.
+CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות על כל ההיסטוריה, `node --test tests/unit/*.test.js`, `pytest` של `predictive-service/`, `pytest` של `backend/` (כולל `backend/tests_db` על Postgres חד-פעמי, ה-job `backend-tests`), ו-17 קבצי Playwright ממוקקים (בלי DB חי). `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא הורצו (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים) ואסור להריצם מול הפרויקט החי.
 
-## הוראה קבועה: שמירה ל-GitHub בסוף כל משימה (הוראת הבעלים, 2026-10-17)
-בסיום **כל** משימת פיתוח, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע), בצע **commit ו-push ל-`origin main` אוטומטית**, בלי לחכות לאישור נוסף, ואמת שההעלאה הצליחה: `git fetch && git status -sb` (בלי "ahead") ו-`gh api repos/diabhelal/home-care-crm/commits/main` תואם ל-`git rev-parse HEAD`. אם הבדיקות או ה-push נכשלים - דווח במפורש והמשימה **לא** הושלמה.
-- **לא נכלל באישור הקבוע:** force-push, שכתוב היסטוריה, שינוי נראות הריפו, שינויי DB/מיגרציות, פריסה, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
-- טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) נשארות מחוץ לריפו.
+## הוראה קבועה: ענף ו-PR לכל פיצ'ר (הוראת הבעלים, 2026-10-30; מחליפה את ההוראה מ-2026-10-17 על push ישיר ל-main)
+כל פיצ'ר או תיקון מפותח **בענף נפרד** (`feature/<שם>`), גם בעבודה לבד. בסיום, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע): commit, `git push -u origin <branch>`, ופתיחת **Pull Request אל `main`** (`gh pr create`) עם תיאור: מה השתנה, בדיקות ותוצאותיהן, מיגרציות שלא הוחלו. אימות: `gh pr view` ו-CI ירוק על ה-PR.
+- **אסור:** push ישיר ל-`main`, מיזוג ה-PR (הבעלים ממזג אלא אם אמר אחרת במפורש), force-push, שכתוב היסטוריה, שינוי נראות הריפו, שינויי DB/מיגרציות על הפרויקט החי, פריסה, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
+- אם בדיקות או push נכשלים - דווח במפורש והמשימה **לא** הושלמה.
+- טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) ותיקיות כלים שאינן שלנו (`.agents/`, `.codex/`) נשארות מחוץ ל-commit.
 
 ## מצב נוכחי (אוקטובר 2026) — קרא לפני עבודה
 - **Backend תפעולי (Python/FastAPI) ב-`backend/`**: הזמנה, זמינות+מרווח נסיעה 30 דק', אישור/דחייה/שיבוץ/ביטול, check-in עם זמן שרת, השלמת ביקור אטומית, חיזוי סיכון והתראות. **הדפדפן לא כותב ישירות ל-`bookings`/`visit_reports`/`risk_predictions`/`alerts`** — הכול דרך `backendFetch` (`public/app.js`). **בלי ה-backend רץ אי אפשר להזמין** (הודעת כשל, בכוונה).

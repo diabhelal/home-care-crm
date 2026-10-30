@@ -199,16 +199,27 @@ class BookingService:
                 raise forbidden("דוח הביקור אינו משויך אליך")
         return self.repo.set_clinical_outcome(report_id, value)
 
-    def complete(self, staff: Staff, booking_id: int, report: VisitReportIn) -> dict:
-        return self._complete(self._own_booking(staff, booking_id), report)
+    def booking_for_summary(self, staff: Optional[Staff], booking_id: int) -> Booking:
+        """Authorization for generating a summary draft: the assigned staff member or an admin (staff is None). The booking must be
+        an active, approved visit (the same states in which it can be completed)."""
+        b = self._require_booking(booking_id) if staff is None else self._own_booking(staff, booking_id)
+        if b.approval_status != "confirmed" or b.status != "scheduled":
+            raise conflict("illegal_transition", "לא ניתן ליצור טיוטה להזמנה זו")
+        return b
 
-    def complete_admin(self, booking_id: int, report: VisitReportIn) -> dict:
+    def complete(self, staff: Staff, booking_id: int, report: VisitReportIn, extra: Optional[dict] = None) -> dict:
+        return self._complete(self._own_booking(staff, booking_id), report, extra)
+
+    def complete_admin(self, booking_id: int, report: VisitReportIn, extra: Optional[dict] = None) -> dict:
         """Admin completes on behalf of the assigned staff member (the DB function allows
         owner-or-admin; the report keeps the booking's own staff_id)."""
-        return self._complete(self._require_booking(booking_id), report)
+        return self._complete(self._require_booking(booking_id), report, extra)
 
-    def _complete(self, b: Booking, report: VisitReportIn) -> dict:
+    def _complete(self, b: Booking, report: VisitReportIn, extra: Optional[dict] = None) -> dict:
         if b.approval_status != "confirmed":
             raise conflict("illegal_transition", "ההזמנה לא אושרה")
         ensure_transition("status", b.status, "completed")
-        return self.repo.complete_visit_atomic(b.id, report.model_dump())
+        payload = report.model_dump(exclude={"ai"})
+        if extra:
+            payload.update(extra)
+        return self.repo.complete_visit_atomic(b.id, payload)

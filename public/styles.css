@@ -647,6 +647,18 @@ section { margin-bottom: 48px; }
 .vh-up { color: #8f5f0e; }
 .vh-down { color: #1f5f8f; }
 .vh-same { color: var(--text-muted); }
+.ai-panel { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px; margin: 0 0 14px; background: var(--surface); }
+.ai-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+.ai-note { color: var(--text-muted); font-size: 12px; margin: 4px 0 8px; }
+.ai-badge { font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+.ai-badge-draft { background: #fdf1d6; color: #8f5f0e; }
+.ai-badge-ok { background: #e2f3e8; color: #1f7a3f; }
+.ai-badge-stale { background: var(--border); color: #4d5a57; }
+.ai-status { font-size: 13px; min-height: 1.2em; margin-top: 6px; }
+.ai-error { color: var(--danger); }
+.ai-warn { color: #8f5f0e; font-weight: 600; }
+.ai-ok { color: #1f7a3f; }
+.ai-warnings { color: #8f5f0e; font-size: 13px; margin: 6px 0; padding-inline-start: 20px; }
 .risk-badge-stale { opacity: .8; outline: 1px dashed currentColor; outline-offset: 2px; }
 .risk-age { font-size: 12px; color: var(--text-muted); margin-inline-start: 6px; }
 .risk-age-warn { color: #8f5f0e; font-weight: 600; }
@@ -1365,3 +1377,4 @@ p { line-height: 1.75; }
 
 /* ימים בלי שעות פנויות: מעומעמים ולא לחיצים */
 .date-pill.no-slots, .date-pill:disabled { opacity: 0.45; cursor: not-allowed; text-decoration: line-through; box-shadow: none; }
+.ai-panel .btn { min-height: 44px; }

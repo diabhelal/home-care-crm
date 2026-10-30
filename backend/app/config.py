@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 def _csv(value: str) -> tuple[str, ...]:
@@ -25,6 +26,21 @@ class Settings:
     predictive_service_url: str = "http://localhost:8000"
     predictive_timeout_seconds: float = 5.0
     risk_attestation_secret: str = ""
+    # --- AI visit-summary DRAFT (opt-in, disabled by default; synthetic data only in this phase) ---
+    summary_enabled: bool = False
+    llm_api_key: str = ""
+    # Current model ids: https://platform.claude.com/docs/en/about-claude/models/overview (verified 2026-10-30). Override with LLM_MODEL.
+    llm_model: str = "claude-sonnet-5-5"
+    llm_timeout_seconds: float = 25.0
+    llm_max_output_tokens: int = 2000
+    llm_temperature: Optional[float] = None      # unset by default: not every model accepts it
+    # Set true ONLY after migration 014 is applied to the database: without it the original notes (source_notes) and the AI provenance are not
+    # stored, so the feature refuses to run (fail closed) instead of silently losing the nurse's original notes.
+    summary_db_provenance_ready: bool = False
+    summary_signing_secret: str = ""            # HMAC key (>=32 chars) for the provenance token; independent of the risk secret
+    summary_max_draft_chars: int = 1500
+    summary_rate_per_minute: int = 6
+    summary_token_ttl_seconds: int = 7 * 24 * 3600   # long enough for an offline-queued completion
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Settings":
@@ -42,4 +58,15 @@ class Settings:
             predictive_service_url=e.get("PREDICTIVE_SERVICE_URL", d.predictive_service_url),
             predictive_timeout_seconds=float(e.get("PREDICTIVE_TIMEOUT_SECONDS", d.predictive_timeout_seconds)),
             risk_attestation_secret=e.get("RISK_ATTESTATION_SECRET", ""),
+            summary_enabled=e.get("SUMMARY_ENABLED", "").strip().lower() in ("1", "true", "yes"),
+            llm_api_key=e.get("LLM_API_KEY", ""),
+            llm_model=e.get("LLM_MODEL", "") or d.llm_model,
+            llm_timeout_seconds=float(e.get("LLM_TIMEOUT_SECONDS", d.llm_timeout_seconds)),
+            llm_max_output_tokens=int(e.get("LLM_MAX_OUTPUT_TOKENS", d.llm_max_output_tokens)),
+            llm_temperature=float(e["LLM_TEMPERATURE"]) if e.get("LLM_TEMPERATURE", "").strip() else None,
+            summary_db_provenance_ready=e.get("SUMMARY_DB_PROVENANCE_READY", "").strip().lower() in ("1", "true", "yes"),
+            summary_signing_secret=e.get("SUMMARY_SIGNING_SECRET", ""),
+            summary_max_draft_chars=int(e.get("SUMMARY_MAX_DRAFT_CHARS", d.summary_max_draft_chars)),
+            summary_rate_per_minute=int(e.get("SUMMARY_RATE_PER_MINUTE", d.summary_rate_per_minute)),
+            summary_token_ttl_seconds=int(e.get("SUMMARY_TOKEN_TTL_SECONDS", d.summary_token_ttl_seconds)),
         )

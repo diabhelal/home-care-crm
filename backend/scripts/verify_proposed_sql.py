@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "014"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -90,6 +90,12 @@ POSTFLIGHT = [
      "and not has_table_privilege('anon','public.record_access_log','select') "
      "and has_function_privilege('authenticated','public.export_patient_record(uuid,text,text,text)','execute') "
      "and not has_function_privilege('anon','public.export_patient_record(uuid,text,text,text)','execute')"),
+    ("014 AI provenance columns, guard trigger and complete_visit still executable by authenticated only",
+     "select (select count(*) from information_schema.columns where table_schema='public' and table_name='visit_reports' "
+     "and column_name in ('source_notes','ai_assisted','ai_edited','ai_model','ai_prompt_version','ai_generation_id','ai_approved_by','ai_approved_at')) = 8 "
+     "and exists (select 1 from pg_trigger where tgname='visit_reports_ai_provenance_guard' and not tgisinternal) "
+     "and has_function_privilege('authenticated','public.complete_visit(bigint,jsonb)','execute') "
+     "and not has_function_privilege('anon','public.complete_visit(bigint,jsonb)','execute')"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -97,6 +103,10 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "014": [("014 columns and trigger gone, complete_visit restored (003 body)",
+             "select (select count(*) from information_schema.columns where table_schema='public' and table_name='visit_reports' and column_name like 'ai\\_%' escape '\\') = 0 "
+             "and not exists (select 1 from pg_trigger where tgname='visit_reports_ai_provenance_guard') "
+             "and to_regprocedure('public.complete_visit(bigint,jsonb)') is not null")],
     "013": [("013 objects gone", "select to_regclass('public.record_access_log') is null "
                                  "and to_regprocedure('public.export_patient_record(uuid,text,text,text)') is null "
                                  "and (select count(*) from information_schema.columns where table_schema='public' and table_name='patients' "

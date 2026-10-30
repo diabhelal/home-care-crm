@@ -54,8 +54,82 @@ on conflict (name) do update set value = excluded.value;
 
 אחר כך: `get_advisors` שוב והשוואה לבסיס, והרצת מסע מלא (מטופל ← מנהל ← אחות ← השלמה ← חיזוי) מול ה-backend המקומי המצביע על staging.
 
-## 6. Rollback (לפי סדר הפוך: 013 ← 001)
+## 6. Rollback (לפי סדר הפוך: 014 ← 001)
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
+
+```sql
+-- ROLLBACK 014
+-- אזהרה: מוחק את עמודות מקור ה-AI (source_notes וכו'); הסיכום הסופי (treatment_summary) נשאר. מחזיר את complete_visit לגרסת 003.
+drop trigger if exists visit_reports_ai_provenance_guard on public.visit_reports;
+drop function if exists public.visit_reports_ai_provenance_guard();
+alter table public.visit_reports drop constraint if exists visit_reports_ai_columns_consistent;
+alter table public.visit_reports
+  drop column if exists source_notes, drop column if exists ai_assisted, drop column if exists ai_edited,
+  drop column if exists ai_model, drop column if exists ai_prompt_version, drop column if exists ai_generation_id,
+  drop column if exists ai_approved_by, drop column if exists ai_approved_at;
+create or replace function public.complete_visit(p_booking_id bigint, p_payload jsonb)
+returns public.visit_reports
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  b public.bookings;
+  r public.visit_reports;
+begin
+  select * into b from public.bookings where id = p_booking_id for update;
+  if not found then
+    raise exception 'booking not found' using errcode = 'P0002';
+  end if;
+  -- owner (assigned staff) or an admin; identity comes from the verified JWT, never a parameter
+  if b.staff_id is distinct from public.current_staff_id()
+     and not coalesce((((select auth.jwt()) -> 'app_metadata') ->> 'is_admin')::boolean, false) then
+    raise exception 'not your booking' using errcode = '42501';
+  end if;
+  if b.status <> 'scheduled' or b.approval_status <> 'confirmed' then
+    raise exception 'illegal state' using errcode = '55000';
+  end if;
+
+  insert into public.visit_reports (
+    booking_id, patient_id, staff_id, visit_date,
+    systolic_bp, diastolic_bp, blood_sugar, pulse, temperature, oxygen_saturation,
+    performed_blood_draw, performed_injection, performed_infusion,
+    performed_dressing_change, performed_catheter_change,
+    treatment_summary, patient_signature_data)
+  values (
+    b.id, b.patient_id, b.staff_id, now(),
+    (p_payload->>'systolic_bp')::int, (p_payload->>'diastolic_bp')::int,
+    (p_payload->>'blood_sugar')::int, (p_payload->>'pulse')::int,
+    (p_payload->>'temperature')::numeric, (p_payload->>'oxygen_saturation')::int,
+    coalesce((p_payload->>'performed_blood_draw')::boolean, false),
+    coalesce((p_payload->>'performed_injection')::boolean, false),
+    coalesce((p_payload->>'performed_infusion')::boolean, false),
+    coalesce((p_payload->>'performed_dressing_change')::boolean, false),
+    coalesce((p_payload->>'performed_catheter_change')::boolean, false),
+    p_payload->>'treatment_summary', p_payload->>'patient_signature_data')
+  on conflict (booking_id) do update set
+    systolic_bp = excluded.systolic_bp, diastolic_bp = excluded.diastolic_bp,
+    blood_sugar = excluded.blood_sugar, pulse = excluded.pulse,
+    temperature = excluded.temperature, oxygen_saturation = excluded.oxygen_saturation,
+    performed_blood_draw = excluded.performed_blood_draw,
+    performed_injection = excluded.performed_injection,
+    performed_infusion = excluded.performed_infusion,
+    performed_dressing_change = excluded.performed_dressing_change,
+    performed_catheter_change = excluded.performed_catheter_change,
+    treatment_summary = excluded.treatment_summary,
+    patient_signature_data = excluded.patient_signature_data
+  returning * into r;
+
+  update public.bookings
+     set status = 'completed', workflow_status = 'assigned'
+   where id = p_booking_id;
+  return r;
+end;
+$$;
+
+revoke all on function public.complete_visit(bigint, jsonb) from public, anon;
+grant execute on function public.complete_visit(bigint, jsonb) to authenticated;
+```
 
 ```sql
 -- ROLLBACK 013

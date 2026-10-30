@@ -34,6 +34,10 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     checkIns: 0,
     completeFail: null,    // מספר סטטוס HTTP לכישלון complete, או 'abort' לניתוק רשת לפני עיבוד
     completes: [],         // גופי בקשות complete שעובדו בהצלחה (booking_id + body)
+    summaryCalls: [],      // בקשות POST summary-draft שהגיעו (booking_id + body)
+    summaryFail: null,     // מספר סטטוס HTTP לכישלון summary-draft, או 'abort' לניתוק רשת
+    summaryDelays: [],     // השהיה במילישניות לכל קריאה לפי הסדר (לבדיקת תגובות מאוחרות)
+    summaryText: (n) => `טיוטה מספר ${n}: נמדד דופק ונרשמו הערות הצוות.`,
     outcomeFail: null,     // מספר סטטוס HTTP לכישלון PATCH clinical-outcome, או 'abort'
     outcomes: [],          // { report_id, value } שעובדו בהצלחה
     cancels: [],           // { scope: 'patient'|'admin', id } שעובדו בהצלחה
@@ -258,6 +262,20 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
       if (result.status !== 200) return json(result.status, { code: result.code || "error", detail: result.detail });
       ctl.cancels.push({ scope, id: Number(cn[2]) });
       return json(200, { ...result.row, display_state: "cancelled" });
+    }
+
+    // ---- טיוטת סיכום AI — משקף POST /staff/visits/{id}/summary-draft (שום דבר לא נשמר)
+    const sm = path.match(/^\/staff\/visits\/(\d+)\/summary-draft$/);
+    if (req.method() === "POST" && sm) {
+      ctl.summaryCalls.push({ booking_id: Number(sm[1]), body });
+      const n = ctl.summaryCalls.length;
+      const delay = ctl.summaryDelays[n - 1] || 0;
+      if (delay) await new Promise((r) => setTimeout(r, delay));
+      if (ctl.summaryFail === "abort") return route.abort("connectionreset");
+      if (ctl.summaryFail) return json(ctl.summaryFail, { code: "summary_unavailable", detail: "שירות ה-AI אינו זמין כרגע." });
+      return json(200, { draft_text: ctl.summaryText(n, body), warnings: ["טיוטה שנוצרה על ידי AI, לא נבדקה ואינה ממצא קליני מאומת."],
+        generation_id: "gen" + n, generated_at: new Date().toISOString(), model: "mock-model", prompt_version: "visit-summary-he-v1",
+        source_revision: "0123456789abcdef", generation_token: "mock-signed-token-" + n });
     }
 
     // ---- השלמת ביקור (אטומי: דוח + status=completed) — משקף POST /staff/visits/{id}/complete
