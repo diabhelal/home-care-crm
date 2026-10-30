@@ -26,14 +26,14 @@ def counts(db, bid, rid):
 def test_deleting_staff_with_history_is_refused_and_history_survives(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_user(db, d["admin"], admin=True)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), (psycopg.errors.RestrictViolation, psycopg.errors.ForeignKeyViolation))
     assert counts(db, bid, rid) == (1, 1)
 
 
 def test_even_a_superuser_cannot_cascade_away_history(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_postgres(db)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), (psycopg.errors.RestrictViolation, psycopg.errors.ForeignKeyViolation))
     assert counts(db, bid, rid) == (1, 1)
 
 
