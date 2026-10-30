@@ -66,6 +66,12 @@ class ReassignIn(BaseModel):
     staff_id: int
 
 
+class AiProvenanceIn(BaseModel):
+    """Sent only when the nurse approved an AI draft. The server verifies the signed token; nothing here is trusted as-is."""
+    generation_token: str = Field(min_length=20, max_length=4000)
+    approved: bool = False
+
+
 class VisitReportIn(BaseModel):
     treatment_summary: str = Field(min_length=1, max_length=5000)
     systolic_bp: Optional[int] = Field(default=None, ge=50, le=250)
@@ -80,6 +86,10 @@ class VisitReportIn(BaseModel):
     performed_dressing_change: bool = False
     performed_catheter_change: bool = False
     patient_signature_data: Optional[str] = None
+    # AI-assisted documentation (optional): the nurse's original notes, and the signed provenance of the approved draft.
+    # treatment_summary stays the FINAL human-approved text.
+    source_notes: Optional[str] = Field(default=None, max_length=5000)
+    ai: Optional[AiProvenanceIn] = None
 
 
 ClinicalOutcome = Literal["none", "hypoglycemia", "severe_hyperglycemia",
