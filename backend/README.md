@@ -87,3 +87,7 @@ double booking, ownership, atomic completion, address privacy, RLS/column grants
 
 ## Reproducible install
 `requirements.lock.txt` is the exact set of versions the tests were last verified with: `pip install -r requirements.lock.txt`.
+
+## AI visit-summary draft (opt-in)
+`POST /staff/visits/{booking_id}/summary-draft` (disabled unless `SUMMARY_ENABLED=true`). Env: `LLM_API_KEY`, `LLM_MODEL` (default `claude-sonnet-5-5`), `LLM_TIMEOUT_SECONDS`, `LLM_MAX_OUTPUT_TOKENS`,
+`LLM_TEMPERATURE` (optional), `SUMMARY_SIGNING_SECRET` (>=32 chars), `SUMMARY_RATE_PER_MINUTE`. Synthetic data only. Details: `../docs/AI_SUMMARY.md`. Evaluation: `eval/summary/` (`python eval/summary/run_eval.py --system baseline --split all`).
