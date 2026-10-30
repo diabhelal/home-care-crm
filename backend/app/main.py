@@ -143,6 +143,8 @@ def create_app(settings: Settings | None = None,
             return None
         if not cfg.summary_enabled:
             raise DomainError(409, "summary_disabled", "תיעוד בסיוע AI כבוי; יש להשלים את הביקור בתיעוד ידני.")
+        if not cfg.summary_db_provenance_ready:
+            raise DomainError(409, "summary_db_not_ready", "תיעוד מקור ה-AI דורש עדכון מסד נתונים שטרם בוצע; יש להשלים את הביקור בתיעוד ידני.")
         if len(cfg.summary_signing_secret) < 32:
             raise DomainError(503, "summary_not_configured", "שירות ה-AI אינו מוגדר כראוי. אפשר להמשיך בתיעוד ידני.")
         if not body.ai.approved or not (body.source_notes or "").strip():
@@ -174,6 +176,8 @@ def create_app(settings: Settings | None = None,
         form, then completes the visit through /complete."""
         if not cfg.summary_enabled:
             raise DomainError(503, "summary_disabled", "יצירת טיוטת AI כבויה. אפשר להמשיך בתיעוד ידני.")
+        if not cfg.summary_db_provenance_ready:
+            raise DomainError(503, "summary_db_not_ready", "תיעוד מקור ה-AI דורש עדכון מסד נתונים שטרם בוצע, ולכן יצירת טיוטה כבויה. אפשר להמשיך בתיעוד ידני.")
         if not summary_ready or summary_provider is None:
             raise DomainError(503, "summary_not_configured", "שירות ה-AI אינו מוגדר. אפשר להמשיך בתיעוד ידני.")
         staff = None if c.identity.is_admin else await run_in_threadpool(c.staff)

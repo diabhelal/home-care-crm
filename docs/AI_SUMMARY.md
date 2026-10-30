@@ -25,6 +25,18 @@ Browser → `POST /staff/visits/{booking_id}/summary-draft` (operational backend
 Where the data comes from: vitals, procedures and notes are **unsaved form data** typed by the nurse; the visit time is the saved booking. The final human-approved text is stored in
 `treatment_summary` (unchanged column); the original notes in `source_notes`.
 
+## What is stored WITHOUT migration 014, and what needs it
+| | Without 014 (current live database) | With 014 applied |
+|---|---|---|
+| Draft generation | **refused (503 `summary_db_not_ready`)** unless `SUMMARY_DB_PROVENANCE_READY=true` | works |
+| Final human-approved summary | `treatment_summary` (existing column) | `treatment_summary` |
+| The nurse's ORIGINAL notes (the draft's source) | **not stored** (the old `complete_visit` ignores the key) | `source_notes` |
+| AI-assisted flag, edited-after-draft flag, model, prompt version, generation id | **not stored** | stored |
+| Approver and approval time | **not stored** | set by the database |
+| Manual documentation | works exactly as before | works exactly as before |
+
+Because the original notes would be lost, the feature **fails closed**: the endpoint and an AI-approved completion are refused until `SUMMARY_DB_PROVENANCE_READY=true`, which must only be set after 014 is applied (needs the owner's approval; not done).
+
 ## Provenance needs migration 014 (NOT applied to the live database)
 `supabase/proposed/014_visit_report_ai_provenance.sql` adds the columns and extends `complete_visit`. Without it the visit is still saved, but provenance is not; the API answers
 `ai_provenance_saved: false` and the UI warns. The audit trail that exists is the existing `audit_log` trigger on `visit_reports` (it captures these columns once they exist). Tested on an isolated
@@ -35,9 +47,9 @@ Draft generation needs the network. Completing a visit offline works as before; 
 offline queue like any report. The draft itself is never stored. The token lives 7 days by default.
 
 ## Enable it (academic demo, synthetic data only)
-1. Server env (`backend/.env`, never committed): `SUMMARY_ENABLED=true`, `LLM_API_KEY=...`, `SUMMARY_SIGNING_SECRET=<>=32 random chars>`, optional `LLM_MODEL` (default `claude-sonnet-5-5`; current ids: https://platform.claude.com/docs/en/about-claude/models/overview), `LLM_TEMPERATURE=0` if the model accepts it.
+1. Server env (`backend/.env`, never committed): `SUMMARY_ENABLED=true`, `SUMMARY_DB_PROVENANCE_READY=true` (only after 014), `LLM_API_KEY=...`, `SUMMARY_SIGNING_SECRET=<>=32 random chars>`, optional `LLM_MODEL` (default `claude-sonnet-5-5`; current ids: https://platform.claude.com/docs/en/about-claude/models/overview), `LLM_TEMPERATURE=0` if the model accepts it.
 2. `public/config.js`: `window.AI_SUMMARY_ENABLED = true;`
-3. Apply migration 014 (needs the owner's approval; not done).
+3. Apply migration 014 (needs the owner's approval; not done), then set `SUMMARY_DB_PROVENANCE_READY=true`. Without it the feature refuses to run.
 The endpoint calls the provider only when all of this is configured and fails closed (503) otherwise. If the model is unavailable the UI says so and never substitutes a template labelled as AI.
 
 ## Tests (software) vs evaluation (measurement) vs validation

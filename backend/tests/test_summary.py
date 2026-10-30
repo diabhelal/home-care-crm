@@ -22,14 +22,14 @@ BODY = {"systolic_bp": 130, "diastolic_bp": 85, "pulse": 72, "temperature": 36.6
 GOOD = {"draft_text": "לפי הערות הצוות המטופלת התלוננה על כאב ראש קל. נמדדו לחץ דם 130/85 mmHg ודופק 72 פעימות לדקה. הוחלפה חבישה.", "warnings": []}
 
 
-def build(provider=None, enabled=True, secret=SECRET, key=KEY, limiter=None, real_provider=False):
+def build(provider=None, enabled=True, secret=SECRET, key=KEY, limiter=None, real_provider=False, db_ready=True):
     repo = FakeRepo([Staff(1, "Nurse A", "nurse", auth_user_id="staff-1"), Staff(2, "Nurse B", "nurse", auth_user_id="staff-2")],
                     now=lambda: NOW)
     v = MapVerifier()
     v.tokens.update({"patient": claims("p1", anon=True), "admin": claims("a1", admin=True),
                      "staff1": claims("staff-1"), "staff2": claims("staff-2")})
     provider = None if real_provider else (provider or FakeSummaryProvider(lambda s, u: GOOD))
-    cfg = Settings(travel_buffer_minutes=30, summary_enabled=enabled, summary_signing_secret=secret, llm_api_key=key,
+    cfg = Settings(travel_buffer_minutes=30, summary_enabled=enabled, summary_db_provenance_ready=db_ready, summary_signing_secret=secret, llm_api_key=key,
                    risk_attestation_secret="-".join(["throwaway", "attestation", "value"]))
     app = create_app(cfg, verifier=v, repo_factory=lambda jwt: repo, clock=lambda: NOW,
                      predictive_client=FakePredictiveClient(), summary_provider=provider, summary_limiter=limiter)
@@ -285,3 +285,14 @@ def test_two_simultaneous_requests_from_one_user_reach_the_provider_once():
     a, b = asyncio.run(both())
     assert sorted([a.status_code, b.status_code]) == [200, 409]
     assert len(w.provider.calls) == 1 and "summary_in_progress" in (a.text + b.text)
+
+
+def test_feature_refuses_to_run_until_migration_014_is_declared_applied():
+    # without 014 the original notes and the provenance would NOT be stored: fail closed instead of losing the nurse's notes
+    w = build(db_ready=False)
+    r = draft(w)
+    assert r.status_code == 503 and r.json()["code"] == "summary_db_not_ready" and w.provider.calls == []
+    tok = "a" * 40
+    r2 = finish(w, complete_body(tok))
+    assert r2.status_code == 409 and r2.json()["code"] == "summary_db_not_ready"
+    assert finish(w, {"treatment_summary": "ידני", "pulse": 70}).status_code == 200      # manual completion is unaffected

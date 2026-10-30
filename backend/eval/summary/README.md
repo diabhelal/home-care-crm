@@ -43,6 +43,21 @@ python eval/summary/aggregate_manual.py results/<run>/manual_review.csv   # afte
 Each run folder has `run.json` (dataset version, model, prompt version, settings, date, commit), `outputs.jsonl` (every case, including failures), `metrics.json`, `report.md`
 (failure examples), and `manual_review.csv`. Software tests (`pytest`) use mocks only and never call a provider.
 
+## Running the REAL evaluation (budget-approved only)
+Model: `claude-sonnet-5-5` (current id per https://platform.claude.com/docs/en/about-claude/models/overview; pricing $2 / $10 per million input / output tokens).
+Set the key in your own terminal so it never appears in chat, Git or a file (zsh; in bash use `read -s -p "key: " LLM_API_KEY`):
+```
+cd backend && source .venv/bin/activate
+read -s "LLM_API_KEY?Paste the key (hidden): " && export LLM_API_KEY
+python eval/summary/run_eval.py --system anthropic --split dev --confirm-real-provider
+# held-out set: only when the prompt is final (see "Held-out discipline")
+python eval/summary/run_eval.py --system anthropic --split heldout --confirm-real-provider
+unset LLM_API_KEY
+```
+Set a spend limit on the key/workspace in the Anthropic Console first. Do not put the key in `.env` for this, in shell history, or in a commit (`.env` is git-ignored but a typed `export KEY=...` line lands in history; `read -s` does not).
+Cost: the 32 cases send about 20-40k input tokens in total (about $0.04-$0.08) and produce output that depends on the model's thinking: about $0.10 if ~300 output tokens per case, up to $0.64 at the 2000-token cap (`LLM_MAX_OUTPUT_TOKENS`, which also bounds thinking; raising it to 4000 doubles the worst case). **Expect about $0.15-$0.75 for one full pass; budget $2 to allow dev + heldout + one rerun.** The run prints `estimated_cost_usd` from the tokens the API reports.
+Human review: open `results/<run>/manual_review.csv`, fill `supported_by_source`, `critical_error`, `reviewer_role` (e.g. "registered nurse") and the 1-5 scores per `rubric_he_clarity.md`, then `python eval/summary/aggregate_manual.py results/<run>/manual_review.csv`.
+
 ## Limitations
 - Regex annotation under-counts paraphrases (recall may be understated) and cannot judge meaning: that is why a human review is required.
 - 32 cases are small: confidence intervals are wide; results indicate trends, not guarantees. No claim of "zero hallucinations".

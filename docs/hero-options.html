@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>שלוש אפשרויות לגיבור — טיוטה</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: "Heebo", "Segoe UI", Arial, sans-serif; background: #e9e6df; color: #34445a; line-height: 1.6; }
+  .label { max-width: 1180px; margin: 28px auto 8px; padding: 0 24px; font-weight: 700; font-size: 18px; color: #1f3a5f; }
+  .label small { font-weight: 400; color: #5b6a77; margin-inline-start: 8px; }
+  .frame { max-width: 1180px; margin: 0 auto 8px; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 28px rgba(0,0,0,.12); }
+  .nav { display: flex; justify-content: space-between; align-items: center; padding: 16px 32px; font-weight: 700; }
+  .nav a { font-weight: 500; font-size: 15px; text-decoration: none; }
+  .hero { display: grid; grid-template-columns: 1.15fr 1fr; gap: 48px; align-items: center; padding: 48px 56px 64px; }
+  .hero img { width: 100%; height: 460px; object-fit: cover; border-radius: 24px; display: block; }
+  .btn { display: inline-block; text-decoration: none; font-weight: 800; font-size: 22px; padding: 20px 52px; border-radius: 14px; }
+  p.sub { font-size: 21px; margin: 18px 0 32px; max-width: 28em; }
+  h1 { margin: 0; line-height: 1.12; letter-spacing: -0.5px; }
+  .em { margin-top: 18px; font-size: 15px; opacity: .85; }
+  @media (max-width: 800px) { .hero { grid-template-columns: 1fr; padding: 32px 24px 44px; gap: 28px; } .hero img { height: 260px; } .btn { width: 100%; text-align: center; } }
+
+  /* A — קרם + כחול עמוק + ירוק: המשפט הוא הכותרת הענקית */
+  .A { background: #faf6ee; }
+  .A .nav { color: #1f3a5f; }
+  .A h1 { font-size: clamp(40px, 5.2vw, 64px); font-weight: 900; color: #1f3a5f; }
+  .A h1 .mark { background: linear-gradient(transparent 62%, #bfe3cf 62%); padding: 0 6px; }
+  .A p.sub { color: #34445a; }
+  .A .btn { background: #2f7d57; color: #fff; box-shadow: 0 6px 16px rgba(47,125,87,.35); }
+  .A .em { color: #5b6a77; }
+
+  /* B — פס כחול כהה עם טקסט לבן וכפתור חם: ניגודיות מקסימלית */
+  .B { background: #17304f; }
+  .B .nav { color: #fff; }
+  .B h1 { font-size: clamp(40px, 5.2vw, 64px); font-weight: 900; color: #fff; }
+  .B h1 .hl { color: #ffc766; }
+  .B p.sub { color: #dbe5f2; }
+  .B .btn { background: #ffc766; color: #17304f; box-shadow: 0 6px 18px rgba(0,0,0,.3); }
+  .B .em { color: #b9c8dc; }
+
+  /* C — ירוק עמוק רפואי, מילה אחת מודגשת בכתום */
+  .C { background: #eaf3ee; }
+  .C .nav { color: #1d4b3c; }
+  .C h1 { font-size: clamp(40px, 5.2vw, 64px); font-weight: 900; color: #1d4b3c; }
+  .C h1 .hl { color: #d9731a; }
+  .C p.sub { color: #33463e; }
+  .C .btn { background: #1d4b3c; color: #fff; box-shadow: 0 6px 16px rgba(29,75,60,.35); }
+  .C .em { color: #5a6f66; }
+</style>
+</head>
+<body>
+
+<div class="label">אפשרות A <small>קרם + כחול עמוק + ירוק, הכותרת הגדולה היא המשפט עצמו</small></div>
+<div class="frame A">
+  <div class="nav"><span>🏠 בית חם</span><a href="#">ההזמנות שלי</a></div>
+  <div class="hero">
+    <div>
+      <h1>פותרים לך את <span class="mark">הבעיה בבית</span></h1>
+      <p class="sub">אחיות ואחים מוסמכים מגיעים אליכם הביתה: בדיקות, טיפול בפצעים, בדיקות דם ומתן תרופות. קובעים תוך דקות, בלי הרשמה.</p>
+      <a class="btn" href="#">לתיאום ביקור</a>
+      <div class="em">למקרה חירום רפואי פנו למד"א 101</div>
+    </div>
+    <img src="../public/images/hero-medical-check.jpg" alt="">
+  </div>
+</div>
+
+<div class="label">אפשרות B <small>פס כחול כהה עם כתב לבן וכפתור זהב: הכי בולט לעין</small></div>
+<div class="frame B">
+  <div class="nav"><span>🏠 בית חם</span><a href="#" style="color:#fff">ההזמנות שלי</a></div>
+  <div class="hero">
+    <div>
+      <h1>פותרים לך את <span class="hl">הבעיה בבית</span></h1>
+      <p class="sub">אחיות ואחים מוסמכים מגיעים אליכם הביתה: בדיקות, טיפול בפצעים, בדיקות דם ומתן תרופות. קובעים תוך דקות, בלי הרשמה.</p>
+      <a class="btn" href="#">לתיאום ביקור</a>
+      <div class="em">למקרה חירום רפואי פנו למד"א 101</div>
+    </div>
+    <img src="../public/images/hero-medical-check.jpg" alt="">
+  </div>
+</div>
+
+<div class="label">אפשרות C <small>ירוק רפואי עמוק, מילה אחת מודגשת בכתום</small></div>
+<div class="frame C">
+  <div class="nav"><span>🏠 בית חם</span><a href="#" style="color:#1d4b3c">ההזמנות שלי</a></div>
+  <div class="hero">
+    <div>
+      <h1>פותרים לך את הבעיה <span class="hl">בבית</span></h1>
+      <p class="sub">אחיות ואחים מוסמכים מגיעים אליכם הביתה: בדיקות, טיפול בפצעים, בדיקות דם ומתן תרופות. קובעים תוך דקות, בלי הרשמה.</p>
+      <a class="btn" href="#">לתיאום ביקור</a>
+      <div class="em">למקרה חירום רפואי פנו למד"א 101</div>
+    </div>
+    <img src="../public/images/hero-medical-check.jpg" alt="">
+  </div>
+</div>
+
+<div style="height:48px"></div>
+</body>
+</html>

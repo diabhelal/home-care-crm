@@ -34,6 +34,9 @@ class Settings:
     llm_timeout_seconds: float = 25.0
     llm_max_output_tokens: int = 2000
     llm_temperature: Optional[float] = None      # unset by default: not every model accepts it
+    # Set true ONLY after migration 014 is applied to the database: without it the original notes (source_notes) and the AI provenance are not
+    # stored, so the feature refuses to run (fail closed) instead of silently losing the nurse's original notes.
+    summary_db_provenance_ready: bool = False
     summary_signing_secret: str = ""            # HMAC key (>=32 chars) for the provenance token; independent of the risk secret
     summary_max_draft_chars: int = 1500
     summary_rate_per_minute: int = 6
@@ -61,6 +64,7 @@ class Settings:
             llm_timeout_seconds=float(e.get("LLM_TIMEOUT_SECONDS", d.llm_timeout_seconds)),
             llm_max_output_tokens=int(e.get("LLM_MAX_OUTPUT_TOKENS", d.llm_max_output_tokens)),
             llm_temperature=float(e["LLM_TEMPERATURE"]) if e.get("LLM_TEMPERATURE", "").strip() else None,
+            summary_db_provenance_ready=e.get("SUMMARY_DB_PROVENANCE_READY", "").strip().lower() in ("1", "true", "yes"),
             summary_signing_secret=e.get("SUMMARY_SIGNING_SECRET", ""),
             summary_max_draft_chars=int(e.get("SUMMARY_MAX_DRAFT_CHARS", d.summary_max_draft_chars)),
             summary_rate_per_minute=int(e.get("SUMMARY_RATE_PER_MINUTE", d.summary_rate_per_minute)),
