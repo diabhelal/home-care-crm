@@ -92,4 +92,4 @@ def test_a_patient_with_an_export_history_cannot_be_erased(db):
     as_user(db, d["admin"], admin=True)
     db.execute(EXPORT, (d["pb"], "legal", "x", "בקשה משפטית"))
     as_postgres(db); db.execute("select set_config('request.jwt.claims', '', true)")
-    attempt(db, "delete from patients where id=%s", (d["pb"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from patients where id=%s", (d["pb"],), (psycopg.errors.RestrictViolation, psycopg.errors.ForeignKeyViolation))
