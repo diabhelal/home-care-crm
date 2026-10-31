@@ -139,7 +139,7 @@ home-care-crm/
 │   ├── functions/create-staff-login/  # Edge Function: provisions a staff Auth login (holds service-role key)
 │   ├── migrations/            # 23 ordered, applied SQL migrations
 │   └── proposed/              # SQL 001–007 as reviewed before application (+ APPLIED.md)
-├── docs/                      # DEMO.md, REVIEW.md, WORKPLAN.md, STAGING_PLAN.md, demo-proof/ screenshots
+├── docs/                      # DEMO.md, REVIEW.md, STAGING_PLAN.md, archive/ (WORKPLAN.md, PROJECT_MAP.md: historical), demo-proof/ screenshots
 ├── HANDOFF.md, SECURITY.md    # Current state / next steps; vulnerability reporting
 ├── tests/unit/, tests/e2e/   # node:test unit tests + Playwright E2E specs (see tests/e2e/README.md)
 ├── .github/workflows/ci.yml  # Unit tests on every push; E2E split safe/live-DB (see tests/e2e/README.md)
