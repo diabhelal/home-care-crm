@@ -58,6 +58,17 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 016
+-- אזהרה: מוחק את עמודות המחבר והנעילה (מידע על מי תיעד). הנעילה הישנה (לפי bookings.status) חוזרת רק אחרי הרצה חוזרת של 003 ו-008.
+drop trigger if exists bookings_completed_status_guard on public.bookings;
+drop function if exists public.bookings_completed_status_guard();
+drop trigger if exists visit_reports_authorship_lock on public.visit_reports;
+drop function if exists public.visit_reports_authorship_lock();
+drop function if exists public._author_role_of(uuid);
+alter table public.visit_reports drop column if exists author_user_id, drop column if exists author_role, drop column if exists locked_at;
+```
+
+```sql
 -- ROLLBACK 015
 -- אזהרה: מחזיר הרשאות DELETE ומפתחות זרים בעלי CASCADE/SET NULL (מצב מסוכן), ומחזיר את log_audit_change הישן (בלי old_data).
 -- אם נוצרו שורות audit_log עם action חדש (delete/archive/void/amend) ה-CHECK הישן יוחזר כ-NOT VALID.

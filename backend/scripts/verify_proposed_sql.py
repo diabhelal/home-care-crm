@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015"]   # 014 is reserved by another open PR
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016"]   # 014 is reserved by another open PR
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -102,6 +102,12 @@ POSTFLIGHT = [
      "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'medical_staff_identity_guard') "
      "and not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and cmd in ('ALL','DELETE','UPDATE') "
      "and policyname like '%patient_documents_storage')"),
+    ("016 authorship/lock columns, triggers and complete_visit setting the author",
+     "select (select count(*) from information_schema.columns where table_schema='public' and table_name='visit_reports' "
+     "and column_name in ('author_user_id','author_role','locked_at')) = 3 "
+     "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'visit_reports_authorship_lock') "
+     "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'bookings_completed_status_guard') "
+     "and pg_get_functiondef('public.complete_visit(bigint,jsonb)'::regprocedure) like '%author_role%'"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -109,6 +115,10 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "016": [("016 columns and triggers gone",
+             "select (select count(*) from information_schema.columns where table_schema='public' and table_name='visit_reports' "
+             "and column_name in ('author_user_id','author_role','locked_at')) = 0 "
+             "and not exists (select 1 from pg_trigger where tgname in ('visit_reports_authorship_lock','bookings_completed_status_guard'))")],
     "015": [("015 triggers gone, delete grants and CASCADE FKs back",
              "select not exists (select 1 from pg_trigger where tgname in ('block_physical_delete','block_physical_truncate','immutable_log_guard','medical_staff_identity_guard')) "
              "and has_table_privilege('authenticated','public.visit_reports','delete') "

@@ -92,7 +92,8 @@ def test_completed_report_content_is_locked_but_clinical_outcome_can_be_recorded
     db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
     as_user(db, d["admin"], admin=True)
     attempt(db, "update visit_reports set treatment_summary='אחר' where id=%s", (rid,), psycopg.errors.ObjectNotInPrerequisiteState)
-    db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
+    # 016 (conscious change of the 008 expectation): a recorded outcome is set-once, an admin cannot rewrite it either
+    attempt(db, "update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,), psycopg.errors.ObjectNotInPrerequisiteState)
 
 
 def test_report_identity_is_immutable(db):
