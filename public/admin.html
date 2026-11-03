@@ -688,17 +688,22 @@
     const vitalUnit = (key) => (metaOf(key) && metaOf(key).unit ? " " + metaOf(key).unit : "");
     const withUnit = (key, v) => (v === null || v === undefined ? "—" : `${esc(v)}${escapeHtml(vitalUnit(key))}`);
     const level = data.current_risk && data.current_risk.level;
-    const concernClass = { high: "warning-banner-high", moderate: "warning-banner-moderate", low: "warning-banner-low" }[data.short_term_concern] || "warning-banner-low";
-    const concernIcon = { high: "🚨", moderate: "⚠️" }[data.short_term_concern] || "";
+    // "אין נתונים" אינו "אין חריגה": בלי מדדים בדוח האחרון לא מציגים באנר "נמוך" ולא ניסוח מרגיע.
+    const noData = !level || level === "no_data";
+    const concernClass = noData ? "" : ({ high: "warning-banner-high", moderate: "warning-banner-moderate", low: "warning-banner-low" }[data.short_term_concern] || "warning-banner-low");
+    const concernIcon = noData ? "" : ({ high: "🚨", moderate: "⚠️" }[data.short_term_concern] || "");
     const statusClass = `caregiver-status-${level in CAREGIVER_STATUS_BY_LEVEL ? level : "no_data"}`;
+    // ניסוח הרמה הירוקה של השרת ("מצב תקין") נקרא כקביעה שהמטופל תקין; כאן מוצג רק מה שאפשר לטעון: לא זוהתה חריגה לפי הכללים.
+    // הסיווג עצמו (green/yellow/red) לא משתנה, רק הצגתו. צהוב/אדום נשארים בניסוח השרת.
+    const statusText = noData ? "אין מספיק נתונים להערכה" : level === "green" ? "לא זוהתה חריגה לפי הכללים" : data.status_message;
 
     let html = `
       <p class="model-unavailable-note" style="font-weight:700; margin:0 0 10px;">הדגמה: כלי תומך החלטה מבוסס כללים וסטטיסטיקה. אינו אבחנה ואינו תחליף לשיקול דעת קליני.</p>
       <p class="${statusClass}" style="font-weight:700; font-size:16px; margin:0 0 10px;">
-        ${esc(data.status_message)}
+        ${esc(statusText)}
       </p>
       <div class="warning-banner ${concernClass}">
-        ${concernIcon} ${data.short_term_concern === "low" ? "לא זוהתה חריגה לפי הכללים. " : ""}${esc(data.explanation)}<br>
+        ${concernIcon} ${esc(data.explanation)}<br>
         <span style="font-weight:400;">הערכה חוזרת מומלצת בתוך ${esc(data.reassessment_recommended_in_hours)} שעות · חלון תוקף: ${esc(data.risk_window_hours)} שעות</span>
       </div>
     `;

@@ -12,7 +12,7 @@ const EVIL = `<img src=x onerror="window.__xss=1">`;
 const WARNING = {
   current_risk: { level: "green", level_label: "ירוק", flagged_vitals: [] },
   trend: null,
-  status_message: "הכול תקין",
+  status_message: "מצב תקין", // הטקסט האמיתי שהשרת מחזיר לרמה ירוקה (CAREGIVER_STATUS_BY_LEVEL)
   baseline_analysis: [
     { vital: EVIL, baseline: "<b>1</b>", latest_value: 80, deviation: 2, number_of_measurements: 3,
       sudden_change: false, worsening_trend: false, persistent_abnormal: false },
@@ -41,14 +41,14 @@ const WARNING = {
   explanation: "אין חריגה",
 };
 
-async function open(browser) {
+async function open(browser, warning = WARNING) {
   const context = await browser.newContext({ viewport: { width: 1100, height: 900 }, serviceWorkers: "block", locale: "he-IL" });
   await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
   await installBackendMock(context);
   await context.route("http://predictive.test/predict/medical-warning", (route) => route.fulfill({
-    contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(WARNING),
+    contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify(warning),
   }));
   const page = await context.newPage();
   const errors = [];
@@ -95,6 +95,18 @@ test("תוצאה: הצהרת הדגמה, ללא ✅/מצב תקין, יחידו�
   await expect(res).toContainText("110 mg/dL");
   await expect(res).toContainText("ללא טווח ודאות");
   await expect(res).toContainText("מדגם קטן");
+  expect(errors).toEqual([]);
+});
+
+test("אין נתונים להערכה (no_data) לא מוצג כ'לא זוהתה חריגה' ולא כירוק", async ({ browser }) => {
+  const noData = { ...WARNING, current_risk: { level: "no_data", level_label: "אין נתונים", flagged_vitals: [] },
+    status_message: "לא ניתן להעריך — אין נתונים", short_term_concern: "low", explanation: "אין מדדים בדוח האחרון" };
+  const { page, errors } = await open(browser, noData);
+  await page.evaluate(() => document.getElementById("vr-comprehensive-btn").click());
+  const res = page.locator("#vr-comprehensive-result");
+  await expect(res).toContainText("אין מספיק נתונים להערכה");
+  await expect(res).not.toContainText("לא זוהתה חריגה");
+  await expect(res).not.toContainText("✅");
   expect(errors).toEqual([]);
 });
 
