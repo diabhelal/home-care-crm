@@ -6,7 +6,7 @@ import pytest
 
 from tests_db.conftest import as_postgres, as_user, new_uuid
 from tests_db.test_db_guards import seed
-from tests_db.test_visit_report_integrity import COMPLETE, attempt, booking
+from tests_db.test_visit_report_integrity import COMPLETE, RESTRICT_ERRORS, assert_delete_restricts, attempt, booking
 
 INS = "insert into visit_report_amendments(visit_report_id, patient_id, reason, corrections) values (%s,%s,%s,%s::jsonb) returning id"
 
@@ -73,5 +73,7 @@ def test_a_report_with_amendments_cannot_be_erased_by_a_cascade(db):
     as_user(db, d["staff_user"]); db.execute(INS, (rid, d["pa"], "הבהרה", "{}"))
     as_postgres(db)
     db.execute("select set_config('request.jwt.claims', '', true)")     # a privileged delete (authenticated has no DELETE on patients)
-    attempt(db, "delete from patients where id=%s", (d["pa"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from patients where id=%s", (d["pa"],), RESTRICT_ERRORS)
+    assert_delete_restricts(db, "visit_report_amendments", "patient_id", "patients")
+    assert_delete_restricts(db, "visit_report_amendments", "visit_report_id", "visit_reports")
     assert db.execute("select count(*) from visit_reports where id=%s", (rid,)).fetchone()[0] == 1
