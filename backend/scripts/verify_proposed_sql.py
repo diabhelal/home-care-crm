@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016"]   # 014 is reserved by another open PR
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017"]   # 014 is reserved by another open PR
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -108,6 +108,10 @@ POSTFLIGHT = [
      "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'visit_reports_authorship_lock') "
      "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'bookings_completed_status_guard') "
      "and pg_get_functiondef('public.complete_visit(bigint,jsonb)'::regprocedure) like '%author_role%'"),
+    ("017 amendments: previous_values column, author-only insert policy, no admin/staff insert policy",
+     "select exists (select 1 from information_schema.columns where table_schema='public' and table_name='visit_report_amendments' and column_name='previous_values') "
+     "and exists (select 1 from pg_policies where tablename='visit_report_amendments' and policyname='author_insert_visit_report_amendments') "
+     "and not exists (select 1 from pg_policies where tablename='visit_report_amendments' and policyname in ('admin_insert_visit_report_amendments','staff_insert_own_visit_report_amendments'))"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -115,6 +119,10 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "017": [("017 column gone, 012 insert policies back",
+             "select not exists (select 1 from information_schema.columns where table_schema='public' and table_name='visit_report_amendments' and column_name='previous_values') "
+             "and not exists (select 1 from pg_policies where policyname='author_insert_visit_report_amendments') "
+             "and exists (select 1 from pg_policies where policyname='admin_insert_visit_report_amendments')")],
     "016": [("016 columns and triggers gone",
              "select (select count(*) from information_schema.columns where table_schema='public' and table_name='visit_reports' "
              "and column_name in ('author_user_id','author_role','locked_at')) = 0 "

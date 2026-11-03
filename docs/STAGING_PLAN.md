@@ -58,6 +58,92 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 017
+-- אזהרה: מוחק את העמודה previous_values (הערכים הקודמים שנלכדו) ומחזיר את כלל 012 (מנהל או הצוות המשויך רשאים לתקן).
+drop policy if exists author_insert_visit_report_amendments on public.visit_report_amendments;
+create policy admin_insert_visit_report_amendments on public.visit_report_amendments for insert to authenticated
+  with check (public._is_jwt_admin());
+create policy staff_insert_own_visit_report_amendments on public.visit_report_amendments for insert to authenticated
+  with check (exists (select 1 from public.visit_reports vr where vr.id = visit_report_id and vr.staff_id = public.current_staff_id()));
+create or replace function public.visit_report_amendments_guard()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  r      public.visit_reports;
+  v_role text;
+  k      text;
+  val    jsonb;
+  n      numeric;
+begin
+  if tg_op = 'DELETE' then
+    if auth.uid() is not null then
+      raise exception 'amendments are append-only' using errcode = '42501';
+    end if;
+    return old;
+  end if;
+  if tg_op = 'UPDATE' then
+    if auth.uid() is not null then
+      raise exception 'amendments are append-only' using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  select * into r from public.visit_reports where id = new.visit_report_id;
+  if not found then
+    raise exception 'visit report not found' using errcode = '23503';
+  end if;
+  if auth.uid() is null then
+    return new;
+  end if;
+  if not public._is_jwt_admin() and r.staff_id is distinct from public.current_staff_id() then
+    raise exception 'not your visit report' using errcode = '42501';
+  end if;
+
+  new.patient_id  := r.patient_id;
+  new.amended_by  := auth.uid();
+  new.created_at  := now();
+  if public._is_jwt_admin() then
+    new.amended_by_role := 'admin';
+  else
+    select role into v_role from public.medical_staff where auth_user_id = auth.uid() limit 1;
+    new.amended_by_role := v_role;
+  end if;
+
+  if jsonb_typeof(new.corrections) is distinct from 'object' then
+    raise exception 'corrections must be a JSON object' using errcode = '22023';
+  end if;
+  for k, val in select * from jsonb_each(new.corrections) loop
+    if k = 'treatment_summary' then
+      if jsonb_typeof(val) <> 'string' or length(btrim(val #>> '{}')) = 0 then
+        raise exception 'invalid corrected treatment_summary' using errcode = '22023';
+      end if;
+    elsif k in ('systolic_bp','diastolic_bp','blood_sugar','pulse','temperature','oxygen_saturation') then
+      if jsonb_typeof(val) <> 'number' then
+        raise exception 'corrected % must be a number', k using errcode = '22023';
+      end if;
+      n := (val #>> '{}')::numeric;
+      if (k = 'systolic_bp'       and n not between 50 and 250)
+      or (k = 'diastolic_bp'      and n not between 30 and 150)
+      or (k = 'blood_sugar'       and n not between 20 and 600)
+      or (k = 'pulse'             and n not between 30 and 220)
+      or (k = 'temperature'       and n not between 30 and 45)
+      or (k = 'oxygen_saturation' and n not between 50 and 100) then
+        raise exception 'corrected % is out of the allowed range', k using errcode = '23514';
+      end if;
+    else
+      raise exception 'field % cannot be corrected through an amendment', k using errcode = '22023';
+    end if;
+  end loop;
+  return new;
+end;
+$$;
+alter table public.visit_report_amendments drop column if exists previous_values;
+```
+
+```sql
 -- ROLLBACK 016
 -- אזהרה: מוחק את עמודות המחבר והנעילה (מידע על מי תיעד). הנעילה הישנה (לפי bookings.status) חוזרת רק אחרי הרצה חוזרת של 003 ו-008.
 drop trigger if exists bookings_completed_status_guard on public.bookings;

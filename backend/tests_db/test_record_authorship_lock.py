@@ -154,6 +154,19 @@ def test_legacy_rows_are_backfilled_with_the_staff_login_as_author_and_locked(db
 
 
 # ---------------------------------------------------------------- concurrency (separate committed transactions)
+def purge_committed(pg_uri, users, patient, staff):
+    """Remove rows a concurrency test committed to the shared server. Needs superuser triggers off (session_replication_role=replica):
+    the app-facing guards deliberately forbid deleting these records."""
+    with psycopg.connect(pg_uri, autocommit=True) as c:
+        c.execute("set session_replication_role = replica")
+        for t in ("visit_report_amendments", "risk_predictions", "visit_reports", "bookings"):
+            c.execute(f"delete from public.{t} where patient_id = %s" if t != "bookings" else "delete from public.bookings where patient_id = %s", (patient,))
+        c.execute("delete from public.audit_log where actor_id = any(%s::uuid[]) or new_data ->> 'patient_id' = %s", (users, str(patient)))
+        c.execute("delete from public.patients where id = %s", (patient,))
+        c.execute("delete from public.medical_staff where id = %s", (staff,))
+        c.execute("delete from auth.users where id = any(%s::uuid[])", (users,))
+
+
 def _conn(pg_uri, sub, admin=False, role="authenticated"):
     c = psycopg.connect(pg_uri, autocommit=False)
     claims = json.dumps({"sub": sub, "role": "authenticated", "app_metadata": {"is_admin": admin}})
@@ -194,9 +207,4 @@ def test_concurrent_completion_and_admin_edit_of_the_draft_cannot_leave_an_edite
             summary, locked = c.execute("select treatment_summary, locked_at is not null from visit_reports where id=%s", (rid,)).fetchone()
         assert out["e"] == "ObjectNotInPrerequisiteState" and summary == "סינתטי" and locked
     finally:
-        with psycopg.connect(pg_uri, autocommit=True) as c:
-            c.execute("delete from visit_reports where id=%s", (rid,))
-            c.execute("delete from bookings where id=%s", (bid,))
-            c.execute("delete from patients where id=%s", (pa,))
-            c.execute("delete from medical_staff where id=%s", (sid,))
-            # auth.users rows stay: audit_log (immutable) references them as actor_id
+        purge_committed(pg_uri, [admin, pa, nurse], pa, sid)

@@ -13,6 +13,9 @@
 | 007_server_derived_authorship | 20261015155238 (גרסה מתוקנת: DELETE בטריגר clinical_notes לא בולע cascade) |
 
 | 008_visit_report_integrity | **לא הוחל** (נבדק רק על Postgres מבודד; ממתין לאישור החלה) |
+| 017_amendments_author_only | **לא הוחל** (תיקון רק ע"י המחבר, previous_values; נבדק על Postgres מבודד 18 ו-16) |
+| 016_visit_report_authorship_and_lock | **לא הוחל** (מחבר ונעילה לפי locked_at; נבדק על Postgres מבודד) |
+| 015_block_physical_deletes | **לא הוחל** (חסימת מחיקה, FK RESTRICT, יומנים בלתי-ניתנים לשינוי, תיקון log_audit_change; נבדק על Postgres מבודד) |
 | 013_patient_archive_and_record_export | **לא הוחלה** (ארכיון מטופל + הוצאת תיק משפטית עם יומן גישה; נבדקה על Postgres מבודד) |
 | 012_visit_report_amendments | **לא הוחלה** (טבלה חדשה append-only; נבדקה על Postgres מבודד) |
 | 011_risk_status_always_visible | **לא הוחלה** (view בלבד; נבדקה על Postgres מבודד) |
