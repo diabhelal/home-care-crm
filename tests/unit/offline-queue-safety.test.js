@@ -123,16 +123,61 @@ test("גיבויי :unreadable: וטיוטות ישנות נספרים ולא נ
   assert.ok(localStorage.getItem("visitReportOfflineQueue"));
 });
 
-test("ייצוא טיוטות מכיל הכול ולא מוחק דבר", async () => {
-  const seed = { visitReportOfflineQueue: JSON.stringify([d(7)]), [`${ownKey}:unreadable:111`]: "{broken" };
-  const { ctx, localStorage } = load({ seed });
+test("ייצוא ברירת מחדל: רק הטיוטות של המשתמש עצמו, בלי ownerId, ולא מוחק דבר", async () => {
+  const seed = {
+    visitReportOfflineQueue: JSON.stringify([d(7)]), [`${ownKey}:unreadable:111`]: "{broken",
+    "visitReportOfflineQueue:user-a": JSON.stringify([d(50, { treatment_summary: "סודי של A" })]),
+  };
+  const { ctx, localStorage } = load({ userId: "user-1", seed });
   await tick();
   ctx.queueVisitReportDraft(d(1));
   const before = JSON.stringify(localStorage._store);
-  const exp = JSON.parse(ctx.buildOfflineDraftsExport());
-  assert.equal(exp.own.length, 1); assert.equal(exp.legacy.length, 1);
-  assert.equal(exp.unreadable.length, 1); assert.equal(exp.unreadable[0].raw, "{broken");
+  const raw = ctx.buildOfflineDraftsExport();
+  const exp = JSON.parse(raw);
+  assert.equal(exp.own.length, 1);
+  assert.equal(exp.legacy, undefined); assert.equal(exp.unreadable, undefined);
+  assert.ok(!raw.includes("סודי של A") && !raw.includes("user-a") && !raw.includes("broken"));
+  assert.equal(exp.ownerId, undefined);
   assert.equal(JSON.stringify(localStorage._store), before);
+  const full = JSON.parse(ctx.buildOfflineDraftsExport({ includeShared: true }));
+  assert.equal(full.legacy.length, 1); assert.equal(full.unreadable[0].raw, "{broken");
+  assert.ok(!JSON.stringify(full).includes("סודי של A"));
+});
+
+function exportEnv(answers) {
+  const msgs = []; const blobs = []; let clicks = 0;
+  const seed = { visitReportOfflineQueue: JSON.stringify([d(7)]), [`${ownKey}:unreadable:111`]: "{broken" };
+  const env = load({ seed });
+  env.ctx.window.confirm = (m) => { msgs.push(m); return answers.shift(); };
+  env.ctx.Blob = class { constructor(parts) { blobs.push(parts.join("")); } };
+  env.ctx.URL = { createObjectURL: () => "blob:x", revokeObjectURL: () => {} };
+  env.ctx.document = { body: { appendChild: () => {} }, createElement: () => ({ click: () => { clicks++; }, remove: () => {}, set download(v) { this.name = v; }, get download() { return this.name; } }) };
+  return { ...env, msgs, blobs, clicks: () => clicks };
+}
+
+test("ייצוא: סירוב לאזהרת plaintext = אין הורדה", async () => {
+  const e = exportEnv([false]);
+  await tick();
+  e.ctx.queueVisitReportDraft(d(1));
+  e.ctx.exportOfflineDrafts();
+  assert.equal(e.blobs.length, 0); assert.equal(e.clicks(), 0);
+  assert.match(e.msgs[0], /לא מוצפן/);
+});
+
+test("ייצוא: אישור ראשון בלבד = קובץ עם הטיוטות שלי בלבד; legacy רק אחרי אישור שני", async () => {
+  const e = exportEnv([true, false]);
+  await tick();
+  e.ctx.queueVisitReportDraft(d(1));
+  e.ctx.exportOfflineDrafts();
+  assert.equal(e.blobs.length, 1);
+  assert.equal(JSON.parse(e.blobs[0]).legacy, undefined);
+  assert.equal(e.msgs.length, 2); assert.match(e.msgs[1], /משתמש אחר/);
+  const e2 = exportEnv([true, true]);
+  await tick();
+  e2.ctx.queueVisitReportDraft(d(1));
+  e2.ctx.exportOfflineDrafts();
+  assert.equal(JSON.parse(e2.blobs[0]).legacy.length, 1);
+  assert.ok(!/p1|patient/i.test(e2.ctx.document.createElement().download || ""));
 });
 
 test("נעילת RMW: משתמשת ב-navigator.locks כשקיים, ו-fallback כשלא", async () => {

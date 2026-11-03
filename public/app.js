@@ -241,19 +241,29 @@ function getDraftInventory() {
   return { own, legacy, unreadable, total: own + legacy + unreadable };
 }
 
-// ייצוא לקריאה בלבד (JSON): לא מוחק ולא מזיז דבר. מכיל מידע רפואי רגיש — באחריות המשתמש.
-function buildOfflineDraftsExport() {
-  return JSON.stringify({
+// ייצוא לקריאה בלבד (JSON): לא מוחק ולא מזיז דבר. ברירת מחדל: רק הטיוטות של המשתמש המחובר
+// (המפתח שלו). טיוטות ישנות (מפתח משותף) וגיבויי :unreadable: עלולים להיות של משתמש אחר,
+// ולכן נכללים רק עם includeShared. לא נכתב ownerId בקובץ.
+function buildOfflineDraftsExport({ includeShared = false } = {}) {
+  const out = {
     exportedAt: new Date().toISOString(),
-    ownerId: offlineQueueOwnerId,
     own: offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()) : [],
-    legacy: getOfflineQueue(OFFLINE_QUEUE_KEY),
-    unreadable: unreadableBackupKeys().map((k) => ({ key: k, raw: localStorage.getItem(k) })),
-  }, null, 2);
+  };
+  if (includeShared) {
+    out.legacy = getOfflineQueue(OFFLINE_QUEUE_KEY);
+    out.unreadable = unreadableBackupKeys().map((k) => ({ key: k, raw: localStorage.getItem(k) }));
+  }
+  return JSON.stringify(out, null, 2);
 }
 
 function exportOfflineDrafts() {
-  const blob = new Blob([buildOfflineDraftsExport()], { type: "application/json" });
+  if (!window.confirm("הקובץ שיורד הוא טקסט רגיל לא מוצפן ומכיל מידע רפואי רגיש (כולל חתימות מטופלים). לאחר ההורדה הוא יוצא משליטת האפליקציה — יש לשמור אותו במקום מאובטח ולמחוק אותו כשאינו נחוץ. להמשיך בהורדה?")) return;
+  let includeShared = false;
+  const inv = getDraftInventory();
+  if (inv.legacy || inv.unreadable) {
+    includeShared = window.confirm("במכשיר יש גם טיוטות ישנות וגיבויים לא קריאים במפתח משותף. הם עשויים להשתייך למשתמש אחר ולהכיל מידע רפואי רגיש שלו. לכלול אותם בקובץ? (ביטול = יורדות רק הטיוטות של החשבון שלך)");
+  }
+  const blob = new Blob([buildOfflineDraftsExport({ includeShared })], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
