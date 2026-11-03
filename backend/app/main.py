@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Callable, Optional
 
+import httpx
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,7 +11,8 @@ from fastapi.responses import JSONResponse
 from .auth import (HS256Verifier, JWKSVerifier, SupabaseTokenVerifier, TokenVerifier, extract_bearer,
                    identity_from_claims, require_admin)
 from .config import Settings
-from .errors import DomainError, forbidden
+from .errors import (DomainError, IdempotencyConflictError, SlotTakenError, forbidden,
+                     idempotency_conflict, slot_taken)
 from .geo import Geocoder, NoopGeocoder
 from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, ReassignIn, Staff,
                      VisitReportIn, booking_to_dict)
@@ -56,6 +58,24 @@ def create_app(settings: Settings | None = None,
     @app.exception_handler(DomainError)
     async def _domain(_: Request, e: DomainError):
         return JSONResponse({"code": e.code, "detail": e.message}, status_code=e.status)
+
+    # Safety nets for repository exceptions an endpoint did not translate itself
+    # (request_booking/reassign keep their own explicit handling and 409 behaviour).
+    @app.exception_handler(SlotTakenError)
+    async def _slot(_: Request, e: SlotTakenError):
+        d = slot_taken()
+        return JSONResponse({"code": d.code, "detail": d.message}, status_code=d.status)
+
+    @app.exception_handler(IdempotencyConflictError)
+    async def _idem(_: Request, e: IdempotencyConflictError):
+        d = idempotency_conflict()
+        return JSONResponse({"code": d.code, "detail": d.message}, status_code=d.status)
+
+    @app.exception_handler(httpx.HTTPError)
+    async def _upstream(_: Request, e: httpx.HTTPError):
+        # database unreachable / unmapped PostgREST status: loud, structured, no internals leaked
+        return JSONResponse({"code": "upstream_unavailable",
+                             "detail": "שירות הנתונים אינו זמין כרגע, אנא נסה שוב"}, status_code=502)
 
     class Ctx:
         def __init__(self, identity: Identity, svc: BookingService):

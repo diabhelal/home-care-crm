@@ -37,7 +37,7 @@ def test_insert_uses_caller_jwt_and_path():
 
 def test_unique_violation_maps():
     def h(req):
-        return httpx.Response(409, json={"code": "23505", "message": "duplicate key"})
+        return httpx.Response(409, json={"code": "23505", "message": 'duplicate key value violates unique constraint "bookings_staff_id_scheduled_at_active_key"'})
     b = Booking(None, "p1", 1, "checkup", datetime(2026, 10, 18, 6, tzinfo=timezone.utc))
     with pytest.raises(SlotTakenError):
         make(h).insert_booking(b)
@@ -160,3 +160,62 @@ def test_update_booking_conflict_from_the_database_guard_maps_to_slot_taken():
         return httpx.Response(409, json={"code": "23505", "message": "staff member not available at this time"})
     with pytest.raises(SlotTakenError):
         make(h).update_booking(7, {"staff_id": 2})
+
+
+# ---- 23505 disambiguation. Payloads below are REPRESENTATIVE of PostgREST's error JSON
+# (code/message/details/hint); they were not captured from the live database.
+from app.errors import DomainError, IdempotencyConflictError  # noqa: E402
+
+
+def _insert_with(payload, status=409):
+    b = Booking(None, "p1", 1, "checkup", datetime(2026, 10, 18, 6, tzinfo=timezone.utc))
+    return make(lambda req: httpx.Response(status, json=payload)).insert_booking(b)
+
+
+def test_23505_idempotency_index_is_not_a_slot_conflict():
+    with pytest.raises(IdempotencyConflictError):
+        _insert_with({"code": "23505", "details": "Key (patient_id, idempotency_key)=(p1, k) already exists.",
+                      "message": 'duplicate key value violates unique constraint "bookings_patient_idempotency_key_uidx"'})
+
+
+def test_23505_active_slot_index_is_a_slot_conflict():
+    with pytest.raises(SlotTakenError):
+        _insert_with({"code": "23505", "details": "Key (staff_id, scheduled_at)=(1, 2026-10-18 06:00:00+00) already exists.",
+                      "message": 'duplicate key value violates unique constraint "bookings_staff_id_scheduled_at_active_key"'})
+
+
+def test_23505_guard_trigger_message_is_a_slot_conflict():
+    with pytest.raises(SlotTakenError):
+        _insert_with({"code": "23505", "message": "staff member not available at this time"})
+
+
+def test_23505_unknown_constraint_is_a_generic_server_error_not_slot_taken():
+    with pytest.raises(DomainError) as e:
+        _insert_with({"code": "23505", "message": 'duplicate key value violates unique constraint "some_other_key"'})
+    assert e.value.status == 500 and e.value.code == "unexpected_unique_violation"
+    assert "פנוי" not in e.value.message
+
+
+def test_23505_without_any_constraint_info_is_not_guessed_as_slot_taken():
+    with pytest.raises(DomainError) as e:
+        _insert_with({"code": "23505", "message": "duplicate key"})
+    assert e.value.status == 500
+
+
+def test_23505_on_non_booking_rpc_is_not_slot_taken():
+    r = make(lambda req: httpx.Response(409, json={
+        "code": "23505", "message": 'duplicate key value violates unique constraint "alerts_dedupe_key"'}))
+    with pytest.raises(DomainError) as e:
+        r.record_auto_alert("p1", {})
+    assert e.value.status == 500
+
+
+def test_list_patient_reports_reads_newest_first_with_limit_and_returns_ascending():
+    seen = {}
+    def h(req):
+        seen["q"] = dict(req.url.params)
+        return httpx.Response(200, json=[{"visit_date": "2026-10-03"}, {"visit_date": "2026-10-02"},
+                                         {"visit_date": "2026-10-01"}])
+    out = make(h).list_patient_reports("p1")
+    assert seen["q"]["order"] == "visit_date.desc" and seen["q"]["limit"] == "500"
+    assert [r["visit_date"] for r in out] == ["2026-10-01", "2026-10-02", "2026-10-03"]
