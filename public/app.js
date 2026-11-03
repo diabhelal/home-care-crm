@@ -1153,9 +1153,12 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   if (!patientId || !resultEl || typeof supabaseClient === "undefined") return;
   e.stopImmediatePropagation();
   e.preventDefault();
+  // המודאל יכול להיסגר או לעבור למטופל אחר בזמן ההמתנה לספירה — אז לא כותבים ולא מפעילים חישוב
+  const stillSameModal = () => modal.dataset.patientId === patientId && modal.style.display !== "none";
   try {
     const { data, error } = await supabaseClient.from("visit_reports").select("id").eq("patient_id", patientId);
     if (error) throw error;
+    if (!stillSameModal()) return;
     if ((data || []).length < TREND_MIN_HISTORY) {
       resultEl.textContent = "";
       const p = document.createElement("p");
@@ -1168,6 +1171,7 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   } catch (err) {
     // אי אפשר לברר כמה מדידות יש — לא חוסמים, נותנים ל-handler הרגיל לטפל (כולל הודעת שגיאה)
   }
+  if (!stillSameModal()) return;
   btn.dataset.trendChecked = "1";
   try { btn.click(); } finally { delete btn.dataset.trendChecked; }
 }, true);
