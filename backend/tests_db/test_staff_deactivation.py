@@ -4,7 +4,7 @@ import pytest
 
 from tests_db.conftest import as_postgres, as_user
 from tests_db.test_db_guards import T0, insert_booking, seed
-from tests_db.test_visit_report_integrity import COMPLETE, attempt, booking
+from tests_db.test_visit_report_integrity import COMPLETE, RESTRICT_ERRORS, assert_delete_restricts, attempt, booking
 
 AT2 = "2030-01-07 12:00:00+00"
 
@@ -26,14 +26,18 @@ def counts(db, bid, rid):
 def test_deleting_staff_with_history_is_refused_and_history_survives(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_user(db, d["admin"], admin=True)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), RESTRICT_ERRORS)
+    assert_delete_restricts(db, "bookings", "staff_id", "medical_staff")
+    assert_delete_restricts(db, "visit_reports", "staff_id", "medical_staff")
     assert counts(db, bid, rid) == (1, 1)
 
 
 def test_even_a_superuser_cannot_cascade_away_history(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_postgres(db)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), psycopg.errors.RestrictViolation)
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), RESTRICT_ERRORS)
+    assert_delete_restricts(db, "bookings", "staff_id", "medical_staff")
+    assert_delete_restricts(db, "visit_reports", "staff_id", "medical_staff")
     assert counts(db, bid, rid) == (1, 1)
 
 
