@@ -157,17 +157,25 @@ function newDraftId() {
 // כך סנכרון שאושר מסיר רק את הגרסה ששלח, וגרסה חדשה יותר נשארת. זורקת OfflineStorageError בכשל אחסון;
 // מחזירה {draftId, rev} רק אחרי שהכתיבה הצליחה.
 // ליבה סינכרונית: מסרבת לכתוב בלי בעלים מזוהה (אין כתיבה למפתח המשותף), וחותמת _ownerId.
-function queueVisitReportDraft(payload) {
-  if (!offlineQueueOwnerId) throw new OfflineStorageError("no_owner");
-  const key = offlineQueueKey();
+// owner: הבעלים שנקבע בזמן הבקשה; אם הבעלים הנוכחי השתנה מאז - מסרבת (owner_changed).
+function queueVisitReportDraft(payload, owner = offlineQueueOwnerId) {
+  if (!owner) throw new OfflineStorageError("no_owner");
+  if (owner !== offlineQueueOwnerId) throw new OfflineStorageError("owner_changed");
+  const key = `${OFFLINE_QUEUE_KEY}:${owner}`;
   const queue = readQueueForWrite(key);
   const prev = queue.find((d) => d.booking_id === payload.booking_id);
+  if (prev) {
+    // הגרסה שמוחלפת נשמרת בגיבוי לא-הרסני לפני שהיא נדרסת (נספר, מיוצא, לא נמחק אוטומטית).
+    let bk = `${key}:superseded:${Date.now()}`;
+    for (let i = 1; localStorage.getItem(bk) !== null; i++) bk = `${key}:superseded:${Date.now()}-${i}`;
+    try { localStorage.setItem(bk, JSON.stringify(prev)); } catch (e) { throw new OfflineStorageError("storage_write_failed", e); }
+  }
   const entry = {
     ...payload,
     _draftId: prev && prev._draftId ? prev._draftId : newDraftId(),
     _rev: ((prev && prev._rev) || 0) + 1,
     _queuedAt: new Date().toISOString(),
-    _ownerId: offlineQueueOwnerId,
+    _ownerId: owner,
   };
   const next = queue.filter((d) => d.booking_id !== payload.booking_id);
   next.push(entry);
@@ -196,9 +204,10 @@ async function ensureOfflineQueueOwner() {
 
 // נקודת הכניסה לעמודים: בעלים + נעילה + שמירה. זורקת OfflineStorageError (גם no_owner).
 async function saveVisitReportDraft(payload) {
-  await ensureOfflineQueueOwner();
-  if (!offlineQueueOwnerId) throw new OfflineStorageError("no_owner");
-  return withQueueRmwLock(offlineQueueKey(), () => queueVisitReportDraft(payload));
+  const owner = await ensureOfflineQueueOwner();
+  if (!owner) throw new OfflineStorageError("no_owner");
+  const key = `${OFFLINE_QUEUE_KEY}:${owner}`; // נקבע פעם אחת, לפני ההמתנה לנעילה
+  return withQueueRmwLock(key, () => queueVisitReportDraft(payload, owner));
 }
 
 // מסירה של הגרסה שאושרה בלבד, מתוך מצב האחסון העדכני (לא מתמונת המצב של תחילת הסנכרון).
@@ -214,7 +223,8 @@ async function removeAcknowledgedDraft(key, draft) {
 function isServerAckForDraft(done, draft) {
   const r = done && done.report;
   if (!r || typeof r !== "object" || typeof r.id !== "number" || !Number.isFinite(r.id)) return false;
-  if (r.booking_id !== undefined && r.booking_id !== null && Number(r.booking_id) !== Number(draft.booking_id)) return false;
+  // booking_id חובה: השרת מחזיר שורת visit_reports מלאה (complete_visit_atomic returns visit_reports).
+  if (r.booking_id === undefined || r.booking_id === null || Number(r.booking_id) !== Number(draft.booking_id)) return false;
   return true;
 }
 
@@ -234,29 +244,51 @@ function unreadableBackupKeys() {
   return storageKeys().filter((k) => prefixes.some((p) => k.startsWith(p)));
 }
 
+function supersededBackupKeys() {
+  if (!offlineQueueOwnerId) return [];
+  const prefix = `${OFFLINE_QUEUE_KEY}:${offlineQueueOwnerId}:superseded:`;
+  return storageKeys().filter((k) => k.startsWith(prefix));
+}
+
 function getDraftInventory() {
+  // בלי משתמש מזוהה אין מצאי ואין ייצוא: הבקרות מיועדות למשתמש מזוהה בלבד.
+  if (!offlineQueueOwnerId) return { own: 0, legacy: 0, unreadable: 0, superseded: 0, total: 0 };
   const own = offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()).length : 0;
   const legacy = getOfflineQueue(OFFLINE_QUEUE_KEY).length;
   const unreadable = unreadableBackupKeys().length;
-  return { own, legacy, unreadable, total: own + legacy + unreadable };
+  const superseded = supersededBackupKeys().length;
+  return { own, legacy, unreadable, superseded, total: own + legacy + unreadable + superseded };
 }
 
 // ייצוא לקריאה בלבד (JSON): לא מוחק ולא מזיז דבר. ברירת מחדל: רק הטיוטות של המשתמש המחובר
 // (המפתח שלו). טיוטות ישנות (מפתח משותף) וגיבויי :unreadable: עלולים להיות של משתמש אחר,
 // ולכן נכללים רק עם includeShared. לא נכתב ownerId בקובץ.
+// שדות פנימיים (_ownerId,_draftId,_rev,_queuedAt) מוסרים מהרשומות; staff_id נשאר (נחוץ לשחזור).
+function stripInternalDraftFields(rec) {
+  const c = { ...rec };
+  ["_ownerId", "_draftId", "_rev", "_queuedAt"].forEach((k) => { delete c[k]; });
+  return c;
+}
+
 function buildOfflineDraftsExport({ includeShared = false } = {}) {
+  const superseded = [];
+  supersededBackupKeys().forEach((k) => {
+    try { const v = JSON.parse(localStorage.getItem(k)); if (v && typeof v === "object") superseded.push(stripInternalDraftFields(v)); } catch (e) { /* לא קריא - נשאר באחסון */ }
+  });
   const out = {
     exportedAt: new Date().toISOString(),
-    own: offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()) : [],
+    own: offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()).map(stripInternalDraftFields) : [],
+    superseded,
   };
   if (includeShared) {
-    out.legacy = getOfflineQueue(OFFLINE_QUEUE_KEY);
+    out.legacy = getOfflineQueue(OFFLINE_QUEUE_KEY).map(stripInternalDraftFields);
     out.unreadable = unreadableBackupKeys().map((k) => ({ key: k, raw: localStorage.getItem(k) }));
   }
   return JSON.stringify(out, null, 2);
 }
 
 function exportOfflineDrafts() {
+  if (!offlineQueueOwnerId) return; // ייצוא רק למשתמש מזוהה
   if (!window.confirm("הקובץ שיורד הוא טקסט רגיל לא מוצפן ומכיל מידע רפואי רגיש (כולל חתימות מטופלים). לאחר ההורדה הוא יוצא משליטת האפליקציה — יש לשמור אותו במקום מאובטח ולמחוק אותו כשאינו נחוץ. להמשיך בהורדה?")) return;
   let includeShared = false;
   const inv = getDraftInventory();
@@ -1359,6 +1391,7 @@ function updateOfflineDraftBanner() {
   else if (count > 1) parts.push(`📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`);
   if (inv.legacy) parts.push(`${inv.legacy} טיוטות ישנות במפתח משותף (לפני הפרדת משתמשים) — לא נמחקו; יסונכרנו רק אם שייכות לחשבון זה.`);
   if (inv.unreadable) parts.push(`${inv.unreadable} גיבויי טיוטה פגומים/לא קריאים נשמרו במכשיר (לא נמחקו).`);
+  if (inv.superseded) parts.push(`${inv.superseded} גרסאות קודמות של טיוטות נשמרו כגיבוי (לא נמחקו).`);
   banner.textContent = parts.join(" ");
   if (inv.total) {
     const exportBtn = document.createElement("button");

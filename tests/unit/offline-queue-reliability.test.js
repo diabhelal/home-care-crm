@@ -39,7 +39,7 @@ async function createPage({ userId = "user-a", storage = storageShim() } = {}) {
     }
     const r = state.respond ? await state.respond(call) : null;
     if (r) return { ok: r.status < 300, status: r.status, json: async () => r.json };
-    return { ok: true, status: 200, json: async () => ({ report: { id: 500 } }) };
+    return { ok: true, status: 200, json: async () => ({ report: { id: 500, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } }) };
   };
   const ctx = vm.createContext({
     console: { ...console, error: () => {} }, fetch: fetchMock, AbortController, setTimeout, clearTimeout,

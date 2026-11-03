@@ -29,7 +29,7 @@ function loadPage(storage, { userId, riskBehaviour = () => "ok" }) {
   };
   const fetchMock = async (url, init) => {
     calls.push({ url, auth: init.headers.Authorization });
-    if (url.includes("/complete")) return { ok: true, status: 200, json: async () => ({ report: { id: 77 } }) };
+    if (url.includes("/complete")) return { ok: true, status: 200, json: async () => ({ report: { id: 77, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } }) };
     const b = riskBehaviour();
     if (b === "network") throw new TypeError("Failed to fetch");
     if (b === "ok") return { ok: true, status: 200, json: async () => ({ risk_level: "green" }) };

@@ -204,3 +204,61 @@ test("אישור התנתקות: ספירת טיוטות בהודעה, ולא מ
   assert.match(asked, /1/);
   assert.equal(JSON.parse(localStorage.getItem(ownKey)).length, 1);
 });
+
+test("M1: החלפת בעלים בזמן שהנעילה ממתינה - הטיוטה לא נכתבת ולא נחתמת תחת הבעלים החדש", async () => {
+  let release;
+  const gate = new Promise((r) => { release = r; });
+  const locks = { request: async (name, cb) => { await gate; return cb({}); } };
+  const { ctx, localStorage } = load({ locks });
+  await tick();
+  const p = ctx.saveVisitReportDraft(d(1)).then(() => "ok", (e) => e.message);
+  await tick();
+  ctx.setOfflineQueueOwner("user-b");
+  release();
+  assert.equal(await p, "owner_changed");
+  assert.deepEqual(localStorage.keys().filter((k) => k.startsWith("visitReportOfflineQueue")), []);
+});
+
+test("M4: בלי בעלים מחובר אין שורות מצאי ואין ייצוא", async () => {
+  const seed = { visitReportOfflineQueue: JSON.stringify([d(7)]), "visitReportOfflineQueue:unreadable:1": "{x" };
+  const { ctx } = load({ userId: null, seed });
+  await tick();
+  const inv = ctx.getDraftInventory();
+  assert.equal(inv.total, 0); assert.equal(inv.legacy, 0); assert.equal(inv.unreadable, 0);
+  let msgs = 0;
+  ctx.window.confirm = () => { msgs++; return true; };
+  ctx.exportOfflineDrafts();
+  assert.equal(msgs, 0);
+});
+
+test("L2: הייצוא מסיר שדות פנימיים (_ownerId,_draftId,_rev,_queuedAt) ושומר staff_id", async () => {
+  const { ctx } = load();
+  await tick();
+  ctx.queueVisitReportDraft(d(1));
+  const rec = JSON.parse(ctx.buildOfflineDraftsExport()).own[0];
+  for (const k of ["_ownerId", "_draftId", "_rev", "_queuedAt"]) assert.equal(rec[k], undefined, k);
+  assert.equal(rec.staff_id, 7);
+});
+
+test("M2: שמירה חדשה לאותה הזמנה מעתיקה את הגרסה שהוחלפה לגיבוי :superseded: (נספר, מיוצא, לא נמחק)", async () => {
+  const { ctx, localStorage } = load();
+  await tick();
+  ctx.queueVisitReportDraft(d(1, { treatment_summary: "גרסה א" }));
+  ctx.queueVisitReportDraft(d(1, { treatment_summary: "גרסה ב" }));
+  const keys = localStorage.keys().filter((k) => k.startsWith(`${ownKey}:superseded:`));
+  assert.equal(keys.length, 1);
+  assert.equal(JSON.parse(localStorage.getItem(keys[0])).treatment_summary, "גרסה א");
+  assert.equal(ctx.getDraftInventory().superseded, 1);
+  const exp = JSON.parse(ctx.buildOfflineDraftsExport());
+  assert.equal(exp.superseded.length, 1); assert.equal(exp.superseded[0].treatment_summary, "גרסה א");
+  assert.equal(exp.own[0].treatment_summary, "גרסה ב");
+});
+
+test("L1: תשובה בלי booking_id לא מאשרת (שדה חובה)", async () => {
+  const { ctx, localStorage } = load({ respond: () => ({ status: 200, json: { report: { id: 5 } } }) });
+  await tick();
+  ctx.queueVisitReportDraft(d(1));
+  const r = await ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0);
+  assert.equal(JSON.parse(localStorage.getItem(ownKey)).length, 1);
+});

@@ -36,7 +36,7 @@ function loadPage(storage, { userId, allowedUser, networkDown = false }) {
     if (allowedUser !== undefined && who !== allowedUser) {
       return { ok: false, status: 403, json: async () => ({ code: "forbidden", detail: "ההזמנה אינה משויכת אליך" }) };
     }
-    return { ok: true, status: 200, json: async () => ({ report: { id: 1 } }) };
+    return { ok: true, status: 200, json: async () => ({ report: { id: 1, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } }) };
   };
   const ctx = vm.createContext({
     console, fetch: fetchMock, AbortController, setTimeout, clearTimeout,

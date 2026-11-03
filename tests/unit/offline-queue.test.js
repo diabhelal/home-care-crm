@@ -26,7 +26,7 @@ function createLocalStorageShim() {
 async function createContext({ userId = "user-1" } = {}) {
   const backend = {
     calls: [],
-    respond: () => ({ status: 200, json: { report: { id: 1 } } }),
+    respond: (url) => ({ status: 200, json: { report: { id: 1, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } } }),
   };
   // הדוח השמור בשרת כפי שהוא נקרא לאימות אחרי 409: row=null => אין דוח; throws => שגיאת קריאה.
   const reportRead = { row: null, throws: false };
@@ -89,7 +89,7 @@ test("flush: הערכת סיכון נקראת רק אחרי השלמה מאוש�
   const { ctx, backend } = await createContext();
   backend.respond = (url) => url.endsWith("/risk-assessment")
     ? { status: 503, json: { code: "predictive_unavailable", detail: "x" } }
-    : { status: 200, json: { report: { id: 77 } } };
+    : { status: 200, json: { report: { id: 77, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } } };
   ctx.queueVisitReportDraft(draft(5));
   const r = await ctx.flushOfflineQueue();
   assert.equal(r.synced, 1); assert.equal(r.failed, 0);
@@ -119,7 +119,7 @@ test("flush: שגיאת רשת — הטיוטה נשארת; ניסיון חוז�
   assert.equal(ctx.getQueuedDraftCount(), 1);
   assert.equal(ctx.getOfflineQueue()[0].booking_id, 3);
 
-  backend.respond = () => ({ status: 200, json: { report: { id: 9 } } });
+  backend.respond = (url) => ({ status: 200, json: { report: { id: 9, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } } });
   const r2 = await ctx.flushOfflineQueue();
   assert.equal(r2.synced, 1);
   assert.equal(ctx.getQueuedDraftCount(), 0);
@@ -206,7 +206,7 @@ test("flush: כשל חלקי בין טיוטות — מצליחה יורדת, כ
   ctx.queueVisitReportDraft(draft(10));
   ctx.queueVisitReportDraft(draft(11));
   backend.respond = (url) => url.endsWith("/10/complete")
-    ? { status: 200, json: { report: { id: 1 } } }
+    ? { status: 200, json: { report: { id: 1, booking_id: parseInt(url.match(/visits\/(\d+)\/complete/)[1], 10) } } }
     : { status: 403, json: { code: "forbidden", detail: "אין הרשאה" } };
   const r = await ctx.flushOfflineQueue();
   assert.equal(r.synced, 1); assert.equal(r.failed, 1);
