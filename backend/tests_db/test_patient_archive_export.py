@@ -7,7 +7,7 @@ import pytest
 from tests_db.conftest import as_postgres, as_user
 from tests_db.test_db_guards import seed
 from tests_db.test_visit_report_amendments import INS
-from tests_db.test_visit_report_integrity import COMPLETE, attempt, booking
+from tests_db.test_visit_report_integrity import COMPLETE, RESTRICT_ERRORS, assert_delete_restricts, attempt, booking
 
 EXPORT = "select export_patient_record(%s, %s, %s, %s)"
 
@@ -92,4 +92,8 @@ def test_a_patient_with_an_export_history_cannot_be_erased(db):
     as_user(db, d["admin"], admin=True)
     db.execute(EXPORT, (d["pb"], "legal", "x", "בקשה משפטית"))
     as_postgres(db); db.execute("select set_config('request.jwt.claims', '', true)")
-    attempt(db, "delete from patients where id=%s", (d["pb"],), (psycopg.errors.RestrictViolation, psycopg.errors.ForeignKeyViolation))
+    attempt(db, "delete from patients where id=%s", (d["pb"],), RESTRICT_ERRORS)
+    assert_delete_restricts(db, "record_access_log", "patient_id", "patients")
+    # the refused delete left the patient and the access-log row intact
+    assert db.execute("select count(*) from patients where id=%s", (d["pb"],)).fetchone()[0] == 1
+    assert db.execute("select count(*) from record_access_log where patient_id=%s", (d["pb"],)).fetchone()[0] == 1
