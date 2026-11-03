@@ -102,7 +102,10 @@ class OfflineStorageError extends Error {
   constructor(message, cause) { super(message); this.name = "OfflineStorageError"; this.cause = cause; }
 }
 
-function offlineStorageFailureMessage() {
+function offlineStorageFailureMessage(err) {
+  if (err && err.message === "no_owner") {
+    return "לא ניתן לשמור טיוטה מקומית כי לא זוהה משתמש מחובר (ההתחברות פגה או טרם נטענה). הנתונים נשארו בטופס — התחברו מחדש ונסו שוב. אל תסגרו את העמוד.";
+  }
   return "השמירה המקומית במכשיר נכשלה (אחסון מלא או חסום), ולכן הדוח לא נשמר ולא נשלח — הנתונים נשארו בטופס. אל תסגרו את העמוד; נסו שוב כשיש חיבור, או שחררו מקום באחסון הדפדפן.";
 }
 
@@ -153,7 +156,9 @@ function newDraftId() {
 // כל טיוטה מקבלת זהות יציבה (_draftId, נשמרת בין עריכות של אותה הזמנה) וגרסה (_rev, עולה בכל שמירה).
 // כך סנכרון שאושר מסיר רק את הגרסה ששלח, וגרסה חדשה יותר נשארת. זורקת OfflineStorageError בכשל אחסון;
 // מחזירה {draftId, rev} רק אחרי שהכתיבה הצליחה.
+// ליבה סינכרונית: מסרבת לכתוב בלי בעלים מזוהה (אין כתיבה למפתח המשותף), וחותמת _ownerId.
 function queueVisitReportDraft(payload) {
+  if (!offlineQueueOwnerId) throw new OfflineStorageError("no_owner");
   const key = offlineQueueKey();
   const queue = readQueueForWrite(key);
   const prev = queue.find((d) => d.booking_id === payload.booking_id);
@@ -162,6 +167,7 @@ function queueVisitReportDraft(payload) {
     _draftId: prev && prev._draftId ? prev._draftId : newDraftId(),
     _rev: ((prev && prev._rev) || 0) + 1,
     _queuedAt: new Date().toISOString(),
+    _ownerId: offlineQueueOwnerId,
   };
   const next = queue.filter((d) => d.booking_id !== payload.booking_id);
   next.push(entry);
@@ -169,11 +175,100 @@ function queueVisitReportDraft(payload) {
   return { draftId: entry._draftId, rev: entry._rev };
 }
 
+// נעילה קצרה (בלעדית, לפי מפתח התור) סביב קריאה-שינוי-כתיבה בין לשוניות. שם שונה מנעילת
+// הסנכרון (visit-report-queue:*) כדי לא להיחסם לאורך כל סנכרון רשת ולא ליצור קיפאון.
+// בלי Web Locks: ריצה ישירה (כמו קודם).
+async function withQueueRmwLock(key, fn) {
+  const locks = typeof navigator !== "undefined" ? navigator.locks : null;
+  if (!locks || typeof locks.request !== "function") return fn();
+  return locks.request("visit-report-queue-rmw:" + key, async () => fn());
+}
+
+// מבטיחה שהבעלים ידוע לפני שמירה: ממתינה לסשן אם עדיין לא נפתר. לעולם לא זורקת.
+async function ensureOfflineQueueOwner() {
+  if (offlineQueueOwnerId) return offlineQueueOwnerId;
+  try {
+    const { data } = await supabaseClient.auth.getSession();
+    if (data && data.session && data.session.user && !offlineQueueOwnerId) setOfflineQueueOwner(data.session.user.id);
+  } catch (e) { /* no_owner ייזרק משמירה */ }
+  return offlineQueueOwnerId;
+}
+
+// נקודת הכניסה לעמודים: בעלים + נעילה + שמירה. זורקת OfflineStorageError (גם no_owner).
+async function saveVisitReportDraft(payload) {
+  await ensureOfflineQueueOwner();
+  if (!offlineQueueOwnerId) throw new OfflineStorageError("no_owner");
+  return withQueueRmwLock(offlineQueueKey(), () => queueVisitReportDraft(payload));
+}
+
 // מסירה של הגרסה שאושרה בלבד, מתוך מצב האחסון העדכני (לא מתמונת המצב של תחילת הסנכרון).
-function removeAcknowledgedDraft(key, draft) {
-  const queue = getOfflineQueue(key);
-  const next = queue.filter((d) => !(d.booking_id === draft.booking_id && d._draftId === draft._draftId && d._rev === draft._rev));
-  if (next.length !== queue.length) setOfflineQueue(next, key);
+async function removeAcknowledgedDraft(key, draft) {
+  return withQueueRmwLock(key, () => {
+    const queue = getOfflineQueue(key);
+    const next = queue.filter((d) => !(d.booking_id === draft.booking_id && d._draftId === draft._draftId && d._rev === draft._rev));
+    if (next.length !== queue.length) setOfflineQueue(next, key);
+  });
+}
+
+// האם תשובת השרת מוכיחה דוח שנשמר: אובייקט report עם id מספרי, ו-booking_id תואם אם נכלל.
+function isServerAckForDraft(done, draft) {
+  const r = done && done.report;
+  if (!r || typeof r !== "object" || typeof r.id !== "number" || !Number.isFinite(r.id)) return false;
+  if (r.booking_id !== undefined && r.booking_id !== null && Number(r.booking_id) !== Number(draft.booking_id)) return false;
+  return true;
+}
+
+// ===== מצאי טיוטות: שלי + ישנות (מפתח משותף) + גיבויי :unreadable: =====
+function storageKeys() {
+  try {
+    if (typeof localStorage.keys === "function") return localStorage.keys();
+    const out = [];
+    for (let i = 0; i < localStorage.length; i++) out.push(localStorage.key(i));
+    return out;
+  } catch (e) { return []; }
+}
+
+function unreadableBackupKeys() {
+  const prefixes = [`${OFFLINE_QUEUE_KEY}:unreadable:`];
+  if (offlineQueueOwnerId) prefixes.push(`${OFFLINE_QUEUE_KEY}:${offlineQueueOwnerId}:unreadable:`);
+  return storageKeys().filter((k) => prefixes.some((p) => k.startsWith(p)));
+}
+
+function getDraftInventory() {
+  const own = offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()).length : 0;
+  const legacy = getOfflineQueue(OFFLINE_QUEUE_KEY).length;
+  const unreadable = unreadableBackupKeys().length;
+  return { own, legacy, unreadable, total: own + legacy + unreadable };
+}
+
+// ייצוא לקריאה בלבד (JSON): לא מוחק ולא מזיז דבר. מכיל מידע רפואי רגיש — באחריות המשתמש.
+function buildOfflineDraftsExport() {
+  return JSON.stringify({
+    exportedAt: new Date().toISOString(),
+    ownerId: offlineQueueOwnerId,
+    own: offlineQueueOwnerId ? getOfflineQueue(offlineQueueKey()) : [],
+    legacy: getOfflineQueue(OFFLINE_QUEUE_KEY),
+    unreadable: unreadableBackupKeys().map((k) => ({ key: k, raw: localStorage.getItem(k) })),
+  }, null, 2);
+}
+
+function exportOfflineDrafts() {
+  const blob = new Blob([buildOfflineDraftsExport()], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `offline-drafts-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// התנתקות: אם יש טיוטות במכשיר — מבקשים אישור. שום דבר לא נמחק בכל מקרה.
+function confirmSignOutWithDrafts() {
+  const inv = getDraftInventory();
+  if (!inv.total) return true;
+  return window.confirm(`יש ${inv.total} טיוטות דוחות ביקור במכשיר שטרם סונכרנו. ההתנתקות לא תמחק אותן — הן יישארו במכשיר ויסונכרנו בכניסה הבאה של בעליהן. להתנתק בכל זאת?`);
 }
 
 function getQueuedDraftCount() {
@@ -362,6 +457,7 @@ async function withQueueLock(fn) {
 
 async function flushOfflineQueueDrafts() {
   const ownerId = offlineQueueOwnerId; // כל הסנכרון קשור למשתמש הזה בלבד
+  if (!ownerId) return { synced: 0, failed: 0, partial: 0, errors: [] }; // בלי משתמש מזוהה לא מסנכרנים כלום
   const ownKey = offlineQueueKey();
   const own = await flushOfflineQueueKey(ownKey, ownerId);
   // טיוטות ממפתח ישן (לפני הפרדת משתמשים): מנסים לסנכרן, אך רק מה שנשמר בפועל נמחק
@@ -387,8 +483,8 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
   let synced = 0;
   const errors = [];
   let offline = false;
-  const acknowledge = (draft) => {
-    try { removeAcknowledgedDraft(queueKey, draft); return true; }
+  const acknowledge = async (draft) => {
+    try { await removeAcknowledgedDraft(queueKey, draft); return true; }
     catch (e) {
       errors.push({ booking_id: draft.booking_id, kind: "storage", status: 0,
         message: "הדוח נשמר בשרת, אך לא ניתן היה להסיר את הטיוטה מהמכשיר. היא תאומת ותוסר בסנכרון הבא." });
@@ -416,7 +512,7 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
         if (err && err.kind === "conflict") {
           // 409 לא מוכיח שהתוכן נשמר: מסירים את הטיוטה רק אם הדוח בשרת זהה לה.
           const verdict = await verifyReportPersisted(draft, ownerId);
-          if (verdict === "same") { synced++; acknowledge(draft); continue; }
+          if (verdict === "same") { synced++; await acknowledge(draft); continue; }
           const why = verdict === "different"
             ? " תוכן הדוח השמור בשרת שונה מהטיוטה שבמכשיר, והטיוטה לא נמחקה."
             : " לא ניתן היה לאמת שהתוכן נשמר בשרת, והטיוטה לא נמחקה.";
@@ -433,9 +529,14 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
         continue;
       }
       // תשובת הצלחה מאושרת: מסירים את הגרסה שנשלחה מיד, לפני כל בקשת המשך (הערכת סיכון).
+      if (!isServerAckForDraft(done, draft)) {
+        errors.push({ booking_id: draft.booking_id, kind: "unconfirmed", status: 200,
+          message: 'נשלח אך לא אושר ע"י השרת, הטיוטה נשמרה' });
+        continue;
+      }
       synced++;
-      acknowledge(draft);
-      const doneId = done && done.report && done.report.id;
+      await acknowledge(draft);
+      const doneId = done.report.id;
       if (doneId) {
         try { await requestRiskAssessment(doneId, ownerId); }
         catch (riskErr) {
@@ -840,6 +941,7 @@ function wireReset(buttonId = "reset-btn") {
   const btn = document.getElementById(buttonId);
   if (!btn) return;
   btn.addEventListener("click", async () => {
+    if (!confirmSignOutWithDrafts()) return;
     await supabaseClient.auth.signOut();
     sessionStorage.clear();
     window.location.href = "index.html";
@@ -1231,8 +1333,9 @@ function initPredictiveServiceHealthCheck() {
 // זה בבירור בראש העמוד, לא רק אחרי שה-online event יורה מאחורי הקלעים.
 function updateOfflineDraftBanner() {
   let banner = document.getElementById("offline-draft-banner");
-  const count = getQueuedDraftCount();
-  if (!count && !offlineQueueSyncing) { if (banner) banner.style.display = "none"; return; }
+  const inv = getDraftInventory();
+  const count = inv.own;
+  if (!inv.total && !offlineQueueSyncing) { if (banner) banner.style.display = "none"; return; }
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "offline-draft-banner";
@@ -1240,11 +1343,23 @@ function updateOfflineDraftBanner() {
     banner.setAttribute("role", "status");
     document.body.prepend(banner);
   }
-  banner.textContent = offlineQueueSyncing
-    ? "📶 מסנכרן דוחות ביקור שמורים מקומית..."
-    : count === 1
-      ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
-      : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
+  const parts = [];
+  if (offlineQueueSyncing) parts.push("📶 מסנכרן דוחות ביקור שמורים מקומית...");
+  else if (count === 1) parts.push("📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור.");
+  else if (count > 1) parts.push(`📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`);
+  if (inv.legacy) parts.push(`${inv.legacy} טיוטות ישנות במפתח משותף (לפני הפרדת משתמשים) — לא נמחקו; יסונכרנו רק אם שייכות לחשבון זה.`);
+  if (inv.unreadable) parts.push(`${inv.unreadable} גיבויי טיוטה פגומים/לא קריאים נשמרו במכשיר (לא נמחקו).`);
+  banner.textContent = parts.join(" ");
+  if (inv.total) {
+    const exportBtn = document.createElement("button");
+    exportBtn.type = "button";
+    exportBtn.id = "export-drafts-btn";
+    exportBtn.className = "btn btn-secondary btn-sm";
+    exportBtn.style.marginInlineStart = "8px";
+    exportBtn.textContent = "ייצוא טיוטות";
+    exportBtn.addEventListener("click", exportOfflineDrafts);
+    banner.append(exportBtn);
+  }
   banner.style.display = "block";
 }
 

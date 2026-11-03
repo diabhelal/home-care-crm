@@ -456,6 +456,7 @@
   });
 
   document.getElementById("admin-logout-btn").addEventListener("click", async () => {
+    if (!confirmSignOutWithDrafts()) return;
     await supabaseClient.auth.signOut();
     window.location.reload();
   });
@@ -911,7 +912,7 @@
     if (error) {
       if (isRetryableCompletionError(error) || error.kind === "auth") {
         try {
-          queueVisitReportDraft({ ...payload, _markCompleted: true });
+          await saveVisitReportDraft({ ...payload, _markCompleted: true });
         } catch (storageErr) {
           // השמירה המקומית נכשלה: לא מציגים "נשמר" — הטופס נשאר פתוח עם הנתונים.
           showError(modalError, offlineStorageFailureMessage(storageErr));
