@@ -8,10 +8,14 @@ from __future__ import annotations
 from datetime import datetime, time
 from typing import Optional
 
+import logging
+
 import httpx
 
 from .errors import (IdempotencyConflictError, SlotTakenError, bad_request, conflict, forbidden,
-                     not_found, unexpected_unique_violation)
+                     not_found, redact_details, unexpected_unique_violation)
+
+log = logging.getLogger("app.supabase_repo")
 from .models import Booking, Staff
 
 # base_lat/base_lng are NOT selected: they are a staff member's private base location and
@@ -104,7 +108,12 @@ class SupabaseRepo:
             body = {}
         code = body.get("code") if isinstance(body, dict) else None
         if code == "23505":
-            raise self._classify_unique_violation(body)
+            exc = self._classify_unique_violation(body)
+            if not isinstance(exc, SlotTakenError):
+                log.warning("unique violation not treated as slot conflict: status=%s code=%s "
+                            "message=%s details=%s", resp.status_code, code, body.get("message"),
+                            redact_details(body.get("details")))
+            raise exc
         # 23P01 (exclusion_violation): no exclusion constraint exists today, so it is
         # deliberately NOT mapped. If one is ever added for slot overlap, map it here to
         # SlotTakenError after checking its constraint name - do not guess.
@@ -220,7 +229,7 @@ class SupabaseRepo:
     def get_previous_report(self, patient_id, exclude_report_id):
         rows = self._get("/visit_reports", {
             "patient_id": f"eq.{patient_id}", "id": f"neq.{exclude_report_id}",
-            "select": self._VITALS, "order": "visit_date.desc", "limit": "1"})
+            "select": self._VITALS, "order": "visit_date.desc,id.desc", "limit": "1"})
         return rows[0] if rows else None
 
     def list_patient_reports(self, patient_id):
@@ -228,7 +237,7 @@ class SupabaseRepo:
         # newest (risk/auto-alert treat the last row as "current"). Returned ascending.
         rows = self._get("/visit_reports", {
             "patient_id": f"eq.{patient_id}", "select": f"visit_date,{self._VITALS}",
-            "order": "visit_date.desc", "limit": str(HISTORY_LIMIT)})
+            "order": "visit_date.desc,id.desc", "limit": str(HISTORY_LIMIT)})
         return list(reversed(rows))
 
     def record_risk_prediction(self, report_id, attestation):

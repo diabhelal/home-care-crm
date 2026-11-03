@@ -50,3 +50,10 @@ def idempotency_conflict():
 def unexpected_unique_violation():
     return DomainError(500, "unexpected_unique_violation",
                        "שגיאת שרת בשמירת הנתונים. אנא נסה שוב או פנה לתמיכה")
+
+
+def redact_details(details) -> str:
+    """PostgREST `details` can quote row values ("Key (col)=(value) ..."). Keep the
+    column list, drop the values, so logs never carry patient data."""
+    import re
+    return re.sub(r"=\(.*?\)", "=(redacted)", str(details)) if details else ""

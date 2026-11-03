@@ -603,3 +603,62 @@ def test_database_unreachable_is_a_structured_502_not_a_bare_500(world, monkeypa
     monkeypatch.setattr(world.repo, "get_booking", _raise(httpx.ConnectError("db down")))
     r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
     assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+# ---- upstream HTTP errors: status-aware mapping + server-side logging (representative payloads)
+import logging  # noqa: E402
+import httpx as _httpx  # noqa: E402
+
+
+def _status_err(status, payload):
+    return _httpx.HTTPStatusError(
+        "x", request=_httpx.Request("GET", "http://db/rest/v1/bookings"),
+        response=_httpx.Response(status, json=payload))
+
+
+@pytest.mark.parametrize("status,payload", [
+    (400, {"code": "22P02", "message": "invalid input syntax for type uuid"}),
+    (404, {"code": "PGRST202", "message": "Could not find the function"}),
+    (406, {"code": "PGRST116", "message": "JSON object requested, multiple rows"}),
+    (409, {"code": "23503", "message": "violates foreign key constraint"}),
+])
+def test_unmapped_postgrest_4xx_is_500_upstream_error_not_unavailable(world, monkeypatch, status, payload):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(status, payload)))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 500 and r.json()["code"] == "upstream_error"
+    assert "אינו זמין" not in r.json()["detail"] and "invalid" not in r.json()["detail"]
+
+
+def test_postgrest_5xx_is_502_unavailable(world, monkeypatch):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(503, {"message": "down"})))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+def test_network_timeout_is_502(world, monkeypatch):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_httpx.ReadTimeout("t")))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+def test_handlers_log_cause_server_side_without_jwt(world, monkeypatch, caplog):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(
+        400, {"code": "22P02", "message": "bad uuid", "details": "x"})))
+    with caplog.at_level(logging.WARNING, logger="app"):
+        world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    text = caplog.text
+    assert "22P02" in text and "400" in text and "bad uuid" in text
+    assert "Bearer" not in text and H("admin")["Authorization"].split()[-1] not in text
+
+
+def test_idempotency_conflict_is_logged(world, monkeypatch, caplog):
+    from app.errors import IdempotencyConflictError
+    monkeypatch.setattr(world.repo, "insert_booking", _raise(IdempotencyConflictError()))
+    with caplog.at_level(logging.WARNING, logger="app"):
+        world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1),
+                          headers={**H("patient"), "Idempotency-Key": "kk"})
+    assert "idempotency_conflict" in caplog.text

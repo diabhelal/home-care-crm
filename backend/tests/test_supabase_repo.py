@@ -217,5 +217,32 @@ def test_list_patient_reports_reads_newest_first_with_limit_and_returns_ascendin
         return httpx.Response(200, json=[{"visit_date": "2026-10-03"}, {"visit_date": "2026-10-02"},
                                          {"visit_date": "2026-10-01"}])
     out = make(h).list_patient_reports("p1")
-    assert seen["q"]["order"] == "visit_date.desc" and seen["q"]["limit"] == "500"
+    assert seen["q"]["order"] == "visit_date.desc,id.desc" and seen["q"]["limit"] == "500"
     assert [r["visit_date"] for r in out] == ["2026-10-01", "2026-10-02", "2026-10-03"]
+
+
+def test_unexpected_unique_violation_logged_without_row_values(caplog):
+    import logging
+    with caplog.at_level(logging.WARNING, logger="app"):
+        with pytest.raises(DomainError):
+            _insert_with({"code": "23505", "message": 'duplicate key value violates unique constraint "zzz_key"',
+                          "details": "Key (patient_id)=(SECRET-PATIENT-ID) already exists."})
+    assert "zzz_key" in caplog.text and "23505" in caplog.text and "409" in caplog.text
+    assert "SECRET-PATIENT-ID" not in caplog.text
+
+
+def test_previous_report_and_history_use_deterministic_order():
+    seen = []
+    def h(req):
+        seen.append(dict(req.url.params))
+        return httpx.Response(200, json=[])
+    r = make(h)
+    r.get_previous_report("p1", 3)
+    r.list_patient_reports("p1")
+    assert all(q["order"] == "visit_date.desc,id.desc" for q in seen)
+
+
+def test_history_tie_is_returned_ascending():
+    rows = [{"id": 9, "visit_date": "2026-10-03"}, {"id": 8, "visit_date": "2026-10-03"}]
+    out = make(lambda req: httpx.Response(200, json=rows)).list_patient_reports("p1")
+    assert [r["id"] for r in out] == [8, 9]
