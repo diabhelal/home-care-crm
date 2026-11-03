@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015"]   # 014 is reserved by another open PR
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -90,6 +90,18 @@ POSTFLIGHT = [
      "and not has_table_privilege('anon','public.record_access_log','select') "
      "and has_function_privilege('authenticated','public.export_patient_record(uuid,text,text,text)','execute') "
      "and not has_function_privilege('anon','public.export_patient_record(uuid,text,text,text)','execute')"),
+    ("015 no DELETE/TRUNCATE for authenticated/anon on medical tables; delete-block triggers; RESTRICT FKs; immutable logs",
+     "select not exists (select 1 from unnest(array['visit_reports','visit_report_amendments','patient_allergies','patient_medical_history',"
+     "'clinical_notes','medication_events','patient_documents','service_plans','service_plan_visits','risk_predictions','alerts','tasks',"
+     "'patient_contacts','audit_log','record_access_log','medical_staff']) t where has_table_privilege('authenticated','public.'||t,'delete') "
+     "or has_table_privilege('authenticated','public.'||t,'truncate') or has_table_privilege('anon','public.'||t,'delete')) "
+     "and (select count(*) from pg_trigger where not tgisinternal and tgname = 'block_physical_delete') = 18 "
+     "and not exists (select 1 from pg_constraint where contype='f' and connamespace='public'::regnamespace "
+     "and confdeltype in ('c','n') and confrelid::regclass::text in ('patients','bookings','visit_reports','service_plans','alerts','risk_predictions','medical_staff')) "
+     "and (select count(*) from pg_trigger where not tgisinternal and tgname in ('immutable_log_guard','immutable_log_guard_truncate')) = 4 "
+     "and exists (select 1 from pg_trigger where not tgisinternal and tgname = 'medical_staff_identity_guard') "
+     "and not exists (select 1 from pg_policies where schemaname='storage' and tablename='objects' and cmd in ('ALL','DELETE','UPDATE') "
+     "and policyname like '%patient_documents_storage')"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -97,6 +109,11 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "015": [("015 triggers gone, delete grants and CASCADE FKs back",
+             "select not exists (select 1 from pg_trigger where tgname in ('block_physical_delete','block_physical_truncate','immutable_log_guard','medical_staff_identity_guard')) "
+             "and has_table_privilege('authenticated','public.visit_reports','delete') "
+             "and (select confdeltype from pg_constraint where conname='visit_reports_patient_id_fkey') = 'c' "
+             "and (select confdeltype from pg_constraint where conname='tasks_alert_id_fkey') = 'n'")],
     "013": [("013 objects gone", "select to_regclass('public.record_access_log') is null "
                                  "and to_regprocedure('public.export_patient_record(uuid,text,text,text)') is null "
                                  "and (select count(*) from information_schema.columns where table_schema='public' and table_name='patients' "

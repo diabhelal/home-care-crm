@@ -58,6 +58,71 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 015
+-- אזהרה: מחזיר הרשאות DELETE ומפתחות זרים בעלי CASCADE/SET NULL (מצב מסוכן), ומחזיר את log_audit_change הישן (בלי old_data).
+-- אם נוצרו שורות audit_log עם action חדש (delete/archive/void/amend) ה-CHECK הישן יוחזר כ-NOT VALID.
+do $$
+declare t text;
+begin
+  foreach t in array array['visit_reports','visit_report_amendments','patient_allergies','patient_medical_history','clinical_notes',
+    'medication_events','patient_documents','service_plans','service_plan_visits','risk_predictions','alerts','tasks',
+    'patient_contacts','audit_log','record_access_log','bookings','patients','medical_staff'] loop
+    execute format('drop trigger if exists block_physical_delete on public.%I', t);
+    execute format('drop trigger if exists block_physical_truncate on public.%I', t);
+  end loop;
+end $$;
+drop function if exists public.block_physical_delete();
+drop trigger if exists immutable_log_guard on public.audit_log;
+drop trigger if exists immutable_log_guard_truncate on public.audit_log;
+drop trigger if exists immutable_log_guard on public.record_access_log;
+drop trigger if exists immutable_log_guard_truncate on public.record_access_log;
+drop function if exists public.immutable_log_guard();
+drop trigger if exists medical_staff_identity_guard on public.medical_staff;
+drop function if exists public.medical_staff_identity_guard();
+grant delete on public.visit_reports, public.patient_allergies, public.patient_medical_history, public.medication_events,
+  public.patient_documents, public.service_plans, public.service_plan_visits, public.tasks, public.alerts,
+  public.patient_contacts, public.medical_staff to authenticated;
+do $$
+declare r record;
+begin
+  for r in select * from (values
+      ('bookings','patient_id','patients','cascade'), ('visit_reports','patient_id','patients','cascade'),
+      ('visit_reports','booking_id','bookings','cascade'), ('risk_predictions','patient_id','patients','cascade'),
+      ('risk_predictions','visit_report_id','visit_reports','cascade'), ('patient_allergies','patient_id','patients','cascade'),
+      ('patient_medical_history','patient_id','patients','cascade'), ('clinical_notes','patient_id','patients','cascade'),
+      ('medication_events','patient_id','patients','cascade'), ('medication_events','visit_report_id','visit_reports','set null'),
+      ('service_plans','patient_id','patients','cascade'), ('service_plan_visits','service_plan_id','service_plans','cascade'),
+      ('service_plan_visits','booking_id','bookings','set null'), ('patient_documents','patient_id','patients','cascade'),
+      ('patient_contacts','patient_id','patients','cascade'), ('alerts','patient_id','patients','cascade'),
+      ('alerts','risk_prediction_id','risk_predictions','set null'), ('tasks','patient_id','patients','cascade'),
+      ('tasks','alert_id','alerts','set null')) as t(child, col, parent, act)
+  loop
+    execute format('alter table public.%I drop constraint %I, add constraint %I foreign key (%I) references public.%I(id) on delete %s',
+                   r.child, r.child || '_' || r.col || '_fkey', r.child || '_' || r.col || '_fkey', r.col, r.parent, r.act);
+  end loop;
+end $$;
+alter table public.audit_log drop constraint if exists audit_log_action_check;
+alter table public.audit_log add constraint audit_log_action_check check (action in ('insert','update')) not valid;
+create or replace function public.log_audit_change() returns trigger
+language plpgsql security definer set search_path = public as $f$
+begin
+  insert into public.audit_log (actor_id, action, table_name, row_id, old_data, new_data)
+  values (auth.uid(), lower(tg_op), tg_table_name,
+          coalesce((to_jsonb(new)->>'id'), (to_jsonb(old)->>'id')),
+          case when tg_op = 'update' then to_jsonb(old) else null end, to_jsonb(new));
+  return new;
+end;
+$f$;
+revoke execute on function public.log_audit_change() from public;
+drop policy if exists "admin_select_patient_documents_storage" on storage.objects;
+drop policy if exists "admin_insert_patient_documents_storage" on storage.objects;
+create policy "admin_full_access_patient_documents_storage" on storage.objects
+  for all to authenticated
+  using (bucket_id = 'patient-documents' and coalesce(((select auth.jwt()) -> 'app_metadata' ->> 'is_admin')::boolean, false))
+  with check (bucket_id = 'patient-documents' and coalesce(((select auth.jwt()) -> 'app_metadata' ->> 'is_admin')::boolean, false));
+```
+
+```sql
 -- ROLLBACK 013
 -- אזהרה: מוחק את יומן הגישה לתיקים (תיעוד משפטי) ואת סימוני הארכיון. לא הפיך בלי גיבוי.
 drop function if exists public.export_patient_record(uuid, text, text, text);
