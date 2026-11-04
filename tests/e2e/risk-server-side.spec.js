@@ -153,7 +153,8 @@ test("מנהל: אבחון מקיף יוצר התראה דרך השרת (auto-al
   }));
   await expect(page.locator("#work-queue")).toContainText("דנה כהן");
   await page.evaluate(() => { window.PREDICTIVE_SERVICE_URL = "http://predictive.test"; });
-  await page.evaluate(() => { visitReportModal.dataset.patientId = "p-1"; });
+  // הבדיקה עוקפת את openVisitReportModal, ולכן מתחילה ידנית את היקף המטופל (ה-guard מבטל פעולות בלי scope פעיל).
+  await page.evaluate(() => { visitReportModal.dataset.patientId = "p-1"; visitReportScope.start("p-1"); });
   await page.evaluate(() => document.getElementById("vr-comprehensive-btn").click());
   await expect.poll(() => ctl.autoAlerts).toEqual(["p-1"]);
   const db = await dbOf(page);
