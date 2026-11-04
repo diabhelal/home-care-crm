@@ -1027,11 +1027,25 @@ function setupAllModalsAccessibility() {
   document.querySelectorAll('.modal-overlay[role="dialog"]').forEach(setupModalAccessibility);
 }
 
+// נזרקת כשהמשתמש עבר למטופל אחר בזמן ששליפה הייתה בדרך: התוצאה שייכת למטופל הקודם
+// ואסור שתגיע ל-DOM. קוראים צריכים לבלוע אותה בשקט (ר' prIsStale).
+class StaleRecordError extends Error {
+  constructor() { super("stale patient record"); this.name = "StaleRecordError"; }
+}
+function prIsStale(err) { return err instanceof StaleRecordError; }
+function prAssertCurrent(state) {
+  if (window.currentPatientState !== state) throw new StaleRecordError();
+}
+
 async function prCached(key, fetchFn) {
   const state = window.currentPatientState;
   if (state[key] !== null) return state[key];
-  state[key] = await fetchFn();
-  return state[key];
+  const value = await fetchFn();
+  // fetchFn קורא את patientId מ-window.currentPatientState, ולכן ייתכן שכבר שייך למטופל החדש -
+  // לא שומרים במטמון ולא מחזירים; רק אם המצב עדיין אותו מצב.
+  prAssertCurrent(state);
+  state[key] = value;
+  return value;
 }
 
 // הופך שגיאות רשת (למשל אין חיבור לאינטרנט) להודעה ברורה בעברית.

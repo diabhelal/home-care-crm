@@ -660,12 +660,15 @@
     document.getElementById("pr-record").style.display = "block";
     document.getElementById("pr-header").innerHTML = `<p style="color:var(--text-muted);">טוען תיק...</p>`;
     document.getElementById("pr-allergy-banner").style.display = "none";
+    const recordState = window.currentPatientState;
     try {
       await prRenderHeader();
     } catch (err) {
+      if (prIsStale(err)) return;
       document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
       return;
     }
+    if (window.currentPatientState !== recordState) return;
     prRenderTabsNav();
     prSwitchTab("overview");
     document.getElementById("pr-record").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -675,8 +678,10 @@
   // clinicalNotes/alerts/tasks) עברו ל-app.js — משותפים עם admin.html, לא מוכפלים יותר.
 
   async function prRenderHeader() {
+    const state = window.currentPatientState;
     const patient = await prCached("patient", prFetchPatient);
     const allergies = await prCached("allergies", prFetchAllergies);
+    prAssertCurrent(state);
     const banner = document.getElementById("pr-allergy-banner");
     if (allergies.length) {
       banner.style.display = "block";
@@ -730,9 +735,12 @@
     const content = document.getElementById("pr-tab-content");
     content.innerHTML = `<p style="color:var(--text-muted);">טוען...</p>`;
     const tab = PR_TABS.find((t) => t.key === key);
+    const state = window.currentPatientState;
+    const token = (content._prRenderToken = (content._prRenderToken || 0) + 1);
     try {
       await tab.render(content);
     } catch (err) {
+      if (prIsStale(err) || window.currentPatientState !== state || content._prRenderToken !== token) return;
       content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
     }
   }
