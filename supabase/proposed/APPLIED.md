@@ -21,6 +21,8 @@
 | 011_risk_status_always_visible | **לא הוחלה** (view בלבד; נבדקה על Postgres מבודד) |
 | 010_booking_update_conflict_guard | **לא הוחל** (נבדק על Postgres מבודד, כולל בדיקות מקביליות) |
 | 009_staff_deactivate_not_delete | **לא הוחל** (כנ"ל; כולל מדיניות SELECT אחת צרה, ראו כותרת הקובץ) |
+| 018_record_archive_and_void | **לא הוחלה** (ארכיון/ביטול במקום מחיקה; נבדקה על Postgres מבודד 18.4 ו-16.14; תלויה ב-013, 015, 016) |
+| 019_staff_access_active_relationship | **לא הוחלה** (`is_my_patient` לפי קשר טיפולי פעיל; נבדקה על Postgres מבודד; החלטות פתוחות בכותרת הקובץ) |
 
 הקבצים 001–007 הועתקו ל-`supabase/migrations/` עם הגרסה הרשומה. התיקייה הזאת נשארת כמקור וכקלט לבדיקות
 (`backend/scripts/verify_proposed_sql.py`). **לפני שימוש אמיתי יש להחליף את סוד האטסטציה לערך חדש** (הערך הנוכחי הופיע בשיחת העבודה).

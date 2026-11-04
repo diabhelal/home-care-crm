@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017"]   # 014 is reserved by another open PR
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017", "018", "019"]   # 014 is reserved by another open PR
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -119,6 +119,14 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "019": [("019 is_my_patient back to 'any booking'",
+             "select pg_get_functiondef('public.is_my_patient(uuid)'::regprocedure) not like '%cancelled%'")],
+    "018": [("018 columns, triggers and helpers gone",
+             "select (select count(*) from information_schema.columns where table_schema='public' "
+             "and column_name in ('archived_at','voided_at','supersedes_id') and table_name <> 'patients') = 0 "
+             "and not exists (select 1 from pg_trigger where tgname in ('record_lifecycle_guard','bookings_block_archived_patient_insert')) "
+             "and to_regprocedure('public.record_lifecycle_guard()') is null "
+             "and pg_get_functiondef('public.clinical_notes_authorship()'::regprocedure) like '%append-only%'")],
     "017": [("017 column gone, 012 insert policies back",
              "select not exists (select 1 from information_schema.columns where table_schema='public' and table_name='visit_report_amendments' and column_name='previous_values') "
              "and not exists (select 1 from pg_policies where policyname='author_insert_visit_report_amendments') "

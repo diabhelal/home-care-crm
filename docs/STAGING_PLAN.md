@@ -58,6 +58,84 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 019
+-- מחזיר את ההגדרה המקורית (20260913230732): כל הזמנה, גם מבוטלת או נדחית, נותנת לצוות גישה לתיק.
+create or replace function public.is_my_patient(p_patient_id uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.bookings
+    where bookings.patient_id = p_patient_id and bookings.staff_id = public.current_staff_id()
+  );
+$$;
+```
+
+```sql
+-- ROLLBACK 018
+-- אזהרה: מוחק את עמודות הארכיון/הביטול ו-supersedes_id. אחרי המחיקה, מי ארכב/ביטל ומתי נשמר רק ב-audit_log. לייצא קודם.
+drop trigger if exists bookings_block_archived_patient_insert on public.bookings;
+drop trigger if exists bookings_block_archived_patient_update on public.bookings;
+drop function if exists public.bookings_block_archived_patient();
+drop trigger if exists audit_clinical_notes on public.clinical_notes;
+drop trigger if exists audit_medication_events on public.medication_events;
+drop trigger if exists audit_patient_documents on public.patient_documents;
+drop trigger if exists audit_tasks on public.tasks;
+drop trigger if exists audit_patient_contacts on public.patient_contacts;
+drop trigger if exists audit_alerts on public.alerts;
+drop trigger if exists audit_service_plan_visits on public.service_plan_visits;
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['patient_allergies','medication_events','patient_documents','clinical_notes'] loop
+    execute format('drop policy if exists %I on public.%I', 'author_lifecycle_update_' || t, t);
+    execute format('revoke update (archived_at, archived_by, archive_reason, voided_at, voided_by, void_reason) on public.%I from authenticated', t);
+    execute format('alter table public.%I drop column if exists supersedes_id', t);
+  end loop;
+  foreach t in array array['visit_reports','patient_allergies','medication_events','patient_documents',
+                           'clinical_notes','service_plans','tasks','patient_contacts'] loop
+    execute format('drop trigger if exists record_lifecycle_guard on public.%I', t);
+    execute format('alter table public.%I drop constraint if exists %I', t, t || '_lifecycle_check');
+    execute format('alter table public.%I drop column if exists archived_at, drop column if exists archived_by, drop column if exists archive_reason, '
+                   'drop column if exists voided_at, drop column if exists voided_by, drop column if exists void_reason', t);
+  end loop;
+end $$;
+drop function if exists public.record_lifecycle_guard();
+drop function if exists public._is_active_account(uuid);
+-- clinical_notes_authorship חוזרת לגרסת 007 (כל UPDATE נדחה)
+create or replace function public.clinical_notes_authorship()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role text;
+begin
+  if tg_op = 'DELETE' then
+    return old;
+  end if;
+  if auth.uid() is null then
+    return new;
+  end if;
+  if tg_op <> 'INSERT' then
+    raise exception 'clinical notes are append-only' using errcode = '42501';
+  end if;
+  new.author_id := auth.uid();
+  new.created_at := now();
+  if public._is_jwt_admin() then
+    new.author_role := 'admin';
+  else
+    select role into v_role from public.medical_staff where auth_user_id = auth.uid() limit 1;
+    if v_role is not null then
+      new.author_role := v_role;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+```
+
+```sql
 -- ROLLBACK 017
 -- אזהרה: מוחק את העמודה previous_values (הערכים הקודמים שנלכדו) ומחזיר את כלל 012 (מנהל או הצוות המשויך רשאים לתקן).
 drop policy if exists author_insert_visit_report_amendments on public.visit_report_amendments;

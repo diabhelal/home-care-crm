@@ -22,7 +22,8 @@ def test_medication_event_created_by_overridden(db):
     assert str(row[1]) == d["staff_user"]
     assert row[2].year >= 2026
     # update cannot re-attribute or re-point
-    db.execute("update medication_events set created_by=%s, notes='n' where id=%s", (forged, row[0]))
+    # (018: the content of a medication event is frozen; only re-attribution is attempted here)
+    db.execute("update medication_events set created_by=%s where id=%s", (forged, row[0]))
     assert str(db.execute("select created_by from medication_events where id=%s", (row[0],)).fetchone()[0]) == d["staff_user"]
     as_user(db, d["admin"], admin=True)
     db.execute("savepoint sp")
