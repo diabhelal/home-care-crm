@@ -7,7 +7,7 @@
 |---|---|---|
 | 0 | בעלים (סמכות סופית: דרישות, מיזוג, DB, פריסה) | אתה |
 | 1 | מתזמר: מסווג סיכון, בוחר מינימום מומחים, אוסף דוחות | סשן Claude Code הראשי (אין קובץ סוכן) |
-| 2A | צוות מומחים | `security-privacy` (קריאה בלבד), `backend-database`, `clinical-ai` (קריאה בלבד), Frontend/UX: `frontend-design-integrator` (מממש), `clinical-ux-accessibility-lead`, `interaction-controls-designer`, `medical-color-specialist`, `medical-brand-content-designer`, `medical-design-director` (רכז עיצוב, קריאה בלבד), QA/Sentinel: `qa-regression-debugger` |
+| 2A | צוות מומחים | `security-privacy` (קריאה בלבד), `backend-database`, `clinical-ai` (קריאה בלבד), Frontend/UX: `frontend-design-integrator` (מממש), `clinical-ux-accessibility-lead` (נגישות וזרימות), QA/Sentinel: `qa-regression-debugger` |
 | 2B | מועצת ביקורת עצמאית (קריאה בלבד) | `audit-security`, `audit-reliability`, `medical-records-reviewer` (בטיחות קלינית) |
 | 3 | ניהול סיכונים ולמידה | skill `lessons-learned` |
 | שער | אישור אנושי למימוש, מיזוג, שינוי DB ופריסה | אתה |
@@ -40,3 +40,6 @@ PASS · PASS WITH CONDITIONS · CHANGES REQUIRED · BLOCK. ל-BLOCK נדרש ת�
 
 ## שיעורים נלמדים
 לכשל משמעותי ומוכח: skill `lessons-learned`. כללים חדשים לצמיתות מוצעים לך בלבד; אין עדכון אוטומטי של `CLAUDE.md`.
+
+## סוכנים שהוסרו
+ארבעה סוכני עיצוב ישנים (`medical-design-director`, `medical-color-specialist`, `medical-brand-content-designer`, `interaction-controls-designer`) הוסרו מהפרויקט כי העבודה הנוכחית היא יציבות ואבטחה ולא עיצוב מחדש (נשאר `clinical-ux-accessibility-lead` לנגישות). הם נשארו בהיסטוריית Git ואפשר להחזיר כל אחד: `git checkout <commit-לפני-ההסרה> -- .claude/agents/<שם>.md`. עותקי Codex שלהם ב-`.codex/agents/` נשארו ללא שינוי.
