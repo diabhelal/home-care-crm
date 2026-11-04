@@ -5,7 +5,7 @@
 // API תמיד הולכות ישירות לרשת. שמירת טיוטות אופליין (visit_reports) מטופלת בנפרד
 // ב-app.js (תור-סנכרון מפורש ב-localStorage), לא כאן.
 
-const CACHE_VERSION = "home-care-crm-shell-v48";
+const CACHE_VERSION = "home-care-crm-shell-v49";
 
 const APP_SHELL = [
   "index.html",
@@ -18,6 +18,12 @@ const APP_SHELL = [
   "styles.css",
   "app.js",
   "js/shared/visit-report-shared.js",
+  "js/admin/staff.js",
+  "js/admin/patients.js",
+  "js/admin/capacity.js",
+  "js/admin/patient-record.js",
+  "js/admin/work-queue.js",
+  "js/admin/contacts.js",
   "i18n.js",
   "config.js",
   "slot-calculation.js",
@@ -49,8 +55,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// מקור (origin) ולא רק hostname: ה-backend המקומי (localhost:8001) ושירות החיזוי (localhost:8000) חולקים hostname עם האתר
+// (localhost:8080), ובהשוואת hostname בלבד נשמרו במטמון (למשל GET /availability) והוגשו מיושנים אופליין.
 function isApiOrThirdParty(url) {
-  return url.hostname.endsWith("supabase.co") || url.hostname !== self.location.hostname;
+  return url.hostname.endsWith("supabase.co") || url.origin !== self.location.origin;
 }
 
 // רשת תחילה: קבצי האתר תמיד נלקחים מהשרת כשיש חיבור, כך שלעולם לא מוגשת גרסה מיושנת או
