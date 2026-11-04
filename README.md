@@ -1,5 +1,7 @@
 # Home Care CRM
 
+> עדכון ענף 2026-11-04: נוסף אימות חוזה לתגובת הערכת הסיכון לפני חתימה ושמירה. תגובה חסרה או פגומה נדחית עם `503 predictive_unavailable`; הדוח המקורי נשמר. בדיקות backend מקומיות מבודדות: **158/158**, כולל **19** מקרי בדיקה חדשים. ללא שינוי נוסחאות, מיגרציות או DB חי; בדיקות DB/דפדפן לא הורצו במשימה זו.
+
 A booking and visit-management platform for a home healthcare service. Patients book home visits with nurses, doctors, physiotherapists, or caregivers with no registration step (a guest-checkout flow, similar to booking a flight); staff document each visit's vitals and procedures; an admin panel manages staff, bookings, and a rule-based clinical decision-support layer for vitals trends and capacity planning.
 
 > **Status:** working prototype / portfolio project with **synthetic data only**, not a certified medical device or a production healthcare deployment. Staff are nurses only (configurable in `public/config.js`). For a reviewer: start with [`docs/DEMO.md`](docs/DEMO.md) (walkthrough) and [`docs/REVIEW.md`](docs/REVIEW.md) (what is tested, what is rule-based vs. ML, security). See [Disclaimer](#disclaimer--medical-risk-functionality) and [Known Limitations](#known-limitations).
