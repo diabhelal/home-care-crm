@@ -1,7 +1,7 @@
 # Home Care CRM
 
 **מערכת תיאום ותיעוד ביקורי בית רפואיים (אב-טיפוס עם נתונים סינתטיים בלבד).** מטופל מבקש ביקור בלי הרשמה, מנהל מאשר ומשבץ, אחות מגיעה, מתעדת מדדים וחתימה (גם בלי קליטה), והמערכת מציגה הערכת סיכון **מבוססת כללים** (תמיכה בהחלטה, לא אבחון ולא למידת מכונה). הממשק בעברית (RTL).
-תיעוד המשך העבודה והמצב המעודכן: [`HANDOFF.md`](HANDOFF.md). הדגמה למרצה: [`docs/DEMO.md`](docs/DEMO.md).
+תיעוד המשך העבודה והמצב המעודכן: [`HANDOFF.md`](HANDOFF.md). **מפת ענפים ו-PR-ים, סטטוס בדיקות ומה עדיין פתוח: [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md)** · תוכנית הייצוב: [`docs/STABILIZATION_PLAN.md`](docs/STABILIZATION_PLAN.md). הדגמה למרצה: [`docs/DEMO.md`](docs/DEMO.md).
 
 > **Status:** working prototype / portfolio project, **synthetic data only**. It is not a certified medical device and not a production healthcare deployment. See [What works and what does not](#what-works-and-what-does-not-yet) before relying on anything below.
 
