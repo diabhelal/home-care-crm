@@ -58,4 +58,4 @@ CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות �
 - **Service Worker**: רשת-תחילה עם מטמון לאופליין; בכל שינוי בקבצי קליינט להעלות `CACHE_VERSION` ב-`public/service-worker.js` וגם `APP_BUILD` ב-`public/config.js` (מוצג בתחתית העמוד). אם דפדפן מגיש קבצים ישנים: `http://localhost:8080/reset.html`.
 - **צוות**: אחים/אחיות בלבד; `SERVICE_CONFIG` ב-`public/config.js` קובע תפקידים ושירותים שמוצגים.
 - **הערכת סיכון**: כללים קליניים + סטטיסטיקה קלאסית. **אין מודל ML מאומן.** מסומן "הדגמה" בממשק.
-- **מצב מעקב עבודה**: `HANDOFF.md` (מצב והמשך), `docs/WORKPLAN.md`, `docs/STAGING_PLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`.
+- **מצב מעקב עבודה**: `HANDOFF.md` (מצב והמשך), `docs/STAGING_PLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`.
