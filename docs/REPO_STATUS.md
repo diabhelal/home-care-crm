@@ -1,8 +1,8 @@
 # Repository status, branch and PR map
 
-> Snapshot taken **2026-11-04** from GitHub (`diabhelal/home-care-crm`). This file lives on the docs branch (PR #19) and describes the repository as a whole, so a reviewer can find every piece of work without guessing. Synthetic data only; nothing here has been deployed or applied to a live database.
+> Snapshot taken **2026-11-04** (updated after the merge of #20, #22 and #26) from GitHub (`diabhelal/home-care-crm`). This file lives on the docs branch (PR #19) and describes the repository as a whole, so a reviewer can find every piece of work without guessing. Synthetic data only; nothing here has been deployed or applied to a live database.
 
-**תקציר בעברית:** `main` כולל את הבסיס היציב + תיקון בדיקות ה-DB (#20, היחיד שמוזג בסבב הזה). כל שאר העבודה נמצאת ב-PR-ים פתוחים עם CI ירוק וממתינה לאישור מיזוג. הצעות ה-SQL (008–019) **כתובות ונבדקו על Postgres מבודד אך לא הוחלו** על שום מסד חי. שום דבר לא נפרס. אין סודות, קבצי `.env`, גיבויים או מידע רפואי במאגר.
+**תקציר בעברית:** `main` כולל את הבסיס היציב + שלושה PR-ים שמוזגו באישור הבעלים: #20 (תיקון בדיקות DB), #22 (כפתור התחזית) ו-#26 (בידוד בין מטופלים בתיק ובדוח). כל שאר העבודה נמצאת ב-PR-ים פתוחים עם CI ירוק וממתינה לאישור מיזוג. הצעות ה-SQL (008–019) **כתובות ונבדקו על Postgres מבודד אך לא הוחלו** על שום מסד חי. שום דבר לא נפרס. אין סודות, קבצי `.env`, גיבויים או מידע רפואי במאגר.
 
 ## 1. Where to start (reviewer path)
 | What | Where |
@@ -24,17 +24,21 @@ ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs n
 `booking.spec.js` / `visit-report.spec.js` talk to a real Supabase project and must **never** be run against the live project. Playwright runs serially on port 8080; since PR #29 it fails loudly if that port is already taken.
 
 ## 2. What is in `main`
-`main` = the working prototype (guest booking through the Python backend, approval lifecycle, availability with a travel buffer, staff field actions, offline visit-report drafts, rule-based risk assessment labelled "demo") **plus #20** (merged 2026-11-04, `a18af20`: test-only change so the isolated-Postgres tests accept `ForeignKeyViolation` as well as `RestrictViolation`; no application code, no migrations). CI on `main` is green.
+`main` @ `131dd85` = the working prototype (guest booking through the Python backend, approval lifecycle, availability with a travel buffer, staff field actions, offline visit-report drafts, rule-based risk assessment labelled "demo") plus three PRs merged with explicit owner approval on 2026-11-04:
 
-Database state: migrations `001`–`007` are applied to the live project; **`008`–`019` are not applied** (see section 5).
+| PR | Merge commit | What it brought |
+|---|---|---|
+| #20 | `a18af20` | Test-only: isolated-Postgres tests accept `ForeignKeyViolation` as well as `RestrictViolation` (no application code, no migrations) |
+
+CI on `main` is green for each of these merges. Branches of merged PRs were kept (not deleted). `CACHE_VERSION` on `main` is **v52** and `APP_BUILD` **2026-11-03.52**.
+
+Database state: migrations `001`–`007` are applied to the live project; **`008`–`019` are not applied** (see section 5). Nothing in these merges touches SQL or the live database.
 
 ## 3. Open pull requests
 All PRs target `main` unless noted. CI = the repository workflow (secret scan, JS unit, Python unit, backend + isolated-database tests, mocked Playwright); the two booking/visit-report specs are manual-only and skipped.
 
 | PR | Branch | Content | Files | CI | Depends on / conflicts |
 |---|---|---|---|---|---|
-| #22 | `feature/trend-forecast-button-fix` | Trend-forecast button: no cross-patient results, failures no longer swallowed, "demo" label | 9 | green | base of #26. `CACHE_VERSION` v49 |
-| #26 | `feature/cross-patient-isolation` | Patient-record isolation guard (`StaleRecordError`, header/tabs/vitals), visit-report modal scope, 14 isolation tests | 11 | green | **base is #22** (stacked). `CACHE_VERSION` v52 |
 | #23 | `feature/agents-framework` | 9 project agents, 4 skills, `.claude/settings.json` (DB-write rules), `docs/AGENT_TEAM.md` | 21 | green | none; `docs/session-handoff` carries identical copies |
 | #24 | `feature/predictive-input-and-wording` | Predictive service rejects NaN/Infinity; neutral wording; "no data" is not "normal" | 10 | green | `CACHE_VERSION` v50 |
 | #25 | `feature/backend-booking-reliability` | Precise 23505 mapping, 409/502 handlers, newest-first history reads | 10 | green | none |
@@ -51,19 +55,20 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 | #34 | `docs/session-handoff` | Corrected `CLAUDE.md`/`HANDOFF.md` (branch + PR policy), `docs/SESSION_HANDOFF.md`, 9 agents / 4 skills / settings / Codex configs (byte-identical to #23), verification scripts | 33 | green | `CLAUDE.md`/`HANDOFF.md` overlap with #19 — small conflict expected |
 | 15× | `dependabot/...` | Dependency bumps (not triaged; one GitHub "critical" advisory not yet reviewed) | — | — | — |
 
-### Suggested merge order (each merge needs explicit owner approval)
-`#22 → #26 → #23 → #24 → #25 → #27 → #28 → #29 → #31 → #32 → #33`, then `#19 → #21 → #34`, then `#30` last, and only then a controlled, backed-up application of migrations.
+### Suggested merge order for what is still open (each merge needs explicit owner approval)
+`#23 → #24 → #25 → #27 → #28 → #29 → #31 → #32 → #33`, then `#19 → #21 → #34`, then `#30` last, and only then a controlled, backed-up application of migrations. Before each merge: update the branch with `main`, renumber the cache version (below) and re-run the tests.
 
-### Version-cache coordination (must be done before combining)
-`public/service-worker.js` `CACHE_VERSION` and `public/config.js` `APP_BUILD` were bumped independently on several branches and **will collide**; renumber them in merge order (one increment per merged PR).
+### Version-cache coordination (must be done before merging the rest)
+`main` is now at `CACHE_VERSION` **v52** / `APP_BUILD` **.52** (from #26). The remaining PRs still carry older numbers, so merging them as they are would **lower** the version and reintroduce stale-cache risk. Renumber each one above 52, in merge order (one increment per merged PR).
 
-| Branch / PR | Value |
-|---|---|
-| `main` | v48 / .48 |
-| #22, #27, #31, #32, #33 | all v49 / .49 |
-| #24 | v50 |
-| `feature/offline-draft-safety` (no PR) | v51 (planned) |
-| #26 | v52 |
+| PR | Value on the branch | Conflict with current `main` (computed with `git merge-tree`) |
+|---|---|---|
+| #24 | v50 | conflict in `public/config.js`, `public/service-worker.js` (version lines only) |
+| #27, #31, #33 | v49 | same two version lines only |
+| #32 | v49 | same two version lines; also its `APP_SHELL` edit sits next to the line #26 already added (`js/shared/patient-scope.js`), so the shell test passes once the branch is updated from `main` |
+| `feature/offline-draft-safety` (no PR) | v51 (planned) | clean today; renumber when it gets a PR |
+| #18 | — | conflict in the four `backend/tests_db/*` files that #20 changed (update the branch from `main`) |
+| #19, #23, #25, #28, #29, #30, #34 | — | clean |
 
 ## 4. Branches without a pull request
 | Branch | Content | Status |
@@ -84,8 +89,7 @@ Applying any of them requires a separate owner approval, a verified backup and `
 ## 6. Test evidence (this session, 2026-11-04)
 | Checkout | Unit | Backend `pytest` | `tests_db` PG 18 / PG 16 | Mocked Playwright (serial) |
 |---|---|---|---|---|
-| `main` @ `a18af20` | — | — | CI green | CI green |
-| #26 (head `d53ca83`) | 57 | — | CI green | 14/14 isolation + suite green in CI |
+| `main` @ `131dd85` (clean checkout) | 57 | 139 | 95 / 95 | 81 passed (serial; 1 intermittent failure in 1 of 3 full runs, 0 in 95 repeated runs of that file) + `sw-update` + 14/14 isolation + 13/13 trend-forecast |
 | #28 | 57 | 158 | 95 / 95 | CI green |
 | #27 | 60 | 139 | 95 / 95 | CI green |
 | #29 | 57 | 139 | 95 / 95 | CI green |
@@ -101,6 +105,9 @@ Known harness notes: Playwright uses a fixed port 8080 (11 specs hard-code it); 
 - **Clinical wording (needs a clinician):** the UI says "מצב תקין" for green (verified in `public/app.js`), and an audit reported that one predictive endpoint maps "no data" to a low-concern message (reported by the audit, not independently re-verified); no thresholds or formulas are changed by any PR.
 - **Not started / not verified:** real-browser and accessibility pass; booking → approval → visit → documentation → completion walk-through on an isolated environment including offline and cancellations; "visit completed without a report" path (the DB function creates the report atomically — no other path was checked); legal documents (privacy, consent, retention).
 - **Models:** no trained ML model exists. `ml_targets.py`, `statsmodels`, `scikit-learn` are in active use by endpoints and are **not** to be removed; `lstm_interface.py` is a placeholder kept by an earlier owner decision; SMS login is dormant and kept.
+- **CI coverage gap:** the repository CI runs 16 mocked Playwright files and does **not** include `cross-patient-isolation.spec.js` or `trend-forecast.spec.js`; they were run locally and pass. Adding them to `ci.yml` is a small follow-up.
+- **Intermittent test:** `trend-forecast.spec.js` "איסוף נתונים" (a gate/race scenario) failed once in a full serial run on `main` and passed in 30 + 65 repeated runs; it should be hardened, it is not a product defect found.
+- **Visit-report result visibility (open finding):** after saving a visit report the risk result is written to a modal that is already closed; the nurse sees only the list refresh. A branch `fix/ui-clinical-safety-visibility` holds unfinished work for this (WIP, no PR yet).
 - **Process:** 15 Dependabot PRs are untriaged; merging the PRs above still needs the version-cache renumbering described in section 3.
 
 ## 8. What is deliberately not on GitHub
