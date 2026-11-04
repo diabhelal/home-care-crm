@@ -387,7 +387,7 @@ async function prRenderVisitsTab(content) {
         ${v.treatment_summary ? `<div style="font-size:13px; margin-top:4px;">${escapeHtml(v.treatment_summary)}</div>` : ""}
         <button class="btn btn-secondary btn-sm pr-visit-open" data-visit-id="${v.id}" style="margin-top:8px;">פתיחת הדוח המלא</button>
         ${clinicalOutcomeSelectHtml(v)}
-        ${amendmentBlockHtml(v, amendments)}
+        ${amendmentBlockHtml(v, amendments, canAmendVisit(v))}
       </div>
     `;
   }).join("");
