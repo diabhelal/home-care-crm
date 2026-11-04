@@ -1,13 +1,19 @@
 # HANDOFF — מצב הפרויקט ומה הלאה
 
 > לשיחה חדשה: `git clone https://github.com/diabhelal/home-care-crm.git` (הריפו **ציבורי** מ-2026-10-17, לבקשת הבעלים כדי שמרצה יוכל לצפות; היה פרטי ב-15–17.10) ← קרא `CLAUDE.md` (סעיף "מצב נוכחי") ואת הקובץ הזה.
-> עודכן: 2026-10-17. מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
+> עודכן: 2026-11-04. **המצב העדכני, ה-PR-ים הפתוחים, הסיכונים והצעדים הבאים נמצאים ב-[`docs/SESSION_HANDOFF.md`](./docs/SESSION_HANDOFF.md) — קרא אותו קודם; מה שנשאר בקובץ הזה מ-2026-10-17 הוא רקע.** מקור האמת לקוד: git. פירוט: `docs/WORKPLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`, `docs/STAGING_PLAN.md`.
 
 ## איפה אנחנו
 - **מוצר:** אב-טיפוס יציב עם נתונים סינתטיים; **לא מוכן למטופלים אמיתיים** (חסרים: מסמכים משפטיים, אירוח backend עם HTTPS, MFA, בדיקת חדירה).
 - **DB חי (Supabase `qqeupktyadjxqoxkstnl`):** 23 מיגרציות רשומות (16 מקוריות + 001–007 שהוחלו ב-2026-10-15). שלושה ממצאים תוקנו לפני ההחלה: דליפת כתובות ב-`staff_busy_blocks`, `base_lat/lng` פרטי, ובלעת cascade ב-`clinical_notes`.
 - **הזמנה (אומת מקצה לקצה מול החי):** בחירת שירות (ברירת מחדל: בדיקה כללית) ← תאריך (ימים בלי שעות מעומעמים) ← שעה ← שם/ת"ז/טלפון/כתובת ← "התבקש וממתין לאישור" + מספר הזמנה. מנהל מאשר/דוחה/משבץ; אחות מתחילה ביקור (זמן שרת) ומשלימה (אטומי, גם אופליין).
 - **עיצוב:** Heebo, נייבי + מנטה (`--primary #1E3A8A`, CTA `#047857`), רקע `#F8FAFC`, משפט הפתיחה במרקר מלא. **לא לשנות עיצוב בלי תצוגה מקדימה ואישור של הבעלים** (היו כמה סבבים של דחייה).
+
+## עדכון 2026-11-04 (תקציר; הפירוט ב-`docs/SESSION_HANDOFF.md`)
+- **תהליך עבודה:** ענף + PR לכל שינוי; מיזוג ל-`main` רק באישור מפורש. PR-ים פתוחים: #20, #22, #23, #24, #25 (ירוקים) ו-#18/#19/#21 (ישנים). סדר מיזוג מומלץ: #20 ← #22 ← #23 ← #24 ← #25.
+- **עבודה שמורה בענפים בלי PR:** `feature/offline-draft-safety` (מוכן), `feature/record-integrity-sql` (הצעת SQL 015–017, לא הוחלה), `feature/cross-patient-isolation` (WIP, 12/14 בדיקות).
+- **DB חי:** מיגרציות 008–013 ו-015–017 לא הוחלו; ל-`authenticated` יש עדיין DELETE על `visit_reports`. אין להחיל בלי אישור.
+- **סוכנים ו-skills:** 13 סוכנים ב-`.claude/agents`, 4 skills ב-`.claude/skills`, `.claude/settings.json` ו-`docs/AGENT_TEAM.md` (מ-PR #23); עותקי Codex ב-`.codex/` וב-`.agents/`. הסעיף "נותר" מטה הוא מ-17.10 וחלקו מיושן.
 
 ## הרצה מקומית (3 תהליכים)
 ```
@@ -23,7 +29,7 @@ cd predictive-service && uvicorn main:app --port 8000   # אופציונלי (ח
 `.claude/settings.local.json` (הרשאות Claude Code, כולל הפעלת Supabase MCP) ו-`backend/.env` הם per-machine ולא נשמרים ב-git. בשיחה חדשה: לאשר/להפעיל את שרת ה-MCP של Supabase ולהוסיף הרשאה לכלי `apply_migration`/`execute_sql` רק אם צריך לשנות DB.
 
 ## הגדרות GitHub (ריפו ציבורי)
-מופעל (אומת ב-API ב-2026-10-17): Dependabot security updates, **Secret scanning + Push protection**, סריקת סודות בכל ה-history ב-CI (`secret-scan`), `permissions: contents: read`. **Branch protection על `main` לא הופעל** (החלטת בעלים: כרגע עובדים ישירות על `main`; ר' הוראת ה-push האוטומטי ב-`CLAUDE.md`). ההגנה על סודות נשענת גם על ה-hook המקומי (`git config core.hooksPath .githooks`). אם הריפו יוחזר ל-private בתוכנית החינמית, Secret scanning/Push protection/Branch protection יפסיקו להיות זמינים.
+מופעל (אומת ב-API ב-2026-10-17): Dependabot security updates, **Secret scanning + Push protection**, סריקת סודות בכל ה-history ב-CI (`secret-scan`), `permissions: contents: read`. **Branch protection על `main` לא הופעל** (עובדים בענף + PR לכל שינוי, בלי מיזוג בלי אישור הבעלים; ר' `CLAUDE.md`. הוראת ה-push הישיר ל-`main` מ-17.10 בוטלה ב-4.11). ההגנה על סודות נשענת גם על ה-hook המקומי (`git config core.hooksPath .githooks`). אם הריפו יוחזר ל-private בתוכנית החינמית, Secret scanning/Push protection/Branch protection יפסיקו להיות זמינים.
 
 ## חוקים קבועים
 1. אין push/פריסה/שינוי DB בלי אישור מפורש (SQL: מציגים, בודקים על Postgres מבודד, ורק אז מבקשים). `supabase config push` דורס את כל `[auth]`.

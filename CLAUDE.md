@@ -43,9 +43,10 @@ cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload 
 ## טסטים / CI
 CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות על כל ההיסטוריה, `node --test tests/unit/*.test.js`, `pytest` של `predictive-service/`, `pytest` של `backend/` (כולל `backend/tests_db` על Postgres חד-פעמי, ה-job `backend-tests`), ו-16 קבצי Playwright ממוקקים (בלי DB חי). `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא הורצו (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים) ואסור להריצם מול הפרויקט החי.
 
-## הוראה קבועה: שמירה ל-GitHub בסוף כל משימה (הוראת הבעלים, 2026-10-17)
-בסיום **כל** משימת פיתוח, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע), בצע **commit ו-push ל-`origin main` אוטומטית**, בלי לחכות לאישור נוסף, ואמת שההעלאה הצליחה: `git fetch && git status -sb` (בלי "ahead") ו-`gh api repos/diabhelal/home-care-crm/commits/main` תואם ל-`git rev-parse HEAD`. אם הבדיקות או ה-push נכשלים - דווח במפורש והמשימה **לא** הושלמה.
-- **לא נכלל באישור הקבוע:** force-push, שכתוב היסטוריה, שינוי נראות הריפו, שינויי DB/מיגרציות, פריסה, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
+## הוראה קבועה: ענף + PR לכל שינוי (הוראת הבעלים, עודכן 2026-11-04; מחליפה את הוראת ה-push ל-`main` מ-2026-10-17)
+כל שינוי נעשה בענף נפרד ונדחף ל-`origin/<ענף>`, ונפתח PR. **אסור push ישיר ל-`main`, ואסור למזג PR בלי אישור מפורש של הבעלים** (אישור נפרד לכל מיזוג). אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק ברצף, `pytest` לפי מה שנגע) מבצעים commit ו-push לענף ומאמתים: `git fetch && git status -sb` (בלי "ahead"). אם הבדיקות או ה-push נכשלים - מדווחים במפורש והמשימה **לא** הושלמה.
+- **ללא אישור מפורש אסור:** מיזוג ל-`main`, פריסה, כתיבה/מיגרציה ב-DB החי, מחיקת רשומות רפואיות או טיוטות, force-push, שכתוב היסטוריה, שינוי נראות הריפו, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
+- **נקודת התחלה לסשן חדש:** קרא `docs/SESSION_HANDOFF.md` (ענף `docs/session-handoff` עד שימוזג) לפני כל עבודה.
 - טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) נשארות מחוץ לריפו.
 
 ## מצב נוכחי (אוקטובר 2026) — קרא לפני עבודה
