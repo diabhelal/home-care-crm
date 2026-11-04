@@ -27,6 +27,23 @@ def attempt(db, sql, params, exc):
     db.execute("rollback to savepoint sp")
 
 
+# A refused delete under ON DELETE RESTRICT raises restrict_violation (23001) on Postgres 18 but
+# foreign_key_violation (23503) on Postgres <= 17 (the CI runner and the live project run <= 17).
+# The error code alone cannot tell RESTRICT from CASCADE/SET NULL being accepted, so every test that
+# accepts both codes must ALSO call assert_delete_restricts() to pin the rule itself in the catalog.
+RESTRICT_ERRORS = (psycopg.errors.RestrictViolation, psycopg.errors.ForeignKeyViolation)
+
+
+def assert_delete_restricts(db, table, column, referenced):
+    rows = db.execute(
+        "select c.confdeltype from pg_constraint c "
+        "join pg_attribute a on a.attrelid = c.conrelid and a.attnum = any(c.conkey) "
+        "where c.contype = 'f' and c.conrelid = %s::regclass and c.confrelid = %s::regclass and a.attname = %s",
+        (f"public.{table}", f"public.{referenced}", column)).fetchall()
+    assert rows and all(r[0] == "r" for r in rows), \
+        f"public.{table}.{column} -> {referenced} must be ON DELETE RESTRICT (confdeltype 'r'), found {rows}"
+
+
 def test_direct_insert_for_unapproved_booking_is_rejected(db):
     d = seed(db); bid = booking(db, d, confirmed=False)
     as_user(db, d["staff_user"])
