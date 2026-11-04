@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "ask": [
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__deploy_edge_function",
+      "mcp__supabase__create_edge_function_secret",
+      "mcp__supabase__merge_branch",
+      "mcp__supabase__reset_branch",
+      "mcp__supabase__delete_branch"
+    ],
+    "deny": [
+      "mcp__supabase__create_project",
+      "mcp__supabase__pause_project",
+      "mcp__supabase__restore_project"
+    ]
+  }
+}
