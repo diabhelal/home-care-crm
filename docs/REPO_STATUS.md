@@ -46,12 +46,13 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 | #32 | `fix/service-worker-shell-and-api-cache` | Admin scripts in the cached shell; other origins on the same hostname are never cached | 3 | green | **after #26 merges, add `js/shared/patient-scope.js` to `APP_SHELL`** (the new unit test will fail until then — intended). `CACHE_VERSION` v49 |
 | #33 | `fix/offline-drafts-5xx-visibility` | After 5xx/timeout the user sees "not confirmed by the server", content kept, safe "retry now" button | 4 | green | `CACHE_VERSION` v49 |
 | #18 | `feature/llm-clinical-summary` | Opt-in AI visit-summary draft (synthetic data only) + reproducible evaluation; migration `014` | 51 | green | reserves migration number 014 |
-| #19 | `docs/readme-overhaul` | Lecturer-facing README and per-topic docs (`DATABASE`, `RISK_ENGINE`, `SECURITY_ARCHITECTURE`, …) + this map | 16 | see GitHub | base of #21; `HANDOFF.md`/`CLAUDE.md` overlap with `docs/session-handoff` |
+| #19 | `docs/readme-overhaul` | Lecturer-facing README and per-topic docs (`DATABASE`, `RISK_ENGINE`, `SECURITY_ARCHITECTURE`, …) + this map and the stabilisation plan | 16 | green | base of #21; `HANDOFF.md`/`CLAUDE.md` overlap with `docs/session-handoff` |
 | #21 | `docs/archive-historical-plans` | Archives the two historical plans | 6 | green | **base is #19** (stacked) |
+| #34 | `docs/session-handoff` | Corrected `CLAUDE.md`/`HANDOFF.md` (branch + PR policy), `docs/SESSION_HANDOFF.md`, 9 agents / 4 skills / settings / Codex configs (byte-identical to #23), verification scripts | 33 | green | `CLAUDE.md`/`HANDOFF.md` overlap with #19 — small conflict expected |
 | 15× | `dependabot/...` | Dependency bumps (not triaged; one GitHub "critical" advisory not yet reviewed) | — | — | — |
 
 ### Suggested merge order (each merge needs explicit owner approval)
-`#22 → #26 → #23 → #24 → #25 → #27 → #28 → #29 → #31 → #32 → #33`, then `#19 → #21`, then `#30` last, and only then a controlled, backed-up application of migrations.
+`#22 → #26 → #23 → #24 → #25 → #27 → #28 → #29 → #31 → #32 → #33`, then `#19 → #21 → #34`, then `#30` last, and only then a controlled, backed-up application of migrations.
 
 ### Version-cache coordination (must be done before combining)
 `public/service-worker.js` `CACHE_VERSION` and `public/config.js` `APP_BUILD` were bumped independently on several branches and **will collide**; renumber them in merge order (one increment per merged PR).
@@ -68,7 +69,6 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 | Branch | Content | Status |
 |---|---|---|
 | `feature/offline-draft-safety` | Offline-draft safety (owner captured before lock, export controls, tests; independent verification scripts) | Ready, needs `CACHE_VERSION` coordination, full serial Playwright and a PR |
-| `docs/session-handoff` | Corrected `CLAUDE.md` / `HANDOFF.md` (branch + PR policy), `docs/SESSION_HANDOFF.md`, agent definitions, `.codex/` and `.agents/` configs | Docs only; overlaps with #19 and #23 — open as a PR when ready |
 | `codex/predictive-response-contract` | Original of #28, stacked on #22/#26 | Kept for history; superseded by #28 |
 | `fix/ci-postgres-restrict-violation` | Merged as #20 | Kept (not deleted) |
 
