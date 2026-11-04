@@ -550,6 +550,7 @@
     document.getElementById("visit-report-modal-save").disabled = booking.status === "completed";
     if (booking.status === "completed") showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
     hideError(document.getElementById("visit-report-modal-error"));
+    cancelTrendRun(); // תחזית שרצה למטופל הקודם לא תוצג כאן
     document.getElementById("vr-trend-result").innerHTML = "";
     document.getElementById("vr-comprehensive-result").innerHTML = "";
     document.getElementById("vr-allergy-banner").style.display = "none";
@@ -803,12 +804,30 @@
     }
   });
 
+  // ריצת חישוב אחת בכל רגע. ריצה "מיושנת" — המודאל הוחלף למטופל אחר או נסגר, או שהתחילה ריצה חדשה —
+  // לא כותבת ל-DOM ולא נוגעת בכפתור, כדי שתשובה מאחרת של מטופל א' לא תוצג בדוח של מטופל ב'.
+  let trendRunSeq = 0;
+  let trendRunController = null;
+  function cancelTrendRun() {
+    trendRunSeq++;
+    if (trendRunController) { trendRunController.abort(); trendRunController = null; }
+    setButtonLoading(document.getElementById("vr-check-trend-btn"), false);
+  }
+
   document.getElementById("vr-check-trend-btn").addEventListener("click", async () => {
     const resultEl = document.getElementById("vr-trend-result");
     const btn = document.getElementById("vr-check-trend-btn");
-    resultEl.innerHTML = "";
     const patientId = visitReportModal.dataset.patientId;
     if (!patientId) return;
+    cancelTrendRun();
+    resultEl.innerHTML = "";
+    const runId = trendRunSeq;
+    const controller = new AbortController();
+    trendRunController = controller;
+    let timedOut = false;
+    // תקרת זמן לכל הריצה (עד 6 קריאות סדרתיות); __TREND_TIMEOUT_MS קיים רק כדי שבדיקה תוכל לקצר אותה
+    const timer = setTimeout(() => { timedOut = true; controller.abort(); }, window.__TREND_TIMEOUT_MS || 20000);
+    const isCurrent = () => runId === trendRunSeq && visitReportModal.dataset.patientId === patientId && visitReportModal.style.display !== "none";
     setButtonLoading(btn, true, "מחשב...");
     try {
       const { data: history, error } = await supabaseClient
@@ -817,6 +836,7 @@
         .eq("patient_id", patientId)
         .order("visit_date", { ascending: true });
       if (error) throw error;
+      if (!isCurrent()) return;
 
       // מנוע תחזית אדפטיבי (מאוחד #4/#5): שעות אמיתיות בין ביקורים, לא מספר סידורי —
       // ARIMA נבחר אוטומטית ע"י השרת כשיש 8+ מדידות, אחרת רגרסיה ליניארית.
@@ -824,45 +844,76 @@
       // הספציפי, שיכול להיות חודשים — ואז התחזית "נמתחת" חודשיים קדימה בהנחת קצב קבוע,
       // דבר לא הגיוני קלינית. אופק קבוע וקרוב שואל תמיד את אותה שאלה סבירה.
       const rows = [];
+      const failed = []; // מדד שהיה לו מספיק מידע, אבל השירות או המודל לא החזירו תחזית — מוצג, לא נבלע
+      const tooFew = []; // מדד שנמדד פעם אחת בלבד: לא נשלח לשירות, אבל לא נעלם בשקט מהתוצאה
       for (const v of VITALS_META) {
         const points = (history || [])
           .filter((h) => h[v.key] !== null && h[v.key] !== undefined)
           .map((h) => ({ measured_at: h.visit_date, value: h[v.key] }));
+        if (points.length === 1) tooFew.push(v.label);
         if (points.length < 2) continue;
         const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/vitals-forecast`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ points, horizon: "8h", vital: v.key }),
+          signal: controller.signal,
         });
-        if (!res.ok) continue;
-        const f = await res.json();
-        if (!f.model_available) continue;
+        if (!isCurrent()) return;
+        if (!res.ok) { failed.push({ label: v.label, reason: `שירות התחזית החזיר שגיאה (${res.status})` }); continue; }
+        let f;
+        try { f = await res.json(); } catch (parseErr) { failed.push({ label: v.label, reason: "תשובת השירות אינה תקינה" }); continue; }
+        if (!isCurrent()) return;
+        if (!f.model_available) { failed.push({ label: v.label, reason: f.reason || "המודל אינו זמין" }); continue; }
+        if (f.predicted_value === null || f.predicted_value === undefined) { failed.push({ label: v.label, reason: "השירות לא החזיר ערך" }); continue; }
         const methodLabel = f.method === "arima" ? "ARIMA" : f.method === "linear_fallback" ? "רגרסיה (ARIMA לא התכנס)" : "רגרסיה";
         const ci = f.confidence_interval ? ` (טווח: ${f.confidence_interval[0]}–${f.confidence_interval[1]})` : "";
-        rows.push(`<tr><td>${v.label}</td><td>${f.predicted_value}${v.unit ? " " + v.unit : ""}${ci}</td><td>${f.direction || "—"}</td><td>${methodLabel}</td></tr>`);
+        const lastAt = new Date(points[points.length - 1].measured_at);
+        // התאריך המלא (כולל שנה) והגיל בימים, כדי שמדידה אחרונה ישנה לא תיראה עדכנית; חישוב בלבד, ללא סף קליני
+        const ageDays = Math.floor((Date.now() - lastAt.getTime()) / 86400000);
+        const basis = `${points.length} מדידות, אחרונה: ${lastAt.toLocaleDateString("he-IL")} ${formatTimeHe(lastAt)}${ageDays >= 1 ? (ageDays === 1 ? " (לפני יום)" : ` (לפני ${ageDays} ימים)`) : ""}`;
+        rows.push(`<tr><td>${escapeHtml(v.label)}</td><td>${escapeHtml(String(f.predicted_value) + (v.unit ? " " + v.unit : "") + ci)}</td><td>${escapeHtml(f.direction || "—")}</td><td>${methodLabel}</td><td>${escapeHtml(basis)}</td></tr>`);
       }
+      if (!isCurrent()) return;
 
+      const failedList = failed.map((x) => `${escapeHtml(x.label)} (${escapeHtml(x.reason)})`);
+      if (!rows.length && !failed.length) {
+        // לא נשלח אף מדד לשירות: לאף מדד אין 2 מדידות לפחות (פחות מ-3 דוחות נעצר קודם, ב-app.js)
+        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין מספיק מדידות לחישוב מגמה: נדרשות לפחות 2 מדידות של אותו מדד.</p>`;
+        return;
+      }
       if (!rows.length) {
-        resultEl.innerHTML = `<p style="color:var(--text-muted);">אין מספיק היסטוריית ביקורים (נדרשים לפחות 2) לחישוב מגמה.</p>`;
+        // כשל שירות/מודל אינו "אין מגמה" — לא לתת לו להיראות כמו תוצאה תקינה
+        resultEl.innerHTML = `
+          <div role="alert" style="color:var(--danger);">
+            <p>לא ניתן היה לחשב מגמה: שירות התחזית נכשל או שהמודל אינו זמין. זו אינה אינדיקציה לכך שאין מגמה; יש לנסות שוב או לבדוק את המדדים ידנית.</p>
+            <ul>${failedList.map((x) => `<li>${x}</li>`).join("")}</ul>
+          </div>`;
         return;
       }
       resultEl.innerHTML = `
+        <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">הדגמה: כלי תומך החלטה מבוסס כללים וסטטיסטיקה. אינו אבחנה ואינו תחליף לשיקול דעת קליני.</p>
         <div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)">
           <table class="admin-table" style="min-width:0; margin-top:10px;">
-            <thead><tr><th>מדד</th><th>תחזית ל-8 שעות</th><th>מגמה</th><th>שיטה</th></tr></thead>
+            <thead><tr><th>מדד</th><th>תחזית ל-8 שעות</th><th>מגמה</th><th>שיטה</th><th>מבוסס על</th></tr></thead>
             <tbody>${rows.join("")}</tbody>
           </table>
         </div>
+        ${failed.length ? `<p role="status" style="color:var(--danger); margin-top:8px;">לא חושבו: ${failedList.join(", ")}</p>` : ""}
+        ${tooFew.length ? `<p style="color:var(--text-muted); font-size:13px; margin-top:8px;">לא חושב, מדידה אחת בלבד: ${tooFew.map(escapeHtml).join(", ")}</p>` : ""}
       `;
     } catch (err) {
-      resultEl.innerHTML = `<p style="color:var(--danger);">${predictiveServiceUnavailableMessage(err)}</p>`;
+      if (!isCurrent()) return; // ריצה מיושנת/מבוטלת — לא מציגים שגיאה
+      const msg = timedOut ? "שירות התחזית לא הגיב בזמן. יש לנסות שוב ולוודא שהשירות פועל." : predictiveServiceUnavailableMessage(err);
+      resultEl.innerHTML = `<p role="alert" style="color:var(--danger);">${escapeHtml(msg)}</p>`;
     } finally {
-      setButtonLoading(btn, false);
+      clearTimeout(timer);
+      if (runId === trendRunSeq) { trendRunController = null; setButtonLoading(btn, false); }
     }
   });
 
   document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
     if (liveRiskPreviewTimer) { clearTimeout(liveRiskPreviewTimer); liveRiskPreviewTimer = null; }
+    cancelTrendRun();
     visitReportModal.style.display = "none";
   });
 
