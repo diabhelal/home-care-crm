@@ -711,6 +711,24 @@ function escapeHtml(str) {
 }
 
 const RISK_LEVEL_HE = { green: "ירוק", yellow: "צהוב", red: "אדום", no_data: "אין נתונים" };
+
+// כשל בטעינת נתון בטיחותי (התראות / משימות / רמת סיכון) חייב להיראות ככשל ולא כ"אין": היעדר נתון אינו הוכחה שאין.
+// labels: רשימת שמות הנתונים שנכשלו. הכפתור [data-load-retry] מחובר ע"י הקורא.
+function dataLoadFailureNoticeHtml(labels) {
+  if (!labels || !labels.length) return "";
+  return `<div class="warning-banner warning-banner-moderate" role="alert" data-load-failure style="margin:0 0 12px;">⚠️ לא ניתן היה לטעון: ${labels.map(escapeHtml).join(", ")}. היעדר התראה, משימה או רמת סיכון במסך הזה אינו מוכיח שאין — יש לרענן לפני שמסתמכים עליו. <button type="button" class="btn btn-secondary btn-sm" data-load-retry>נסה שוב</button></div>`;
+}
+
+// הודעה גלויה לצוות אחרי שמירת דוח: תוצאת הערכת סיכון צהובה/אדומה (וקיום התראה) לא נשארת רק בחלון שכבר נסגר.
+// משתמש בניסוח הקיים בלבד (CAREGIVER_STATUS_BY_LEVEL) - בלי ספים ובלי לוגיקה קלינית חדשה. green => null.
+function riskResultNotice(out) {
+  if (!out) return null;
+  const level = out.risk_level || (out.prediction && out.prediction.risk_level);
+  if (level === "no_data") return { level: "warning", message: CAREGIVER_STATUS_BY_LEVEL.no_data + " — לא הוערך סיכון לביקור זה." };
+  if (level !== "red" && level !== "yellow") return null;
+  const alertNote = out.alert ? " נוצרה התראה למעקב." : "";
+  return { level: level === "red" ? "error" : "warning", message: `הערכת סיכון (${RISK_LEVEL_HE[level]}): ${CAREGIVER_STATUS_BY_LEVEL[level]}.${alertNote}` };
+}
 const RISK_BADGE_CLASS = { green: "risk-badge-green", yellow: "risk-badge-yellow", red: "risk-badge-red", no_data: "risk-badge-muted" };
 const TREND_META = {
   improving: { arrow: "📉", label: "משתפר" },
@@ -988,6 +1006,8 @@ async function prFetchTasks() {
 
 // ===== נגישות מודלים: focus-trap + Escape לסגירה + החזרת פוקוס =====
 // גנרי לכל .modal-overlay עם role="dialog" — לא תלוי בתוכן ספציפי של מודל.
+const DISCARD_CONFIRM_TEXT = "לסגור בלי לשמור? הנתונים שהוזנו בטופס זה יאבדו.";
+
 function setupModalAccessibility(modalEl) {
   let lastFocused = null;
   const getFocusable = () => Array.from(modalEl.querySelectorAll(
@@ -1010,6 +1030,8 @@ function setupModalAccessibility(modalEl) {
 
   modalEl.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
+      // מודל עם נתונים שהוזנו ולא נשמרו (דוח ביקור): לא נסגר בשקט
+      if (modalEl.dataset.dirty === "1" && !window.confirm(DISCARD_CONFIRM_TEXT)) return;
       modalEl.style.display = "none";
       return;
     }

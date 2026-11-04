@@ -116,3 +116,28 @@ function refreshOpenPatientRecordIfMatching(patientId) {
   const activeBtn = document.querySelector(".pr-tab-btn.active");
   if (activeBtn) prSwitchTab(activeBtn.dataset.tab);
 }
+
+// ----- הגנה מפני איבוד דוח בלי כוונה -----
+// ביטול / Escape על דוח ביקור שהוזנו בו נתונים (ושטרם נשמר) מבקשים אישור. הסימון "מלוכלך" נקבע לפי אירועי input/change
+// אחרי הפתיחה; פתיחה וסגירה (גם בקוד, למשל אחרי שמירה) מאפסות אותו. לא נשמר דבר אוטומטית ולא נמחק דבר.
+function initVisitReportDiscardGuard(modal, cancelBtn) {
+  if (!modal || modal.dataset.discardGuard === "1") return;
+  modal.dataset.discardGuard = "1";
+  const isOpen = () => modal.style.display !== "none" && modal.style.display !== "";
+  let wasOpen = isOpen();
+  const mark = () => { if (isOpen()) modal.dataset.dirty = "1"; };
+  modal.addEventListener("input", mark);
+  modal.addEventListener("change", mark);
+  new MutationObserver(() => {
+    const now = isOpen();
+    if (now !== wasOpen) { delete modal.dataset.dirty; wasOpen = now; }
+  }).observe(modal, { attributes: true, attributeFilter: ["style"] });
+  if (cancelBtn) {
+    cancelBtn.addEventListener("click", (e) => {
+      if (modal.dataset.dirty === "1" && !window.confirm(DISCARD_CONFIRM_TEXT)) e.stopImmediatePropagation();
+    }, true);   // capture: רץ לפני מאזין הסגירה של העמוד
+  }
+}
+if (typeof document !== "undefined") {
+  initVisitReportDiscardGuard(document.getElementById("visit-report-modal"), document.getElementById("visit-report-modal-cancel"));
+}
