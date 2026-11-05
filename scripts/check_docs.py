@@ -6,6 +6,8 @@ Fails when documentation points at something that does not exist:
   2. an in-page anchor (#section) with no matching heading;
   3. a backticked repository path in README.md or docs/SPECIFICATION.md (contains "/", no spaces or wildcards) that does not exist;
   4. the CI badge pointing at a workflow file that does not exist;
+  6. in docs/specs/: every feature folder NNN-name has spec.md, plan.md and tasks.md, and every requirement ID it
+     mentions exists in docs/SPECIFICATION.md.
   5. in docs/SPECIFICATION.md: a `file::test_name` reference whose file or test function does not exist, a duplicated
      requirement ID, a requirement without a valid status, or a requirement without a traceability row (and vice versa).
 It deliberately does NOT compare numbers or prose, and never demands README edits for ordinary code changes.
@@ -18,7 +20,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DOCS = [ROOT / "README.md", ROOT / "HANDOFF.md", ROOT / "DEPLOY.md", ROOT / "SECURITY.md", ROOT / "CLAUDE.md",
         *sorted((ROOT / "docs").glob("*.md")), *sorted((ROOT / "backend").glob("README.md")),
-        *sorted((ROOT / "tests" / "e2e").glob("README.md"))]
+        *sorted((ROOT / "tests" / "e2e").glob("README.md")),
+        *sorted((ROOT / "docs" / "specs").rglob("*.md"))]
 LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEAD = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$", re.M)
 TICK = re.compile(r"`([^`\n]+)`")
@@ -98,6 +101,19 @@ def main() -> int:
                 problems.append(f"{rel}: traceability row {rid} has no requirement")
             if not req:
                 problems.append(f"{rel}: no requirement rows found")
+
+    # spec-driven workflow: feature folders are complete and cite only existing requirement IDs
+    spec_ids = set(re.findall(r"`?((?:N?FR)-[A-Z0-9]+-\d+)`?", SPEC.read_text(encoding="utf-8"))) if SPEC.exists() else set()
+    specs_dir = ROOT / "docs" / "specs"
+    if specs_dir.exists():
+        for d in sorted(p for p in specs_dir.iterdir() if p.is_dir() and re.match(r"^\d{3}-", p.name)):
+            for name in ("spec.md", "plan.md", "tasks.md"):
+                if not (d / name).exists():
+                    problems.append(f"docs/specs/{d.name}: missing {name}")
+        for md in specs_dir.rglob("*.md"):
+            for rid in sorted(set(re.findall(r"\b((?:N?FR)-[A-Z0-9]+-\d+)\b", md.read_text(encoding="utf-8")))):
+                if rid not in spec_ids:
+                    problems.append(f"{md.relative_to(ROOT)}: requirement {rid} is not in docs/SPECIFICATION.md")
     for p in problems:
         print("DOCS:", p)
     print(f"checked {len([d for d in DOCS if d.exists()])} documents, {len(problems)} problem(s)")

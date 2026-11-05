@@ -186,6 +186,7 @@ Items marked *(owner)* need a decision or approval.
 | Document | Purpose |
 |---|---|
 | [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) | **Baseline specification** (Hebrew): scope, roles, requirements with fixed IDs, acceptance criteria linked to tests, status per requirement, open decisions, contradictions. Written after the fact for the existing system |
+| [`docs/specs/README.md`](docs/specs/README.md) | **Spec-driven workflow** (Hebrew): spec, clarify, owner approval gate, plan, tasks, verify; templates and the first feature spec |
 | [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md) | Branch and PR map, merge order, test evidence, what is open |
 | [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) | Workflows, booking flow, visit reports, setup and variable table |
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Tables, RLS, migration status |
