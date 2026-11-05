@@ -19,6 +19,12 @@ const APP_SHELL = [
   "app.js",
   "js/shared/patient-scope.js",
   "js/shared/visit-report-shared.js",
+  "js/admin/staff.js",
+  "js/admin/patients.js",
+  "js/admin/capacity.js",
+  "js/admin/patient-record.js",
+  "js/admin/work-queue.js",
+  "js/admin/contacts.js",
   "i18n.js",
   "config.js",
   "slot-calculation.js",
@@ -50,8 +56,10 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// מקור (origin) ולא רק hostname: ה-backend המקומי (localhost:8001) ושירות החיזוי (localhost:8000) חולקים hostname עם האתר
+// (localhost:8080), ובהשוואת hostname בלבד נשמרו במטמון (למשל GET /availability) והוגשו מיושנים אופליין.
 function isApiOrThirdParty(url) {
-  return url.hostname.endsWith("supabase.co") || url.hostname !== self.location.hostname;
+  return url.hostname.endsWith("supabase.co") || url.origin !== self.location.origin;
 }
 
 // רשת תחילה: קבצי האתר תמיד נלקחים מהשרת כשיש חיבור, כך שלעולם לא מוגשת גרסה מיושנת או
