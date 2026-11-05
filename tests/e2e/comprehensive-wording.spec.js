@@ -66,7 +66,7 @@ async function open(browser, warning = WARNING) {
   await page.goto(BASE + "/admin.html");
   await expect(page.locator("#work-queue")).toContainText("דנה כהן");
   await page.evaluate(() => { window.PREDICTIVE_SERVICE_URL = "http://predictive.test"; });
-  await page.evaluate(() => { visitReportModal.dataset.patientId = "p-1"; });
+  await page.evaluate(() => { visitReportModal.dataset.patientId = "p-1"; visitReportScope.start("p-1"); });
   return { page, errors };
 }
 
