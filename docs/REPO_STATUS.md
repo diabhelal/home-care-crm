@@ -40,15 +40,15 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 | PR | Branch | Content | Files | CI | Depends on / conflicts |
 |---|---|---|---|---|---|
 | #23 | `feature/agents-framework` | 9 project agents, 4 skills, `.claude/settings.json` (DB-write rules), `docs/AGENT_TEAM.md` | 21 | green | none; `docs/session-handoff` carries identical copies |
-| #24 | `feature/predictive-input-and-wording` | Predictive service rejects NaN/Infinity; neutral wording; "no data" is not "normal" | 10 | green | `CACHE_VERSION` v50 |
+| #24 | `feature/predictive-input-and-wording` | Predictive service rejects NaN/Infinity; neutral wording; "no data" is not "normal" | 10 | green | `CACHE_VERSION` v53 |
 | #25 | `feature/backend-booking-reliability` | Precise 23505 mapping, 409/502 handlers, newest-first history reads | 10 | green | none |
-| #27 | `fix/draft-409-same-risk-assessment` | After a 409 verified as "same", the risk assessment is still requested (queued on transient failure) | 4 | green | `CACHE_VERSION` v49 (collides with #22, #32, #33) |
+| #27 | `fix/draft-409-same-risk-assessment` | After a 409 verified as "same", the risk assessment is still requested (queued on transient failure) | 4 | green | `CACHE_VERSION` v49  |
 | #28 | `codex/predictive-response-contract-main` | Validates the predictive risk response before it is signed/stored (strict contract) | 6 | green | none. Docs overlap with #19 |
 | #29 | `chore/playwright-fail-on-busy-port` | Playwright no longer reuses a stale server on :8080 | 1 | green | none |
 | #30 | `feature/record-integrity-sql` | **Proposed SQL 015–019** + 23 new DB tests + rollback blocks + `docs/RECORD_INTEGRITY.md` (owner decisions) — not applied | 22 | green | needs 008–013 applied first (also unapplied) |
-| #31 | `fix/ui-no-physical-delete` | No delete buttons for staff / patient messages; amendment form only for the report's author | 12 | green | pairs with #30 (UI side). `CACHE_VERSION` v49 |
-| #32 | `fix/service-worker-shell-and-api-cache` | Admin scripts in the cached shell; other origins on the same hostname are never cached | 3 | green | **after #26 merges, add `js/shared/patient-scope.js` to `APP_SHELL`** (the new unit test will fail until then — intended). `CACHE_VERSION` v49 |
-| #33 | `fix/offline-drafts-5xx-visibility` | After 5xx/timeout the user sees "not confirmed by the server", content kept, safe "retry now" button | 4 | green | `CACHE_VERSION` v49 |
+| #31 | `fix/ui-no-physical-delete` | No delete buttons for staff / patient messages; amendment form only for the report's author | 12 | green | pairs with #30 (UI side). `CACHE_VERSION` v5x (see table) |
+| #32 | `fix/service-worker-shell-and-api-cache` | Admin scripts in the cached shell; other origins on the same hostname are never cached | 3 | green | **after #26 merges, add `js/shared/patient-scope.js` to `APP_SHELL`** (the new unit test will fail until then — intended). `CACHE_VERSION` v5x (see table) |
+| #33 | `fix/offline-drafts-5xx-visibility` | After 5xx/timeout the user sees "not confirmed by the server", content kept, safe "retry now" button | 4 | green | `CACHE_VERSION` v5x (see table) |
 | #18 | `feature/llm-clinical-summary` | Opt-in AI visit-summary draft (synthetic data only) + reproducible evaluation; migration `014` | 51 | green | reserves migration number 014 |
 | #19 | `docs/readme-overhaul` | Lecturer-facing README and per-topic docs (`DATABASE`, `RISK_ENGINE`, `SECURITY_ARCHITECTURE`, …) + this map and the stabilisation plan | 16 | green | base of #21; `HANDOFF.md`/`CLAUDE.md` overlap with `docs/session-handoff` |
 | #21 | `docs/archive-historical-plans` | Archives the two historical plans | 6 | green | **base is #19** (stacked) |
@@ -58,17 +58,24 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 ### Suggested merge order for what is still open (each merge needs explicit owner approval)
 `#23 → #24 → #25 → #27 → #28 → #29 → #31 → #32 → #33`, then `#19 → #21 → #34`, then `#30` last, and only then a controlled, backed-up application of migrations. Before each merge: update the branch with `main`, renumber the cache version (below) and re-run the tests.
 
-### Version-cache coordination (must be done before merging the rest)
-`main` is now at `CACHE_VERSION` **v52** / `APP_BUILD` **.52** (from #26). The remaining PRs still carry older numbers, so merging them as they are would **lower** the version and reintroduce stale-cache risk. Renumber each one above 52, in merge order (one increment per merged PR).
+### Version-cache coordination (done 2026-11-05; branches updated from `main`, conflicts were version lines only)
+`main` is at `CACHE_VERSION` **v52** / `APP_BUILD` **2026-11-03.52**. Each remaining PR now carries a distinct number above 52, assigned in the intended merge order. Merging in a different order, or after any other change to `main`, means re-bumping the later ones (a trivial two-line conflict in `public/config.js` and `public/service-worker.js`).
 
-| PR | Value on the branch | Conflict with current `main` (computed with `git merge-tree`) |
-|---|---|---|
-| #24 | v50 | conflict in `public/config.js`, `public/service-worker.js` (version lines only) |
-| #27, #31, #33 | v49 | same two version lines only |
-| #32 | v49 | same two version lines; also its `APP_SHELL` edit sits next to the line #26 already added (`js/shared/patient-scope.js`), so the shell test passes once the branch is updated from `main` |
-| `feature/offline-draft-safety` (no PR) | v51 (planned) | clean today; renumber when it gets a PR |
-| #18 | — | conflict in the four `backend/tests_db/*` files that #20 changed (update the branch from `main`) |
-| #19, #23, #25, #28, #29, #30, #34 | — | clean |
+| Merge order | PR | `CACHE_VERSION` / `APP_BUILD` | Unit tests on the updated branch |
+|---|---|---|---|
+| 1 | #24 | v53 / 2026-11-05.53 | 57/57 |
+| 2 | #27 | v54 / 2026-11-05.54 | 60/60 |
+| 3 | #32 | v55 / 2026-11-05.55 | 60/60 |
+| 4 | #31 | v56 / 2026-11-05.56 | 61/61 |
+| 5 | #33 | v57 / 2026-11-05.57 | 64/64 |
+
+CI is green on all five. The only CI failure seen (#32) was a flaky test already in `main` (`risk-retry.test.js` asserted that the stored draft does not contain the text "190", and the `queuedAt` timestamp can contain it by chance); fixed on the #32 branch to assert on fields instead.
+
+| PR | Status |
+|---|---|
+| `feature/offline-draft-safety` (no PR) | v51 (planned); renumber when it gets a PR |
+| #18 | conflict in the four `backend/tests_db/*` files that #20 changed (update the branch from `main`) |
+| #19, #23, #25, #28, #29, #30, #34 | clean |
 
 ## 4. Branches without a pull request
 | Branch | Content | Status |
