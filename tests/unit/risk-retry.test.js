@@ -69,7 +69,7 @@ test("כשל סיכון אחרי השלמה: נשמר ללא ערכים קלינ
   assert.equal(raw.length, 1);
   assert.deepEqual(Object.keys(raw[0]).sort(), ["booking_id", "queuedAt", "report_id"]);
   assert.equal(raw[0].report_id, 77);
-  assert.ok(!st.getItem(keys[0]).includes("190"), "אין ערכים קליניים");
+  assert.ok(!("systolic_bp" in raw[0]) && !Object.values(raw[0]).includes(190), "אין ערכים קליניים"); // לא חיפוש טקסט: queuedAt (זמן) יכול להכיל "190" במקרה
 });
 
 test("ניסיון חוזר מצליח: הרשומה יורדת", async () => {

@@ -234,20 +234,23 @@ def test_clinical_outcome_rls_owner_admin_and_check_constraint(db):
     as_postgres(db)
     db.execute("insert into auth.users(id) values (%s)", (other,))
     db.execute("insert into medical_staff(full_name, role, slot_duration_minutes, auth_user_id) values ('אחות ג','nurse',60,%s)", (other,))
-    # owner staff
-    as_user(db, d["staff_user"])
-    db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
-    # admin
-    as_user(db, d["admin"], admin=True)
-    db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
-    # other staff: RLS filters the row, nothing changes
-    as_user(db, other)
-    db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
-    as_postgres(db)
-    assert db.execute("select clinical_outcome_8h from visit_reports where id=%s", (rid,)).fetchone()[0] == "hypoglycemia"
-    # constraint
+    # constraint (checked while the outcome is still empty: 016 makes a recorded outcome set-once)
     as_user(db, d["admin"], admin=True)
     db.execute("savepoint sp")
     with pytest.raises(psycopg.errors.CheckViolation):
         db.execute("update visit_reports set clinical_outcome_8h='bogus' where id=%s", (rid,))
     db.execute("rollback to savepoint sp")
+    # owner staff records it
+    as_user(db, d["staff_user"])
+    db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
+    # admin can no longer rewrite it (016, conscious change of the 008 expectation: was 'hypoglycemia')
+    as_user(db, d["admin"], admin=True)
+    db.execute("savepoint sp")
+    with pytest.raises(psycopg.errors.ObjectNotInPrerequisiteState):
+        db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
+    db.execute("rollback to savepoint sp")
+    # other staff: RLS filters the row, nothing changes
+    as_user(db, other)
+    db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
+    as_postgres(db)
+    assert db.execute("select clinical_outcome_8h from visit_reports where id=%s", (rid,)).fetchone()[0] == "none"

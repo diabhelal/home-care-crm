@@ -92,7 +92,8 @@ def test_completed_report_content_is_locked_but_clinical_outcome_can_be_recorded
     db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,))
     as_user(db, d["admin"], admin=True)
     attempt(db, "update visit_reports set treatment_summary='אחר' where id=%s", (rid,), psycopg.errors.ObjectNotInPrerequisiteState)
-    db.execute("update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,))
+    # 016 (conscious change of the 008 expectation): a recorded outcome is set-once, an admin cannot rewrite it either
+    attempt(db, "update visit_reports set clinical_outcome_8h='hypoglycemia' where id=%s", (rid,), psycopg.errors.ObjectNotInPrerequisiteState)
 
 
 def test_report_identity_is_immutable(db):
@@ -105,7 +106,7 @@ def test_report_identity_is_immutable(db):
     attempt(db, "update visit_reports set booking_id=%s where id=%s", (other, rid), psycopg.errors.InsufficientPrivilege)
 
 
-def test_staff_cannot_delete_a_report_but_admin_can(db):
+def test_nobody_can_delete_a_report_not_even_admin(db):      # 015 supersedes "admin may delete" from 008
     d = seed(db); bid = booking(db, d)
     as_user(db, d["staff_user"])
     rid = db.execute("select id from complete_visit(%s, %s::jsonb)", (bid, COMPLETE)).fetchone()[0]
@@ -113,7 +114,9 @@ def test_staff_cannot_delete_a_report_but_admin_can(db):
     as_postgres(db)
     assert db.execute("select count(*) from visit_reports where id=%s", (rid,)).fetchone()[0] == 1
     as_user(db, d["admin"], admin=True)
-    assert db.execute("delete from visit_reports where id=%s", (rid,)).rowcount == 1
+    attempt(db, "delete from visit_reports where id=%s", (rid,), psycopg.errors.InsufficientPrivilege)
+    as_postgres(db)
+    assert db.execute("select count(*) from visit_reports where id=%s", (rid,)).fetchone()[0] == 1
 
 
 def test_other_nurse_cannot_touch_a_report(db):
@@ -125,7 +128,7 @@ def test_other_nurse_cannot_touch_a_report(db):
     db.execute("insert into auth.users(id) values (%s)", (other,))
     db.execute("insert into medical_staff(full_name, role, slot_duration_minutes, auth_user_id) values ('אחות ג','nurse',60,%s)", (other,))
     as_user(db, other)
-    assert db.execute("delete from visit_reports where id=%s", (rid,)).rowcount == 0     # RLS hides the row
+    attempt(db, "delete from visit_reports where id=%s", (rid,), psycopg.errors.InsufficientPrivilege)   # no DELETE grant at all (015)
     assert db.execute("update visit_reports set clinical_outcome_8h='none' where id=%s", (rid,)).rowcount == 0
 
 

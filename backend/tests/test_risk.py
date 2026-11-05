@@ -231,7 +231,10 @@ def test_http_client_paths_and_errors():
     seen = []
     def h(req):
         seen.append((req.url.path, json.loads(req.content)))
-        return httpx.Response(200, json={"ok": True})
+        return httpx.Response(200, json={
+            "risk_level": "green", "confidence": 1.0, "probability": None,
+            "prediction_horizon_hours": 8, "trend": None,
+            "status_message": "תקין", "model_version": "rule-based-v1"})
     c = _http(h)
     c.risk_assessment({"a": 1}); c.evaluate_alert({"b": 2}); c.medical_warning({"c": 3})
     assert [p for p, _ in seen] == ["/predict/risk-assessment", "/alerts/evaluate", "/predict/medical-warning"]
@@ -242,3 +245,40 @@ def test_http_client_paths_and_errors():
     def boom(r): raise httpx.ConnectError("refused")
     with pytest.raises(PredictiveUnavailable):
         _http(boom).risk_assessment({})
+
+
+@pytest.mark.parametrize("patch", [
+    {"risk_level": "safe"}, {"risk_level": None},
+    {"confidence": "0.9"}, {"confidence": True},
+    {"confidence": 1.1}, {"confidence": float("nan")},
+    {"probability": float("inf")}, {"probability": -0.1},
+    {"prediction_horizon_hours": 0}, {"prediction_horizon_hours": "8"},
+    {"model_version": ""}, {"status_message": []}, {"trend": "unknown"},
+])
+def test_invalid_predictive_contract_never_persists(world, patch):
+    rid, _ = _completed(world)
+    payload = {**world.predictive.risk_response, **patch}
+    # Raw JSON also exercises non-standard NaN/Infinity from a misbehaving service.
+    client = _http(lambda req: httpx.Response(200, content=json.dumps(payload)))
+    world.predictive.risk_assessment = client.risk_assessment
+    response = _assess(world, rid)
+    assert response.status_code == 503
+    assert response.json()["code"] == "predictive_unavailable"
+    assert world.repo.predictions == []
+    assert world.predictive.alert_calls == []
+    assert rid in world.repo.reports  # saved clinical documentation survives
+
+
+@pytest.mark.parametrize("payload", [{}, {"risk_level": "green"}])
+def test_incomplete_predictive_contract_rejected(payload):
+    with pytest.raises(PredictiveUnavailable):
+        _http(lambda req: httpx.Response(200, json=payload)).risk_assessment({})
+
+
+@pytest.mark.parametrize("level", ["green", "yellow", "red", "no_data"])
+def test_valid_predictive_contract_preserves_response(level):
+    payload = {"risk_level": level, "confidence": 0.5, "probability": None,
+               "prediction_horizon_hours": 8, "trend": None,
+               "status_message": "הדגמה", "model_version": "rule-based-v1",
+               "flagged_vitals": []}
+    assert _http(lambda req: httpx.Response(200, json=payload)).risk_assessment({}) == payload
