@@ -70,8 +70,14 @@ const OFFLINE_QUEUE_KEY = "visitReportOfflineQueue";
 // נקרא לצורך סנכרון (RLS מחליט מי רשאי לכתוב) ונמחק רק לאחר שמירה מוצלחת.
 let offlineQueueOwnerId = null;
 
+// כשלים אחרונים של סנכרון הטיוטות (להצגה בבאנר). שייכים למשתמש הנוכחי בלבד: החלפת משתמש מנקה אותם.
+let offlineQueueLastErrors = [];
+function getOfflineQueueLastErrors() { return offlineQueueLastErrors.slice(); }
+
 function setOfflineQueueOwner(uid) {
-  offlineQueueOwnerId = uid || null;
+  const next = uid || null;
+  if (next !== offlineQueueOwnerId) offlineQueueLastErrors = [];
+  offlineQueueOwnerId = next;
 }
 
 function offlineQueueKey() {
@@ -343,6 +349,20 @@ function visitCompletionErrorMessage(err, queued = true) {
   return "לא ניתן לשמור את הדוח כרגע." + kept;
 }
 
+// הדוח לא אושר בשרת (5xx / לא הגיבו בזמן / השירות לא מוגדר): התוכן שמור במכשיר ולא נמחק; אפשר לנסות שוב בלי אובדן.
+// timeout: לא ידוע אם השרת כן שמר - ניסיון חוזר יקבל 409, והאימות מול הדוח השמור יזהה "זהה" בלי ליצור כפילות.
+function unconfirmedSaveMessage(err) {
+  const kind = err && err.kind;
+  if (kind === "timeout") {
+    return "לא התקבל אישור שמירה מהשרת בזמן — לא ידוע אם הדוח נשמר שם. התוכן שמור במכשיר ולא נמחק; ניסיון חוזר יבדוק זאת מול השרת בלי ליצור כפילות.";
+  }
+  if (kind === "unconfigured") {
+    return "שירות השמירה אינו מוגדר — הדוח לא נשמר בשרת. התוכן שמור במכשיר ולא נמחק.";
+  }
+  const st = err && err.status ? ` (שגיאה ${err.status})` : "";
+  return `השרת לא אישר את שמירת הדוח${st} — הדוח עדיין לא נשמר בשרת. התוכן שמור במכשיר ולא נמחק; אפשר לנסות שוב.`;
+}
+
 // מחזירה {synced, failed, partial, errors}. partial תמיד 0 (השמירה אטומית בשרת) ונשמר
 // לתאימות. errors: [{booking_id, kind, status, message}] לכשלים שאינם רשת.
 let offlineQueueSyncing = false;
@@ -355,7 +375,9 @@ function flushOfflineQueue() {
   riskQueuedThisFlush = new Set();
   offlineFlushPromise = (async () => {
     try {
-      return await withQueueLock(() => flushOfflineQueueDrafts());
+      const result = await withQueueLock(() => flushOfflineQueueDrafts());
+      if (result && !result.busy) offlineQueueLastErrors = Array.isArray(result.errors) ? result.errors : [];
+      return result;
     } finally {
       // ניסיון חוזר של הערכות סיכון שנכשלו אחרי השלמה; לא משפיע על תוצאת הסנכרון.
       try { await retryPendingRiskAssessments(riskQueuedThisFlush); } catch (e) { /* הודעה בלבד */ }
@@ -442,6 +464,11 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
           continue;
         }
         if (isRetryableCompletionError(err)) {
+          // רשת (אין חיבור) היא מצב צפוי והבאנר כבר מסביר אותו. 5xx / timeout / לא מוגדר: הדוח לא אושר בשרת - מציגים זאת במפורש.
+          if (err.kind === "server" || err.kind === "timeout" || err.kind === "unconfigured") {
+            errors.push({ booking_id: draft.booking_id, kind: err.kind, status: (err && err.status) || 0, retryable: true,
+              message: unconfirmedSaveMessage(err) });
+          }
           if (err.kind !== "server") offline = true;
         } else {
           errors.push({ booking_id: draft.booking_id, kind: (err && err.kind) || "unknown",
@@ -1261,20 +1288,45 @@ function initPredictiveServiceHealthCheck() {
 function updateOfflineDraftBanner() {
   let banner = document.getElementById("offline-draft-banner");
   const count = getQueuedDraftCount();
+  const problems = getOfflineQueueLastErrors();
   if (!count && !offlineQueueSyncing) { if (banner) banner.style.display = "none"; return; }
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "offline-draft-banner";
     banner.className = "predictive-offline-banner";
-    banner.setAttribute("role", "status");
     document.body.prepend(banner);
   }
-  banner.textContent = offlineQueueSyncing
-    ? "📶 מסנכרן דוחות ביקור שמורים מקומית..."
-    : count === 1
-      ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
-      : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
   banner.style.display = "block";
+  if (offlineQueueSyncing) {
+    banner.setAttribute("role", "status");
+    banner.textContent = "📶 מסנכרן דוחות ביקור שמורים מקומית...";
+    return;
+  }
+  if (problems.length) {
+    // לא התקבל אישור שמירה מהשרת: אומרים זאת במפורש, מבטיחים שהתוכן נשמר, ומציעים ניסיון חוזר (בלי למחוק דבר).
+    banner.setAttribute("role", "alert");
+    const text = document.createElement("span");
+    text.textContent = `⚠️ ${count === 1 ? "דוח ביקור אחד" : count + " דוחות ביקור"} לא אושרו בשרת ועדיין שמורים רק במכשיר הזה. התוכן לא אבד ולא נמחק. ${problems[0].message}`;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "btn btn-secondary btn-sm";
+    retry.textContent = "נסה שוב עכשיו";
+    retry.addEventListener("click", async () => {
+      retry.disabled = true;
+      try {
+        const result = await flushOfflineQueue();
+        reportOfflineQueueResult(result);
+      } finally {
+        updateOfflineDraftBanner();
+      }
+    });
+    banner.replaceChildren(text, retry);
+    return;
+  }
+  banner.setAttribute("role", "status");
+  banner.textContent = count === 1
+    ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
+    : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
 }
 
 // ===== התראת הזמנות חדשות (בתוך האפליקציה בלבד) =====
