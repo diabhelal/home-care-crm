@@ -5,7 +5,7 @@
 // API תמיד הולכות ישירות לרשת. שמירת טיוטות אופליין (visit_reports) מטופלת בנפרד
 // ב-app.js (תור-סנכרון מפורש ב-localStorage), לא כאן.
 
-const CACHE_VERSION = "home-care-crm-shell-v49";
+const CACHE_VERSION = "home-care-crm-shell-v55";
 
 const APP_SHELL = [
   "index.html",
@@ -17,6 +17,7 @@ const APP_SHELL = [
   "employee-login.html",
   "styles.css",
   "app.js",
+  "js/shared/patient-scope.js",
   "js/shared/visit-report-shared.js",
   "js/admin/staff.js",
   "js/admin/patients.js",
