@@ -112,6 +112,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.118.0"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="js/shared/patient-scope.js"></script>
 <script src="js/shared/visit-report-shared.js"></script>
 <script>
   // PREDICTIVE_SERVICE_URL מוגדר ב-config.js (מקור יחיד, לא כפול בין admin/employee).
@@ -532,58 +533,17 @@
     if (vrLocked) showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
     document.getElementById("vr-allergy-banner").style.display = "none";
     visitReportModal.style.display = "flex";
-    loadAndRenderRisk(booking.patient_id);
-    loadPatientContextForRisk(booking.patient_id);
-    loadAllergyBannerForVisitReport(booking.patient_id);
+    const scope = visitReportScope.start(booking.patient_id);
+    loadAndRenderRisk(booking.patient_id, scope);
+    loadPatientContextForRisk(booking.patient_id, scope);
+    loadAllergyBannerForVisitReport(booking.patient_id, scope);
   }
 
-  // אחות-תאומה: admin.html renderRiskPanel() — ההבדל מכוון: תבנית HTML קומפקטית (רווחי whitespace שונים). לא ממוזג בכוונה.
-  function renderRiskPanel(currentRisk) {
-    const panel = document.getElementById("vr-risk-panel");
-    if (!currentRisk) {
-      panel.innerHTML = `<div class="risk-badge risk-badge-muted">לא נבדק</div><p style="color:var(--text-muted); font-size:13px; margin:6px 0 0;">${RISK_DISCLAIMER}</p>`;
-      return;
-    }
-    const trendMeta = currentRisk.trend ? TREND_META[currentRisk.trend] : null;
-    const statusClass = `caregiver-status-${currentRisk.risk_level in CAREGIVER_STATUS_BY_LEVEL ? currentRisk.risk_level : "no_data"}`;
-    panel.innerHTML = `
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        ${riskBadgeHtml(currentRisk)}
-        ${trendMeta ? `<span>${trendMeta.arrow} ${trendMeta.label}</span>` : `<span style="color:var(--text-muted);">אין נתון קודם להשוואת מגמה</span>`}
-      </div>
-      <p class="${statusClass}" style="font-weight:600; margin:8px 0 0;">${escapeHtml(caregiverStatusMessage(currentRisk.risk_level, currentRisk.trend))}</p>
-      <p style="color:var(--text-muted); font-size:13px; margin:8px 0 0;">${RISK_DISCLAIMER}</p>
-    `;
-  }
 
-  // אחות-תאומה: admin.html loadAndRenderRisk() — ההבדל מכוון: זהה בהתנהגות; ניסוח שונה בלבד. לא ממוזג בכוונה.
-  async function loadAndRenderRisk(patientId) {
-    document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--text-muted);">טוען רמת סיכון...</p>`;
-    renderRiskPanel(await loadCurrentRiskForPatient(patientId));
-  }
 
-  // הערכת סיכון + התראה אוטומטית: בשרת בלבד (POST /visits/{id}/risk-assessment). הדפדפן לא כותב
-  // ל-risk_predictions/alerts. נקראת רק אחרי השלמה מאושרת; כשל = הודעה, הדוח נשאר שמור.
-  // אחות-תאומה: admin.html recalculateRiskAfterSave().
-  async function recalculateRiskAfterSave(patientId, savedReportId) {
-    let out;
-    try {
-      out = await requestRiskAssessment(savedReportId);
-    } catch (err) {
-      const msg = riskAssessmentErrorMessage(err);
-      document.getElementById("vr-risk-panel").innerHTML = `<p style="color:var(--danger);">${escapeHtml(msg)}</p>`;
-      flashWarning(msg);
-      return;
-    }
-    if (!out || out.risk_level === "no_data" || !out.prediction) { renderRiskPanel(null); return; }
-    const p = out.prediction;
-    renderRiskPanel({ risk_level: p.risk_level, trend: p.trend, predicted_at: p.predicted_at, expires_at: p.expires_at, prediction_horizon_hours: p.prediction_horizon_hours });
-    prInvalidate("currentRisk", "riskHistory");
-    if (out.alert) prInvalidate("alerts");
-  }
 
   document.getElementById("visit-report-modal-cancel").addEventListener("click", () => {
-    visitReportModal.style.display = "none";
+    visitReportScope.reset(); visitReportModal.style.display = "none";
   });
 
   document.getElementById("visit-report-modal-save").addEventListener("click", async () => {
@@ -637,7 +597,7 @@
           return;
         }
         updateOfflineDraftBanner();
-        visitReportModal.style.display = "none";
+        visitReportScope.reset(); visitReportModal.style.display = "none";
         if (error.kind === "auth") flashError(visitCompletionErrorMessage(error, true));
         else flashWarning("אין חיבור לשרת — הדוח נשמר מקומית במכשיר ויסונכרן אוטומטית ברגע שהחיבור יחזור");
         loadMyBookings();
@@ -648,7 +608,7 @@
     }
     const savedReport = (res && res.report) || {};
 
-    visitReportModal.style.display = "none";
+    visitReportScope.reset(); visitReportModal.style.display = "none";
     flashSuccess("דוח הביקור נשמר וסומן כהושלם");
     loadMyBookings();
     if (savedReport.id) { try { await recalculateRiskAfterSave(payload.patient_id, savedReport.id); } catch (riskErr) { console.error("risk step", riskErr); } }
@@ -700,12 +660,15 @@
     document.getElementById("pr-record").style.display = "block";
     document.getElementById("pr-header").innerHTML = `<p style="color:var(--text-muted);">טוען תיק...</p>`;
     document.getElementById("pr-allergy-banner").style.display = "none";
+    const recordState = window.currentPatientState;
     try {
       await prRenderHeader();
     } catch (err) {
+      if (prIsStale(err)) return;
       document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
       return;
     }
+    if (window.currentPatientState !== recordState) return;
     prRenderTabsNav();
     prSwitchTab("overview");
     document.getElementById("pr-record").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -715,8 +678,10 @@
   // clinicalNotes/alerts/tasks) עברו ל-app.js — משותפים עם admin.html, לא מוכפלים יותר.
 
   async function prRenderHeader() {
+    const state = window.currentPatientState;
     const patient = await prCached("patient", prFetchPatient);
     const allergies = await prCached("allergies", prFetchAllergies);
+    prAssertCurrent(state);
     const banner = document.getElementById("pr-allergy-banner");
     if (allergies.length) {
       banner.style.display = "block";
@@ -770,9 +735,12 @@
     const content = document.getElementById("pr-tab-content");
     content.innerHTML = `<p style="color:var(--text-muted);">טוען...</p>`;
     const tab = PR_TABS.find((t) => t.key === key);
+    const state = window.currentPatientState;
+    const token = (content._prRenderToken = (content._prRenderToken || 0) + 1);
     try {
       await tab.render(content);
     } catch (err) {
+      if (prIsStale(err) || window.currentPatientState !== state || content._prRenderToken !== token) return;
       content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
     }
   }
