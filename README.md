@@ -7,7 +7,7 @@
 **Booking, visit documentation and rule-based risk flagging for home-healthcare teams.**
 A patient requests a visit without registering, an administrator approves and assigns it, a nurse documents the visit (even without signal), and the system flags worrying vital-sign patterns with transparent, hand-written clinical rules.
 
-> **Status: working prototype, built as a final-year project with a path toward a commercial product. Synthetic data only.** It is not a certified medical device and is not approved for real patients. The risk indicator is decision support, not diagnosis, and there is **no trained or clinically validated machine-learning model**. See [Development status](#development-status) for exactly what is on `main`, what is in review, and what is only proposed.
+> **Status: working prototype, built as a final-year project with a path toward a commercial product. Synthetic data only.** It is not a certified medical device and is not approved for real patients. The risk indicator is decision support, not diagnosis, and there is **no trained or clinically validated machine-learning model**. See [Development status](#development-status) for exactly what is on `main`, what is in review, and what is only proposed. The requirements and their status are in the [specification](docs/SPECIFICATION.md).
 
 <p align="center">
   <img src="docs/demo-proof/01-patient-03-booking-details.png" alt="Patient booking page: service, address, date and time slots" width="100%">
@@ -185,6 +185,7 @@ Items marked *(owner)* need a decision or approval.
 ## Documentation
 | Document | Purpose |
 |---|---|
+| [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) | **Baseline specification** (Hebrew): scope, roles, requirements with fixed IDs, acceptance criteria linked to tests, status per requirement, open decisions, contradictions. Written after the fact for the existing system |
 | [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md) | Branch and PR map, merge order, test evidence, what is open |
 | [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) | Workflows, booking flow, visit reports, setup and variable table |
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Tables, RLS, migration status |
