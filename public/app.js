@@ -637,7 +637,16 @@ function amendmentsListHtml(list) {
   }).join("")}</div>`;
 }
 
-function amendmentBlockHtml(visit, amendments, canAmend = true) {
+// כלל בעלים: רק המחבר המקורי של הדוח מתקן אותו (מנהל לא מתקן תיעוד של אחר). המקור הוא author_user_id (הצעה 016);
+// כשהוא חסר (DB בלי 016, או דוח ישן בלי מחבר מזוהה) נופלים לשיוך: איש צוות — הדוח משויך אליו; מנהל — אי אפשר להוכיח, ולכן אין טופס.
+// זו רק הסתרה בממשק; האכיפה האמיתית היא בטריגר ובמדיניות RLS של הצעה 017.
+function canAmendVisit(visit, { staffId = null } = {}) {
+  const uid = offlineQueueOwnerId;
+  if (visit && visit.author_user_id) return !!uid && visit.author_user_id === uid;
+  return staffId !== null && staffId !== undefined && visit && visit.staff_id === staffId;
+}
+
+function amendmentBlockHtml(visit, amendments, canAmend = false) {
   const mine = (amendments || []).filter((a) => a.visit_report_id === visit.id);
   const fieldOpts = `<option value="">הבהרה בלבד (בלי שינוי ערך)</option>${VITALS_META.map((m) => `<option value="${m.key}">${m.label}</option>`).join("")}`;
   return `${amendmentsListHtml(mine)}${canAmend ? `
@@ -648,7 +657,7 @@ function amendmentBlockHtml(visit, amendments, canAmend = true) {
       <div class="error-msg amend-error" role="alert"></div>
       <button type="button" class="btn btn-secondary btn-sm amend-save">שמירת התיקון</button>
       <p class="amend-note">הדוח המקורי לא ישתנה ולא יימחק; התיקון נוסף כרשומה חדשה עם שם, תאריך ושעה.</p>
-    </details>` : ""}`;
+    </details>` : `<p class="amend-note amend-no-permission">תיקון לדוח זה אפשרי רק למי שתיעד אותו. הדוח המקורי נשמר ללא שינוי.</p>`}`;
 }
 
 // מחבר את טפסי התיקון בתוך container. onSaved נקרא אחרי שמירה מוצלחת (לרענון התצוגה).

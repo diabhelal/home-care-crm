@@ -152,18 +152,4 @@ function wireContactModal() {
     closeContactModal();
     loadContacts();
   });
-
-  document.getElementById("contact-modal-delete").addEventListener("click", async () => {
-    if (!confirm("למחוק את הפנייה הזו? הפעולה בלתי הפיכה.")) return;
-    const btn = document.getElementById("contact-modal-delete");
-    const errEl = document.getElementById("contact-modal-error");
-    hideError(errEl);
-    const contactId = document.getElementById("contact-modal-contact-id").value;
-    setButtonLoading(btn, true, "מוחק...");
-    const { error } = await supabaseClient.from("patient_contacts").delete().eq("id", contactId);
-    setButtonLoading(btn, false);
-    if (error) { showError(errEl, friendlyErrorMessage(error)); return; }
-    closeContactModal();
-    loadContacts();
-  });
 }
