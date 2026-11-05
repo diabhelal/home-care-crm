@@ -21,9 +21,10 @@ import math
 import os
 import time
 from datetime import datetime, timezone
-from typing import Callable, Optional, Protocol
+from typing import Callable, Literal, Optional, Protocol
 
 import httpx
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from .errors import DomainError, forbidden, not_found
 from .models import Identity, Staff
@@ -45,6 +46,23 @@ class PredictiveClient(Protocol):
     def risk_assessment(self, body: dict) -> dict: ...
     def evaluate_alert(self, body: dict) -> dict: ...
     def medical_warning(self, body: dict) -> dict: ...
+
+
+class _RiskAssessmentContract(BaseModel):
+    """Validate service output before it can be signed; no clinical calculations here.
+
+    Extra fields remain compatible with additive service changes. Numeric strings,
+    booleans and non-finite values must not become trusted assessment values.
+    """
+    model_config = ConfigDict(strict=True, allow_inf_nan=False)
+
+    risk_level: Literal["green", "yellow", "red", "no_data"]
+    confidence: float = Field(ge=0, le=1)
+    probability: Optional[float] = Field(default=None, ge=0, le=1)
+    prediction_horizon_hours: int = Field(gt=0)
+    trend: Optional[Literal["worsening", "improving", "stable"]]
+    status_message: str
+    model_version: str = Field(min_length=1)
 
 
 class HttpPredictiveClient:
@@ -70,7 +88,14 @@ class HttpPredictiveClient:
             raise PredictiveUnavailable("unexpected response shape")
         return data
 
-    def risk_assessment(self, body): return self._post("/predict/risk-assessment", body)
+    def risk_assessment(self, body):
+        data = self._post("/predict/risk-assessment", body)
+        try:
+            _RiskAssessmentContract.model_validate(data)
+        except ValidationError as e:
+            # Do not include response values (potentially clinical data) in the error.
+            raise PredictiveUnavailable("invalid risk-assessment response contract") from e
+        return data
     def evaluate_alert(self, body): return self._post("/alerts/evaluate", body)
     def medical_warning(self, body): return self._post("/predict/medical-warning", body)
 
