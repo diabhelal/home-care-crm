@@ -17,7 +17,9 @@ module.exports = defineConfig({
   webServer: {
     command: "python3 -m http.server 8080 --directory public",
     url: "http://127.0.0.1:8080/index.html",
-    reuseExistingServer: !process.env.CI,
+    // לא משתמשים בשרת קיים בשקט: שרת ישן על 8080 (למשל מענף/worktree אחר) הגיש קוד לא נכון
+    // וגרם לכשלי שווא. אם הפורט תפוס, Playwright נכשל בקול רם. להרצה מכוונת מול שרת קיים: PW_REUSE_SERVER=1.
+    reuseExistingServer: process.env.PW_REUSE_SERVER === "1",
     cwd: __dirname,
   },
 });
