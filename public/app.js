@@ -207,11 +207,12 @@ function sameReportValue(key, a, b) {
 
 // אימות אחרי 409: האם תוכן הטיוטה אכן נשמר בדוח של ההזמנה בשרת? "same" | "different" | "unverified".
 // רק "same" מאפשר להסיר את הטיוטה. ההשוואה נעשית מול הדוח בשרת בקריאה בלבד, עם אותו משתמש.
-async function verifyReportPersisted(draft, ownerId) {
+async function verifyReportPersisted(draft, ownerId, out) {
   try {
     if (offlineQueueOwnerId !== ownerId) return "unverified";
-    const { data, error } = await supabaseClient.from("visit_reports").select(VISIT_BODY_KEYS.join(",")).eq("booking_id", draft.booking_id).maybeSingle();
+    const { data, error } = await supabaseClient.from("visit_reports").select(["id", ...VISIT_BODY_KEYS].join(",")).eq("booking_id", draft.booking_id).maybeSingle();
     if (error || !data) return "unverified";
+    if (out) out.reportId = data.id;   // לשימוש הקורא: הערכת סיכון לדוח שכבר נשמר
     const body = visitCompletionBody(draft);
     return VISIT_BODY_KEYS.every((k) => sameReportValue(k, body[k], data[k])) ? "same" : "different";
   } catch (e) {
@@ -276,6 +277,17 @@ function queuePendingRisk(reportId, bookingId, ownerId = offlineQueueOwnerId) {
 // סירוב סופי של השרת: אין טעם לנסות שוב (אין הרשאה / הדוח לא קיים).
 function isDefinitiveRiskRejection(err) {
   return !!err && (err.status === 403 || err.status === 404);
+}
+
+// אחרי השלמה מאושרת (תשובת הצלחה, או 409 שאומת כ"same"): מבקשים הערכת סיכון, ובכשל זמני מתורים לניסיון חוזר.
+// 409+"same" מגיע כשהשרת שמר את הדוח אך התשובה אבדה — אז הבקשה לא נשלחה מעולם, ובלי זה לא תיווצר הערכה/התראה.
+async function requestRiskAfterCompletion(reportId, bookingId, ownerId) {
+  if (reportId === undefined || reportId === null) return;
+  try { await requestRiskAssessment(reportId, ownerId); }
+  catch (riskErr) {
+    // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
+    if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(reportId, bookingId, ownerId);
+  }
 }
 
 let pendingRiskRetrying = false;
@@ -415,8 +427,13 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
       } catch (err) {
         if (err && err.kind === "conflict") {
           // 409 לא מוכיח שהתוכן נשמר: מסירים את הטיוטה רק אם הדוח בשרת זהה לה.
-          const verdict = await verifyReportPersisted(draft, ownerId);
-          if (verdict === "same") { synced++; acknowledge(draft); continue; }
+          const persisted = {};
+          const verdict = await verifyReportPersisted(draft, ownerId, persisted);
+          if (verdict === "same") {
+            synced++; acknowledge(draft);
+            await requestRiskAfterCompletion(persisted.reportId, draft.booking_id, ownerId);
+            continue;
+          }
           const why = verdict === "different"
             ? " תוכן הדוח השמור בשרת שונה מהטיוטה שבמכשיר, והטיוטה לא נמחקה."
             : " לא ניתן היה לאמת שהתוכן נשמר בשרת, והטיוטה לא נמחקה.";
@@ -436,13 +453,7 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
       synced++;
       acknowledge(draft);
       const doneId = done && done.report && done.report.id;
-      if (doneId) {
-        try { await requestRiskAssessment(doneId, ownerId); }
-        catch (riskErr) {
-          // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
-          if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(doneId, draft.booking_id, ownerId);
-        }
-      }
+      if (doneId) await requestRiskAfterCompletion(doneId, draft.booking_id, ownerId);
     }
   } finally {
     offlineQueueSyncing = false;

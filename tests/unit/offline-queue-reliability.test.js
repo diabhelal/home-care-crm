@@ -22,19 +22,20 @@ function storageShim() {
 }
 
 async function createPage({ userId = "user-a", storage = storageShim() } = {}) {
-  const state = { userId, authCb: null, calls: [], respond: null, riskGate: null };
+  const state = { userId, authCb: null, calls: [], respond: null, riskGate: null, persisted: null, riskFailStatus: null };
   const client = {
     auth: {
       getSession: () => Promise.resolve({ data: { session: state.userId ? { access_token: "tok-" + state.userId, user: { id: state.userId } } : null } }),
       onAuthStateChange: (cb) => { state.authCb = cb; },
     },
-    from() { return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }; },
+    from() { return { select: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: state.persisted, error: null }) }) }) }; },
   };
   const fetchMock = async (url, init) => {
     const call = { url, auth: init.headers.Authorization, body: init.body ? JSON.parse(init.body) : null };
     state.calls.push(call);
     if (/risk-assessment/.test(url)) {
       if (state.riskGate) await state.riskGate;
+      if (state.riskFailStatus) return { ok: false, status: state.riskFailStatus, json: async () => ({ code: "predictive_unavailable", detail: "x" }) };
       return { ok: true, status: 200, json: async () => ({ risk_level: "green" }) };
     }
     const r = state.respond ? await state.respond(call) : null;
@@ -155,4 +156,46 @@ test("תוכן תור פגום לא נדרס בשקט: נשמר עותק לפנ�
   p.ctx.queueVisitReportDraft(draft(1));
   assert.ok(p.storage.keys().some((k) => k.startsWith("visitReportOfflineQueue:user-a:unreadable:")));
   assert.equal(queue(p).length, 1);
+});
+
+// 409 + "same": השרת שמר את הדוח אך התשובה אבדה. הערכת הסיכון לא נשלחה מעולם, ולכן חייבת להישלח עכשיו.
+const risks = (p) => p.state.calls.filter((c) => /\/risk-assessment$/.test(c.url));
+
+test("9. 409 שאומת כ-same: הטיוטה מוסרת וגם נשלחת הערכת סיכון לדוח השמור", async () => {
+  const p = await createPage();
+  const d = draft(1);
+  p.ctx.queueVisitReportDraft(d);
+  p.state.respond = async (c) => (/\/complete$/.test(c.url) ? { status: 409, json: { code: "illegal_transition", detail: "x" } } : null);
+  p.state.persisted = { id: 321, ...p.ctx.visitCompletionBody(d) };
+  const r = await p.ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1);
+  assert.equal(p.ctx.getQueuedDraftCount(), 0);
+  assert.equal(risks(p).length, 1);
+  assert.match(risks(p)[0].url, /\/visits\/321\/risk-assessment$/);
+});
+
+test("10. 409 same + כשל זמני בהערכת סיכון: הדוח לא נפגע והבקשה מתורת לניסיון חוזר", async () => {
+  const p = await createPage();
+  const d = draft(1);
+  p.ctx.queueVisitReportDraft(d);
+  p.state.respond = async (c) => (/\/complete$/.test(c.url) ? { status: 409, json: { code: "illegal_transition", detail: "x" } } : null);
+  p.state.persisted = { id: 321, ...p.ctx.visitCompletionBody(d) };
+  p.state.riskFailStatus = 503;
+  const r = await p.ctx.flushOfflineQueue();
+  assert.equal(r.synced, 1);
+  assert.equal(p.ctx.getQueuedDraftCount(), 0);
+  const pending = JSON.parse(p.storage.getItem("visitRiskPending:user-a") || "[]");
+  assert.deepEqual(pending.map((x) => x.report_id), [321]);
+});
+
+test("11. 409 עם תוכן שונה: הטיוטה נשארת ולא נשלחת הערכת סיכון", async () => {
+  const p = await createPage();
+  const d = draft(1);
+  p.ctx.queueVisitReportDraft(d);
+  p.state.respond = async (c) => (/\/complete$/.test(c.url) ? { status: 409, json: { code: "illegal_transition", detail: "x" } } : null);
+  p.state.persisted = { id: 321, ...p.ctx.visitCompletionBody(d), treatment_summary: "שונה" };
+  const r = await p.ctx.flushOfflineQueue();
+  assert.equal(r.synced, 0);
+  assert.equal(p.ctx.getQueuedDraftCount(), 1);
+  assert.equal(risks(p).length, 0);
 });
