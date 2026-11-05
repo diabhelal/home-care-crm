@@ -6,6 +6,8 @@ const vm = require("node:vm");
 const fs = require("node:fs");
 const path = require("node:path");
 
+// visit-report-shared.js תלוי ב-createPatientScope (נטען לפניו בדפים האמיתיים).
+const SCOPE_SRC = fs.readFileSync(path.join(__dirname, "../../public/js/shared/patient-scope.js"), "utf8");
 const SRC = fs.readFileSync(path.join(__dirname, "../../public/js/shared/visit-report-shared.js"), "utf8");
 
 function load(values = {}) {
@@ -14,6 +16,7 @@ function load(values = {}) {
     document: { getElementById: (id) => ({ value: values[id] ?? "" }) },
   };
   vm.createContext(ctx);
+  vm.runInContext(SCOPE_SRC, ctx);
   vm.runInContext(SRC, ctx);
   return ctx;
 }
