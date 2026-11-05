@@ -62,12 +62,15 @@ async function openPatientRecord(patientId) {
   document.getElementById("pr-record").style.display = "block";
   showLoadingRow(document.getElementById("pr-header"), "טוען תיק...");
   document.getElementById("pr-allergy-banner").style.display = "none";
+  const recordState = window.currentPatientState;
   try {
     await prRenderHeader();
   } catch (err) {
+    if (prIsStale(err)) return;
     document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
     return;
   }
+  if (window.currentPatientState !== recordState) return;
   prRenderTabsNav();
   prSwitchTab("overview");
   document.getElementById("pr-record").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -79,8 +82,10 @@ async function openPatientRecord(patientId) {
 
 // ----- כותרת + באנר רגישויות + באנר רשומות כפולות -----
 async function prRenderHeader() {
+  const state = window.currentPatientState;
   const patient = await prCached("patient", prFetchPatient);
   const allergies = await prCached("allergies", prFetchAllergies);
+  prAssertCurrent(state);
   const banner = document.getElementById("pr-allergy-banner");
   if (allergies.length) {
     banner.style.display = "block";
@@ -90,6 +95,7 @@ async function prRenderHeader() {
     banner.style.display = "none";
   }
   await prRenderDuplicateBanner(patient);
+  prAssertCurrent(state);
   const age = calcAge(patient.date_of_birth);
   const fields = [
     ["שם מלא", patient.full_name],
@@ -272,9 +278,12 @@ async function prSwitchTab(key) {
   const content = document.getElementById("pr-tab-content");
   showLoadingRow(content, "טוען...");
   const tab = PR_TABS.find((t) => t.key === key);
+  const state = window.currentPatientState;
+  const token = (content._prRenderToken = (content._prRenderToken || 0) + 1);
   try {
     await tab.render(content);
   } catch (err) {
+    if (prIsStale(err) || window.currentPatientState !== state || content._prRenderToken !== token) return;
     content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
   }
 }
@@ -509,6 +518,7 @@ async function prRenderVitalsTab(content) {
   }
 
   const baselineEl = document.getElementById("pr-vitals-baseline");
+  const vitalsState = window.currentPatientState;
   const rows = [];
   for (const v of vitalsWithData) {
     const points = visits.filter((r) => r[v.key] != null).map((r) => ({ measured_at: r.visit_date, value: r[v.key] }));
@@ -517,9 +527,11 @@ async function prRenderVitalsTab(content) {
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/baseline`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vital: v.key, points }) });
       if (!res.ok) continue;
       const b = await res.json();
+      prAssertCurrent(vitalsState);
       rows.push(`<tr><td>${v.label}</td><td>${b.baseline ?? "—"}</td><td>${b.latest_value ?? "—"}</td><td>${b.deviation ?? "—"}</td><td>${b.worsening_trend ? "מגמת החמרה" : b.sudden_change ? "שינוי חד" : "—"}</td></tr>`);
-    } catch (err) { /* predictive-service לא זמין — מדלגים על הניתוח, המדידות הגולמיות כבר מוצגות למעלה */ }
+    } catch (err) { if (prIsStale(err)) throw err; /* predictive-service לא זמין — מדלגים על הניתוח, המדידות הגולמיות כבר מוצגות למעלה */ }
   }
+  prAssertCurrent(vitalsState);
   baselineEl.innerHTML = rows.length
     ? `<h3>בסיס אישי (Baseline)</h3><div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table"><thead><tr><th>מדד</th><th>בסיס</th><th>נוכחי</th><th>סטייה</th><th>דגלים</th></tr></thead><tbody>${rows.join("")}</tbody></table></div>`
     : `<p style="color:var(--text-muted);">אין עדיין מספיק היסטוריה לניתוח בסיס אישי.</p>`;
@@ -733,7 +745,9 @@ async function prRenderPlanVisits(planId) {
   const el = document.getElementById(`pr-plan-visits-${planId}`);
   if (!el) return;
   el.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">טוען...</p>`;
+  const planState = window.currentPatientState;
   const { data, error } = await supabaseClient.from("service_plan_visits").select("*").eq("service_plan_id", planId).order("planned_date");
+  prAssertCurrent(planState);
   if (error) { el.innerHTML = friendlyErrorMessage(error); return; }
   el.innerHTML = (data && data.length)
     ? `<ul style="margin:8px 0 0; padding-inline-start:18px; font-size:13px;">${data.map((v) => `<li>${formatDateHe(new Date(v.planned_date))} ${formatTimeHe(new Date(v.planned_date))} — ${v.status}</li>`).join("")}</ul>`

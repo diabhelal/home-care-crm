@@ -1054,11 +1054,25 @@ function setupAllModalsAccessibility() {
   document.querySelectorAll('.modal-overlay[role="dialog"]').forEach(setupModalAccessibility);
 }
 
+// נזרקת כשהמשתמש עבר למטופל אחר בזמן ששליפה הייתה בדרך: התוצאה שייכת למטופל הקודם
+// ואסור שתגיע ל-DOM. קוראים צריכים לבלוע אותה בשקט (ר' prIsStale).
+class StaleRecordError extends Error {
+  constructor() { super("stale patient record"); this.name = "StaleRecordError"; }
+}
+function prIsStale(err) { return err instanceof StaleRecordError; }
+function prAssertCurrent(state) {
+  if (window.currentPatientState !== state) throw new StaleRecordError();
+}
+
 async function prCached(key, fetchFn) {
   const state = window.currentPatientState;
   if (state[key] !== null) return state[key];
-  state[key] = await fetchFn();
-  return state[key];
+  const value = await fetchFn();
+  // fetchFn קורא את patientId מ-window.currentPatientState, ולכן ייתכן שכבר שייך למטופל החדש -
+  // לא שומרים במטמון ולא מחזירים; רק אם המצב עדיין אותו מצב.
+  prAssertCurrent(state);
+  state[key] = value;
+  return value;
 }
 
 // הופך שגיאות רשת (למשל אין חיבור לאינטרנט) להודעה ברורה בעברית.
@@ -1180,9 +1194,12 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   if (!patientId || !resultEl || typeof supabaseClient === "undefined") return;
   e.stopImmediatePropagation();
   e.preventDefault();
+  // המודאל יכול להיסגר או לעבור למטופל אחר בזמן ההמתנה לספירה — אז לא כותבים ולא מפעילים חישוב
+  const stillSameModal = () => modal.dataset.patientId === patientId && modal.style.display !== "none";
   try {
     const { data, error } = await supabaseClient.from("visit_reports").select("id").eq("patient_id", patientId);
     if (error) throw error;
+    if (!stillSameModal()) return;
     if ((data || []).length < TREND_MIN_HISTORY) {
       resultEl.textContent = "";
       const p = document.createElement("p");
@@ -1195,6 +1212,7 @@ if (typeof document !== "undefined" && typeof document.addEventListener === "fun
   } catch (err) {
     // אי אפשר לברר כמה מדידות יש — לא חוסמים, נותנים ל-handler הרגיל לטפל (כולל הודעת שגיאה)
   }
+  if (!stillSameModal()) return;
   btn.dataset.trendChecked = "1";
   try { btn.click(); } finally { delete btn.dataset.trendChecked; }
 }, true);
