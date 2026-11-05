@@ -6,8 +6,8 @@ from zoneinfo import ZoneInfo
 
 from . import scheduling as sch
 from .config import Settings
-from .errors import (SlotTakenError, bad_request, conflict, forbidden,
-                     not_found, slot_taken)
+from .errors import (IdempotencyConflictError, SlotTakenError, bad_request, conflict, forbidden,
+                     idempotency_conflict, not_found, slot_taken)
 from .geo import Geocoder
 from .models import Booking, BookingRequestIn, Identity, Staff, VisitReportIn
 from .repo import Repository
@@ -102,6 +102,13 @@ class BookingService:
                 if again:
                     return again, False
             raise slot_taken()
+        except IdempotencyConflictError:
+            # the unique index on (patient_id, idempotency_key) fired: not a slot conflict
+            again = (self.repo.find_by_idempotency(who.user_id, idempotency_key)
+                     if idempotency_key else None)
+            if again:
+                return again, False
+            raise idempotency_conflict()
 
     def _pick_staff(self, staff_id, at, address, coords) -> Staff:
         if staff_id is not None:

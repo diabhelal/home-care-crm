@@ -8,9 +8,14 @@ from __future__ import annotations
 from datetime import datetime, time
 from typing import Optional
 
+import logging
+
 import httpx
 
-from .errors import SlotTakenError, bad_request, conflict, forbidden, not_found
+from .errors import (IdempotencyConflictError, SlotTakenError, bad_request, conflict, forbidden,
+                     not_found, redact_details, unexpected_unique_violation)
+
+log = logging.getLogger("app.supabase_repo")
 from .models import Booking, Staff
 
 # base_lat/base_lng are NOT selected: they are a staff member's private base location and
@@ -62,6 +67,15 @@ def booking_to_row(b: Booking) -> dict:
     return row
 
 
+# bookings_staff_id_scheduled_at_active_key = partial unique index (real slot conflict);
+# the other text is the guard trigger bookings_guard_insert/update (migration 20261015154829,
+# proposed/005 and 010).
+_SLOT_MARKERS = ("bookings_staff_id_scheduled_at_active_key", "staff member not available")
+
+# Explicit cap for history reads (PostgREST's default max-rows is 1000 and silently truncates).
+HISTORY_LIMIT = 500
+
+
 class SupabaseRepo:
     def __init__(self, base_url: str, anon_key: str, jwt: str,
                  transport: httpx.BaseTransport | None = None, timeout: float = 10.0):
@@ -73,6 +87,18 @@ class SupabaseRepo:
         )
 
     # -- low level
+    @staticmethod
+    def _classify_unique_violation(body: dict) -> Exception:
+        """23505 can mean different things. Decide from the PostgREST error text
+        (message/details/hint carry the constraint name or the guard-trigger message).
+        Anything not positively identified is a generic server error, never "slot taken"."""
+        text = " ".join(str(body.get(k) or "") for k in ("message", "details", "hint")).lower()
+        if "idempotency_key" in text:
+            return IdempotencyConflictError()
+        if any(m in text for m in _SLOT_MARKERS):
+            return SlotTakenError()
+        return unexpected_unique_violation()
+
     def _raise_for(self, resp: httpx.Response):
         if resp.status_code < 400:
             return
@@ -82,7 +108,15 @@ class SupabaseRepo:
             body = {}
         code = body.get("code") if isinstance(body, dict) else None
         if code == "23505":
-            raise SlotTakenError()
+            exc = self._classify_unique_violation(body)
+            if not isinstance(exc, SlotTakenError):
+                log.warning("unique violation not treated as slot conflict: status=%s code=%s "
+                            "message=%s details=%s", resp.status_code, code, body.get("message"),
+                            redact_details(body.get("details")))
+            raise exc
+        # 23P01 (exclusion_violation): no exclusion constraint exists today, so it is
+        # deliberately NOT mapped. If one is ever added for slot overlap, map it here to
+        # SlotTakenError after checking its constraint name - do not guess.
         # DB guards / RPC errors -> the same domain errors the service raises itself
         if code == "42501" or resp.status_code in (401, 403):
             raise forbidden()
@@ -195,13 +229,16 @@ class SupabaseRepo:
     def get_previous_report(self, patient_id, exclude_report_id):
         rows = self._get("/visit_reports", {
             "patient_id": f"eq.{patient_id}", "id": f"neq.{exclude_report_id}",
-            "select": self._VITALS, "order": "visit_date.desc", "limit": "1"})
+            "select": self._VITALS, "order": "visit_date.desc,id.desc", "limit": "1"})
         return rows[0] if rows else None
 
     def list_patient_reports(self, patient_id):
-        return self._get("/visit_reports", {
+        # newest first + explicit limit: if a cap is hit the OLDEST rows are dropped, never the
+        # newest (risk/auto-alert treat the last row as "current"). Returned ascending.
+        rows = self._get("/visit_reports", {
             "patient_id": f"eq.{patient_id}", "select": f"visit_date,{self._VITALS}",
-            "order": "visit_date.asc"})
+            "order": "visit_date.desc,id.desc", "limit": str(HISTORY_LIMIT)})
+        return list(reversed(rows))
 
     def record_risk_prediction(self, report_id, attestation):
         return self._rpc("record_risk_prediction",
