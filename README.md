@@ -7,13 +7,17 @@
 **Booking, visit documentation and rule-based risk flagging for home-healthcare teams.**
 A patient requests a visit without registering, an administrator approves and assigns it, a nurse documents the visit (even without signal), and the system flags worrying vital-sign patterns with transparent, hand-written clinical rules.
 
-> **Status: working prototype / final-year project, synthetic data only.** It is not a certified medical device and is not approved for real patients. The risk indicator is decision support, not diagnosis, and there is **no trained or clinically validated machine-learning model**. See [Development status](#development-status) for exactly what is on `main`, what is in review, and what is only proposed.
+> **Status: working prototype, built as a final-year project with a path toward a commercial product. Synthetic data only.** It is not a certified medical device and is not approved for real patients. The risk indicator is decision support, not diagnosis, and there is **no trained or clinically validated machine-learning model**. See [Development status](#development-status) for exactly what is on `main`, what is in review, and what is only proposed.
 
 <p align="center">
-  <img src="docs/demo-proof/01-patient-03-booking-details.png" alt="Patient booking page: visit type, date, time slots" width="48%">
-  <img src="docs/demo-proof/02-employee-03-visit-report.png" alt="Nurse visit report with vitals and signature" width="48%">
+  <img src="docs/demo-proof/01-patient-03-booking-details.png" alt="Patient booking page: service, address, date and time slots" width="100%">
 </p>
-<p align="center"><sub>Synthetic data. Hebrew right-to-left interface. Screenshots are produced by the mocked demo test (<code>tests/e2e/demo-journey.spec.js</code>) and may lag the latest UI.</sub></p>
+<p align="center">
+  <img src="docs/demo-proof/mobile/nurse-my-work.png" alt="Nurse mobile view: next visit with navigation, call and start-visit buttons" width="32%">
+  &nbsp;&nbsp;
+  <img src="docs/demo-proof/mobile/nurse-visit-report.png" alt="Nurse mobile view: visit report with procedures, treatment summary and signature" width="32%">
+</p>
+<p align="center"><sub>Synthetic data only; Hebrew right-to-left interface. Top: patient booking (desktop). Bottom: nurse on a phone. Regenerated on 2026-11-05 from the current <code>main</code> UI by the mocked demo test (<code>tests/e2e/demo-journey.spec.js</code>); they can lag later UI changes. The "demo system" banner is part of the demo mode.</sub></p>
 
 **Contents:** [Problem](#the-problem) · [Features](#features) · [Architecture](#architecture) · [Technology](#technology) · [Clinical analytics](#clinical-analytics) · [Security and privacy](#security-and-privacy) · [Offline behaviour](#offline-behaviour) · [Getting started](#getting-started) · [Testing and quality](#testing-and-quality) · [Project structure](#project-structure) · [Development status](#development-status) · [Roadmap](#roadmap) · [Documentation](#documentation) · [Disclaimer](#disclaimer)
 
@@ -35,25 +39,20 @@ Everything below is on `main` unless marked otherwise. Evidence is automated tes
 ## Architecture
 ```mermaid
 flowchart LR
-  subgraph Browser["Browser (PWA, installable)"]
-    UI["public/ - static HTML + vanilla JS<br/>patient, staff, admin pages<br/>Service Worker + offline draft queue"]
-  end
-  subgraph Backend["backend/ - Python / FastAPI (:8001)"]
-    API["booking, availability, approval,<br/>check-in, completion, risk orchestration"]
-  end
-  PRED["predictive-service/ - FastAPI (:8000)<br/>rule-based risk, baseline, forecasts"]
+  UI["<b>Browser (installable PWA)</b><br/>public/ - static HTML + vanilla JS<br/>Service Worker, offline draft queue"]
+  API["<b>backend/</b> FastAPI :8001<br/>booking, availability, approval,<br/>check-in, completion, risk orchestration"]
+  PRED["<b>predictive-service/</b> FastAPI :8000<br/>rule-based risk, baseline, forecasts"]
   subgraph SB["Supabase"]
     PG[("Postgres + RLS")]
     AUTH["Auth"]
     EDGE["Edge Function<br/>create-staff-login"]
   end
-  UI -- "reads via supabase-js (publishable key, RLS)" --> PG
-  UI -- "sign-in" --> AUTH
-  UI -- "writes: caller's JWT" --> API
-  UI -- "forecasts / health check" --> PRED
-  API -- "PostgREST with the caller's JWT (RLS stays in force)" --> PG
+  UI -- "reads + sign-in<br/>(publishable key, RLS)" --> SB
+  UI -- "writes with the user's JWT" --> API
+  UI -- "forecasts, health check" --> PRED
+  API -- "PostgREST with the user's JWT<br/>(RLS stays in force)" --> PG
   API -- "risk request" --> PRED
-  EDGE -- "service role, server-side only" --> AUTH
+  EDGE -. "service role, server-side only" .-> AUTH
 ```
 Key design decisions:
 - **Browser reads, backend writes.** Reads go to Supabase through RLS. Writes to bookings, visit reports, risk predictions and alerts go through the backend with the caller's own JWT; a service-role key is never used by the app (only the Edge Function holds one, server-side).
@@ -93,7 +92,7 @@ An assessment is computed by the backend, attested with an HMAC, and only then s
 **Known gaps (not yet closed)**
 - Offline drafts live in `localStorage`, separated per user but **not encrypted**.
 - Anonymous booking has no CAPTCHA; MFA and leaked-password protection are not enabled.
-- Migrations `008`-`013` exist and are tested but are **not applied to the live database**, so integrity features that depend on them (for example blocking physical deletes of clinical records) are not in force there. See [Development status](#development-status).
+- Migrations `008`-`013` (and the later proposals) exist and are tested on a throwaway database but are **not applied to the live database**. Based on the migration files, administrators there can still physically delete clinical rows such as visit reports; the proposals block this. The live state was last read on 2026-10-31. See [Development status](#development-status).
 - No privacy policy, consent flow, penetration test or legal review. Real use would also need hosting with HTTPS.
 
 Full text: [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/REVIEW.md`](docs/REVIEW.md), [`SECURITY.md`](SECURITY.md) (how to report an issue).
@@ -168,7 +167,7 @@ File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Fold
 |---|---|
 | **On `main`** | Everything in [Features](#features); isolation fixes for patient records and visit reports; trend-forecast button fix; rule-based risk engine; offline drafts; CI |
 | **On `main`, database part not applied** | Staff deactivation instead of deletion, measurement history, risk-status age, amendments to completed reports, patient archive and record export (UI and tests on `main`; SQL `009`, `011`-`013` not applied to the live database) |
-| **Open pull requests (reviewed by CI, not merged)** | Offline-draft safety ([#27](https://github.com/diabhelal/home-care-crm/pull/27), [#33](https://github.com/diabhelal/home-care-crm/pull/33)); Service Worker ([#32](https://github.com/diabhelal/home-care-crm/pull/32)); backend reliability ([#25](https://github.com/diabhelal/home-care-crm/pull/25), [#28](https://github.com/diabhelal/home-care-crm/pull/28)); predictive input validation and wording ([#24](https://github.com/diabhelal/home-care-crm/pull/24)); no physical delete in the UI and author-only amendments ([#31](https://github.com/diabhelal/home-care-crm/pull/31)); admin can pause a service such as blood tests ([#35](https://github.com/diabhelal/home-care-crm/pull/35)); test harness ([#29](https://github.com/diabhelal/home-care-crm/pull/29)); opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18)) |
+| **Open pull requests (not merged; CI state per PR in [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md))** | Offline-draft safety ([#27](https://github.com/diabhelal/home-care-crm/pull/27), [#33](https://github.com/diabhelal/home-care-crm/pull/33)); Service Worker ([#32](https://github.com/diabhelal/home-care-crm/pull/32)); backend reliability ([#25](https://github.com/diabhelal/home-care-crm/pull/25), [#28](https://github.com/diabhelal/home-care-crm/pull/28)); predictive input validation and wording ([#24](https://github.com/diabhelal/home-care-crm/pull/24)); no physical delete in the UI and author-only amendments ([#31](https://github.com/diabhelal/home-care-crm/pull/31)); admin can pause a service such as blood tests ([#35](https://github.com/diabhelal/home-care-crm/pull/35)); test harness ([#29](https://github.com/diabhelal/home-care-crm/pull/29)); opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18)) |
 | **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`019` record integrity, archive/void and access rules ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35). The live database has 23 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) |
 | **Not built** | Hosting with HTTPS, MFA, privacy and consent documents, penetration test, validated ML model, real-time updates, external alerting (email/SMS/phone) |
 
