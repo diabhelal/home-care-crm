@@ -25,6 +25,11 @@ def conflict(code: str, msg: str):
     return DomainError(409, code, msg)
 
 
+def service_unavailable(message: str | None = None):
+    base = "השירות אינו זמין בתאריך שנבחר"
+    return DomainError(409, "service_unavailable", f"{base}: {message}" if message else base)
+
+
 def slot_taken():
     return DomainError(409, "slot_taken", SLOT_TAKEN_MSG)
 

@@ -10,7 +10,7 @@ from typing import Optional
 
 import httpx
 
-from .errors import SlotTakenError, bad_request, conflict, forbidden, not_found
+from .errors import SlotTakenError, bad_request, conflict, forbidden, not_found, service_unavailable
 from .models import Booking, Staff
 
 # base_lat/base_lng are NOT selected: they are a staff member's private base location and
@@ -84,6 +84,8 @@ class SupabaseRepo:
         if code == "23505":
             raise SlotTakenError()
         # DB guards / RPC errors -> the same domain errors the service raises itself
+        if code == "SV001":   # bookings_service_pause_guard (proposed/021)
+            raise service_unavailable()
         if code == "42501" or resp.status_code in (401, 403):
             raise forbidden()
         if code == "55000":
@@ -103,6 +105,11 @@ class SupabaseRepo:
         r = self._client.post(f"/rpc/{fn}", json=args)
         self._raise_for(r)
         return r.json()
+
+    # -- service pauses (admin-managed; readable by every signed-in user)
+    def list_service_pauses(self):
+        return self._get("/service_availability", {"is_paused": "eq.true",
+                         "select": "purpose,paused_from,paused_until,public_message"})
 
     # -- staff
     def get_staff(self, staff_id):

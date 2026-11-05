@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from . import scheduling as sch
 from .config import Settings
 from .errors import (SlotTakenError, bad_request, conflict, forbidden,
-                     not_found, slot_taken)
+                     not_found, service_unavailable, slot_taken)
 from .geo import Geocoder
 from .models import Booking, BookingRequestIn, Identity, Staff, VisitReportIn
 from .repo import Repository
@@ -85,6 +85,7 @@ class BookingService:
         at = at.astimezone(timezone.utc)
         if at <= self.clock():
             raise bad_request("in_past", "לא ניתן להזמין לזמן שעבר")
+        self._require_service_available(body.purpose, at.astimezone(self.tz).date())
         coords = self.geo.geocode(body.address)
         staff = self._pick_staff(body.staff_id, at, body.address, coords)
         b = Booking(
@@ -102,6 +103,16 @@ class BookingService:
                 if again:
                     return again, False
             raise slot_taken()
+
+    def _require_service_available(self, purpose: str, day: date) -> None:
+        """An administrator can pause a service (service_availability). Same rule as the DB trigger, checked first so the
+        patient gets the admin's message. A failure to READ the list is not swallowed: it surfaces as an error."""
+        for p in self.repo.list_service_pauses():
+            if p.get("purpose") != purpose:
+                continue
+            frm, until = p.get("paused_from"), p.get("paused_until")
+            if (frm is None or day >= date.fromisoformat(frm)) and (until is None or day <= date.fromisoformat(until)):
+                raise service_unavailable(p.get("public_message"))
 
     def _pick_staff(self, staff_id, at, address, coords) -> Staff:
         if staff_id is not None:

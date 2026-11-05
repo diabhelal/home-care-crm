@@ -7,6 +7,9 @@ from .models import Booking, Staff
 
 
 class Repository(Protocol):
+    def list_service_pauses(self) -> list[dict]:
+        """service_availability rows with is_paused = true: {purpose, paused_from, paused_until, public_message}
+        (dates as 'YYYY-MM-DD' strings or None). No row for a purpose = available."""
     def get_staff(self, staff_id: int) -> Optional[Staff]: ...
     def list_staff(self) -> list[Staff]: ...
     def get_staff_by_auth_user(self, auth_user_id: str) -> Optional[Staff]: ...

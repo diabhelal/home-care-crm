@@ -538,3 +538,31 @@ def test_reassign_lost_race_is_reported_as_a_clear_conflict(world, monkeypatch):
     assert r.status_code == 409
     assert r.json()["code"] == "slot_taken"
     assert r.json()["detail"]
+
+
+def test_paused_service_is_refused_with_the_admin_message_only_inside_the_window(world):
+    world.repo.service_pauses.append({"purpose": "blood_test", "paused_from": "2026-10-18", "paused_until": "2026-10-20",
+                                      "public_message": "אין בדיקות דם עד יום ג'"})
+    inside = world.client.post("/bookings/request", json=req(local(18, 9), purpose="blood_test"), headers=H("patient"))
+    assert inside.status_code == 409 and inside.json()["code"] == "service_unavailable"
+    assert "אין בדיקות דם עד יום ג'" in inside.json()["detail"]
+    assert world.repo.bookings == {}                                              # nothing was written
+    other_service = world.client.post("/bookings/request", json=req(local(18, 9), purpose="checkup"), headers=H("patient"))
+    assert other_service.status_code == 201
+    after = world.client.post("/bookings/request", json=req(local(21, 9), purpose="blood_test"), headers=H("patient"))
+    assert after.status_code == 201
+
+
+def test_open_ended_pause_blocks_until_resumed(world):
+    world.repo.service_pauses.append({"purpose": "blood_test", "paused_from": None, "paused_until": None, "public_message": None})
+    r = world.client.post("/bookings/request", json=req(local(25, 9), purpose="blood_test"), headers=H("patient"))
+    assert r.status_code == 409 and r.json()["code"] == "service_unavailable"
+    world.repo.service_pauses.clear()
+    assert world.client.post("/bookings/request", json=req(local(25, 9), purpose="blood_test"), headers=H("patient")).status_code == 201
+
+
+def test_pause_day_uses_business_time_not_utc(world):
+    # 2026-10-19 00:30 Israel time is still 2026-10-18 in UTC; the pause covers only the 19th
+    world.repo.service_pauses.append({"purpose": "blood_test", "paused_from": "2026-10-19", "paused_until": "2026-10-19", "public_message": None})
+    r = world.client.post("/bookings/request", json=req(local(19, 0, 30), purpose="blood_test"), headers=H("patient"))
+    assert r.status_code == 409 and r.json()["code"] == "service_unavailable"

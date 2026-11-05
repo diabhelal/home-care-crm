@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013"]
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "021"]
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -90,6 +90,13 @@ POSTFLIGHT = [
      "and not has_table_privilege('anon','public.record_access_log','select') "
      "and has_function_privilege('authenticated','public.export_patient_record(uuid,text,text,text)','execute') "
      "and not has_function_privilege('anon','public.export_patient_record(uuid,text,text,text)','execute')"),
+    ("021 service_availability: RLS on, no DELETE, anon has nothing, pause guard triggers exist",
+     "select (select relrowsecurity from pg_class where oid='public.service_availability'::regclass) "
+     "and not has_table_privilege('authenticated','public.service_availability','delete') "
+     "and has_table_privilege('authenticated','public.service_availability','select') "
+     "and not has_table_privilege('anon','public.service_availability','select') "
+     "and (select count(*) from pg_trigger where not tgisinternal and tgname in "
+     "('bookings_service_pause_guard_ins','bookings_service_pause_guard_upd')) = 2"),
     ("RLS enabled on every public table",
      "select not exists (select 1 from pg_class c join pg_namespace n on n.oid=c.relnamespace "
      "where n.nspname='public' and c.relkind='r' and not c.relrowsecurity)"),
@@ -97,6 +104,9 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "021": [("021 objects gone", "select to_regclass('public.service_availability') is null "
+                                 "and to_regprocedure('public.service_is_paused(text,date)') is null and to_regprocedure('public.list_service_pauses()') is null "
+                                 "and (select count(*) from pg_trigger where tgname like 'bookings_service_pause_guard%') = 0")],
     "013": [("013 objects gone", "select to_regclass('public.record_access_log') is null "
                                  "and to_regprocedure('public.export_patient_record(uuid,text,text,text)') is null "
                                  "and (select count(*) from information_schema.columns where table_schema='public' and table_name='patients' "

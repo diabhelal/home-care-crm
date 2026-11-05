@@ -12,6 +12,7 @@
 | 006_server_side_risk_and_alerts | 20261015155034 (+ סוד אטסטציה הוכנס ל-`server_secrets`; לא ב-git) |
 | 007_server_derived_authorship | 20261015155238 (גרסה מתוקנת: DELETE בטריגר clinical_notes לא בולע cascade) |
 
+| 021_service_availability | **לא הוחלה** (טבלת השהיית שירותים + חסימה גם בשרת; נבדקה על Postgres מבודד) |
 | 008_visit_report_integrity | **לא הוחל** (נבדק רק על Postgres מבודד; ממתין לאישור החלה) |
 | 013_patient_archive_and_record_export | **לא הוחלה** (ארכיון מטופל + הוצאת תיק משפטית עם יומן גישה; נבדקה על Postgres מבודד) |
 | 012_visit_report_amendments | **לא הוחלה** (טבלה חדשה append-only; נבדקה על Postgres מבודד) |

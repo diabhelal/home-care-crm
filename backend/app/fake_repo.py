@@ -24,6 +24,9 @@ class FakeRepo:
         self.alerts: list[dict] = []
         self.attestation_secret: str | None = None
         self.fail_record = False
+        self.service_pauses: list[dict] = []   # rows of service_availability with is_paused = true
+
+    def list_service_pauses(self): return list(self.service_pauses)
 
     # staff
     def get_staff(self, staff_id): return self.staff.get(staff_id)
