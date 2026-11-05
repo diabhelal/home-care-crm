@@ -53,6 +53,7 @@ All PRs target `main` unless noted. CI = the repository workflow (secret scan, J
 | #19 | `docs/readme-overhaul` | Lecturer-facing README and per-topic docs (`DATABASE`, `RISK_ENGINE`, `SECURITY_ARCHITECTURE`, …) + this map and the stabilisation plan | 16 | green | base of #21; `HANDOFF.md`/`CLAUDE.md` overlap with `docs/session-handoff` |
 | #21 | `docs/archive-historical-plans` | Archives the two historical plans | 6 | green | **base is #19** (stacked) |
 | #34 | `docs/session-handoff` | Corrected `CLAUDE.md`/`HANDOFF.md` (branch + PR policy), `docs/SESSION_HANDOFF.md`, 9 agents / 4 skills / settings / Codex configs (byte-identical to #23), verification scripts | 33 | green | `CLAUDE.md`/`HANDOFF.md` overlap with #19 — small conflict expected |
+| #35 | `feature/service-availability` | Admin can pause a service (e.g. blood tests) for a date range or until resumed, with a patient-facing message; enforced in the form, backend and DB (proposed SQL `021`, **not applied**) | 21 | green (pending first CI run when written) | after #32 add `js/admin/services.js` to `APP_SHELL`; renumber the version; see `docs/SERVICE_AVAILABILITY.md` |
 | 15× | `dependabot/...` | Dependency bumps (not triaged; one GitHub "critical" advisory not yet reviewed) | — | — | — |
 
 ### Suggested merge order for what is still open (each merge needs explicit owner approval)
