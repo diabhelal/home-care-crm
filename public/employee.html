@@ -536,7 +536,7 @@
     // דוח נשמר רק יחד עם השלמת הביקור (פעולה אטומית בשרת); ביקור שהושלם — נעול לעריכה כאן.
     const vrLocked = booking.status === "completed";
     document.getElementById("visit-report-modal-save").disabled = vrLocked;
-    if (vrLocked) showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
+    if (vrLocked) showError(document.getElementById("visit-report-modal-error"), SIGNED_REPORT_MSG);
     document.getElementById("vr-allergy-banner").style.display = "none";
     visitReportModal.style.display = "flex";
     const scope = visitReportScope.start(booking.patient_id);
