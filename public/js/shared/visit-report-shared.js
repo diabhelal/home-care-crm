@@ -178,3 +178,8 @@ async function recalculateRiskAfterSave(patientId, savedReportId) {
   prInvalidate("currentRisk", "riskHistory");
   if (out.alert) { prInvalidate("alerts"); if (typeof loadAttentionDashboard === "function") loadAttentionDashboard(); }
 }
+
+
+// דוח שהושלם (חתום) נפתח מתיק המטופל לצפייה בלבד: אין דריסה. ההסבר מפנה לדרכים המותרות
+// (תיקון מקושר למחבר, הערה קלינית חדשה) ולא משאיר כפתור שמירה מושבת בלי הסבר.
+const SIGNED_REPORT_MSG = "הביקור כבר הושלם והדוח חתום, ולכן אי אפשר לערוך אותו כאן. לתיקון: לשונית \"ביקורים\" ← \"הוספת תיקון\" (למחבר הדוח; המקור נשמר). להוספת מידע חדש לתיק: לשונית \"הערות קליניות\".";

@@ -547,9 +547,9 @@
     });
     vrLoadSignature(report?.patient_signature_data || null);
     // דוח נשמר רק יחד עם השלמת הביקור (אטומי בשרת); ביקור שהושלם — נעול לעריכה כאן.
-    document.getElementById("visit-report-modal-save").disabled = booking.status === "completed";
-    if (booking.status === "completed") showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
     hideError(document.getElementById("visit-report-modal-error"));
+    document.getElementById("visit-report-modal-save").disabled = booking.status === "completed";
+    if (booking.status === "completed") showError(document.getElementById("visit-report-modal-error"), SIGNED_REPORT_MSG);
     cancelTrendRun(); // תחזית שרצה למטופל הקודם לא תוצג כאן
     document.getElementById("vr-trend-result").innerHTML = "";
     document.getElementById("vr-comprehensive-result").innerHTML = "";
