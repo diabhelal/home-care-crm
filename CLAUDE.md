@@ -2,7 +2,7 @@
 
 CRM לחברת שירותי טיפול רפואי וביקורי בית. מטופל מתחבר, בוחר איש/אשת צוות רפואי, בוחר מטרת ביקור, ובוחר תאריך/שעה מתוך הזמנים הפנויים של איש הצוות. צוות (מנהל/אחות/רופא) מתעד ביקורים, מדדים וסיכון קליני; מנוע Python מקומי מחשב תחזיות מבוססות-כללים.
 
-ראה [README.md](./README.md) למסמך המלא (ארכיטקטורה, סכמה, אבטחה) — זה קובץ אוריינטציה תמציתי. [PLAN.md](./PLAN.md) הוא היסטורי (MVP המקורי, הושלם).
+ראה [README.md](./README.md) למסמך המלא (ארכיטקטורה, סכמה, אבטחה) — זה קובץ אוריינטציה תמציתי. [docs/archive/PLAN.md](./docs/archive/PLAN.md) הוא היסטורי (MVP המקורי, הושלם).
 
 ## Stack
 - **DB/Auth/API**: Supabase (Postgres + Auth + Data API + RLS). פרויקט: `home-care-crm`, ref `qqeupktyadjxqoxkstnl`, region `eu-central-1`.
@@ -14,7 +14,7 @@ CRM לחברת שירותי טיפול רפואי וביקורי בית. מטו�
 ## מודל זהות: הזמנה כמו טיסה/אוכל, בלי הרשמה (למטופל)
 המטופל גולש חופשי בלי פרטים, וממלא שם/טלפון/כתובת רק בשלב אישור ההזמנה (`booking.html`). מאחורי הקלעים: `ensureGuestSession()` (`app.js`) יוצר session אנונימי שקוף (`signInAnonymously()`) — נותן `auth.uid()` אמיתי מהרגע הראשון, ה-RLS עובד ללא שינוי. הזהות היא per-browser; יש תשתית אופציונלית לקישור טלפון+OTP לגישה חוצת-מכשירים (`my-bookings.html`) אך היא לא פעילה — אין ספק SMS מוגדר (`[auth.sms] enable_signup = false`). ממשק הטלפון+SMS קיים ב-`renderAccountCard` (`public/i18n.js`) ומוסתר ע"י `SMS_LOGIN_ENABLED=false` ב-`config.js`.
 
-⚠️ `supabase config push` דוחף את **כל** מקטע ה-`[auth]` מ-config.toml המקומי, לא רק שדה בודד — ר' PLAN.md להיסטוריה.
+⚠️ `supabase config push` דוחף את **כל** מקטע ה-`[auth]` מ-config.toml המקומי, לא רק שדה בודד — ר' `docs/archive/PLAN.md` להיסטוריה.
 
 ## שני תפקידים אמיתיים: מנהל וצוות
 - **מנהל** (`admin.html`): התחברות אימייל+סיסמה, `app_metadata.is_admin = true` (רק דרך Admin API). מדיניות `admin_full_access_*` נותנות גישה מלאה לכל הטבלאות.
@@ -47,7 +47,7 @@ CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות �
 כל פיצ'ר או תיקון מפותח **בענף נפרד** (`feature/<שם>`), גם בעבודה לבד. בסיום, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע): commit, `git push -u origin <branch>`, ופתיחת **Pull Request אל `main`** (`gh pr create`) עם תיאור: מה השתנה, בדיקות ותוצאותיהן, מיגרציות שלא הוחלו. אימות: `gh pr view` ו-CI ירוק על ה-PR.
 - **אסור:** push ישיר ל-`main`, מיזוג ה-PR (הבעלים ממזג אלא אם אמר אחרת במפורש), force-push, שכתוב היסטוריה, שינוי נראות הריפו, שינויי DB/מיגרציות על הפרויקט החי, פריסה, והעלאת סודות (ה-hook ב-`.githooks/pre-commit` נשאר; לא עוקפים עם `--no-verify`).
 - אם בדיקות או push נכשלים - דווח במפורש והמשימה **לא** הושלמה.
-- טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) ותיקיות כלים שאינן שלנו (`.agents/`, `.codex/`) נשארות מחוץ ל-commit.
+- טיוטות מקומיות (`docs/design-preview.html`, `docs/hero-options.html`) ותיקיית הכלים `.agents/` נשארות מחוץ ל-commit. `.codex/` נמצאת במעקב כמראה ישן של הסוכנים (ר' `docs/AGENT_TEAM.md`, "Limitations"); לא מוסיפים אליה קבצים חדשים בלי החלטה.
 
 ## הוראה קבועה: תיעוד הוא חלק מהפיתוח (הוראת הבעלים, 2026-11-05)
 בכל שינוי משמעותי בקוד, ב-SQL, בבדיקות או בהתנהגות, **באותו ענף ובאותו PR**:
@@ -68,4 +68,4 @@ CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות �
 - **Service Worker**: רשת-תחילה עם מטמון לאופליין; בכל שינוי בקבצי קליינט להעלות `CACHE_VERSION` ב-`public/service-worker.js` וגם `APP_BUILD` ב-`public/config.js` (מוצג בתחתית העמוד). אם דפדפן מגיש קבצים ישנים: `http://localhost:8080/reset.html`.
 - **צוות**: אחים/אחיות בלבד; `SERVICE_CONFIG` ב-`public/config.js` קובע תפקידים ושירותים שמוצגים.
 - **הערכת סיכון**: כללים קליניים + סטטיסטיקה קלאסית. **אין מודל ML מאומן.** מסומן "הדגמה" בממשק.
-- **מצב מעקב עבודה**: `HANDOFF.md` (מצב והמשך), `docs/WORKPLAN.md`, `docs/STAGING_PLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`.
+- **מצב מעקב עבודה**: `HANDOFF.md` (מצב והמשך), `docs/REPO_STATUS.md` (מפת ענפים ו-PR), `docs/STAGING_PLAN.md`, `docs/REVIEW.md`, `docs/DEMO.md`.
