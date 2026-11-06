@@ -196,7 +196,7 @@ function localDateTimeInputValue(date) {
   return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-function measurementFormHtml() {
+function measurementFormHtml(bookings) {
   const fields = VITALS_META.map((v) => {
     const [min, max] = MEASUREMENT_LIMITS[v.key];
     return `<div class="field"><label for="pr-m-${v.key}">${v.label}${v.unit ? ` (${v.unit})` : ""}</label>
@@ -205,7 +205,9 @@ function measurementFormHtml() {
   return `
     <div class="pr-card" id="pr-measurement-form">
       <h3>הוספת מדידה לתיק</h3>
-      <p style="color:var(--text-muted); font-size:13px; margin:0 0 8px;">מדידה שנלקחה בזמן אחר, מחוץ לביקור מתוכנן. נשמרת כרשומה חדשה; דוחות שנחתמו אינם משתנים (תיקון דוח נעשה בלשונית "ביקורים").</p>
+      <p style="color:var(--text-muted); font-size:13px; margin:0 0 8px;">אפשר להוסיף כמה מדידות שרוצים, גם כמה מאותו סוג (תחילת ביקור, אמצעו, סופו, או בדיקת מעקב). בוחרים את זמן המדידה ואפשר לשייך לביקור. נשמרת כרשומה חדשה; דוחות שנחתמו אינם משתנים (תיקון דוח נעשה בלשונית "ביקורים").</p>
+      <div class="field"><label for="pr-m-booking">שייך לביקור (אופציונלי)</label>
+        <select id="pr-m-booking"><option value="">ללא ביקור: מדידה עצמאית בתיק</option>${(bookings || []).map((b) => `<option value="${b.id}">${escapeHtml(formatDateHe(new Date(b.scheduled_at)) + " " + formatTimeHe(new Date(b.scheduled_at)))}${b.status === "completed" ? " (הושלם)" : ""}</option>`).join("")}</select></div>
       <div class="field"><label for="pr-m-measured-at">מתי נמדד?</label>
         <input id="pr-m-measured-at" type="datetime-local" value="${localDateTimeInputValue(new Date())}" max="${localDateTimeInputValue(new Date())}"></div>
       ${fields}
@@ -218,10 +220,10 @@ function measurementFormHtml() {
 
 function measurementsTableHtml(rows) {
   if (!rows.length) return `<div class="empty-state">עדיין לא נוספו מדידות מחוץ לביקור</div>`;
-  const head = `<tr><th scope="col">זמן המדידה</th><th scope="col">זמן ההזנה</th><th scope="col">הוזן ע"י</th>${VITALS_META.map((v) => `<th scope="col">${v.label}</th>`).join("")}<th scope="col">הערה</th></tr>`;
+  const head = `<tr><th scope="col">זמן המדידה</th><th scope="col">זמן ההזנה</th><th scope="col">ביקור</th><th scope="col">הוזן ע"י</th>${VITALS_META.map((v) => `<th scope="col">${v.label}</th>`).join("")}<th scope="col">הערה</th></tr>`;
   const fmt = (iso) => { const d = new Date(iso); return `${formatDateHe(d)} ${formatTimeHe(d)}`; };
   const body = rows.map((m) => `<tr>
-    <td>${fmt(m.measured_at)}</td><td>${fmt(m.recorded_at)}</td><td>${escapeHtml(MEASUREMENT_ROLE_HE[m.recorded_by_role] || m.recorded_by_role || "")}</td>
+    <td>${fmt(m.measured_at)}</td><td>${fmt(m.recorded_at)}</td><td>${m.booking_id ? "#" + escapeHtml(String(m.booking_id)) : "—"}</td><td>${escapeHtml(MEASUREMENT_ROLE_HE[m.recorded_by_role] || m.recorded_by_role || "")}</td>
     ${VITALS_META.map((v) => `<td>${m[v.key] != null ? escapeHtml(String(m[v.key])) : "—"}</td>`).join("")}
     <td>${m.note ? escapeHtml(m.note) : ""}</td></tr>`).join("");
   return `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="מדידות מחוץ לביקור (ניתנת לגלילה אופקית)"><table class="admin-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
@@ -245,6 +247,8 @@ function collectMeasurementFromForm() {
   if (isNaN(when.getTime())) return { error: "זמן המדידה אינו תקין." };
   if (when.getTime() > Date.now() + 5 * 60 * 1000) return { error: "זמן המדידה לא יכול להיות בעתיד." };
   const body = { measured_at: when.toISOString() };
+  const bk = document.getElementById("pr-m-booking").value;
+  if (bk) body.booking_id = Number(bk);
   let any = false;
   for (const v of VITALS_META) {
     const txt = document.getElementById("pr-m-" + v.key).value.trim();
@@ -273,7 +277,9 @@ async function renderMeasurementsSection(container, rerender) {
     container.innerHTML = `<div class="pr-card"><h3>מדידות מחוץ לביקור</h3><div class="error-msg show" role="alert">לא ניתן היה לטעון את המדידות שנוספו מחוץ לביקור. היעדר רשימה אינו אומר שאין מדידות.</div></div>`;
     return;
   }
-  container.innerHTML = measurementFormHtml() + `<div class="pr-card"><h3 style="margin-top:0;">מדידות שנוספו מחוץ לביקור</h3>${measurementsTableHtml(m.rows)}</div>`;
+  const bookings = (await prCached("bookings", prFetchBookings)).filter((b) => b.status !== "cancelled" && b.approval_status !== "rejected");
+  if (window.currentPatientState !== state) return;
+  container.innerHTML = measurementFormHtml(bookings) + `<div class="pr-card"><h3 style="margin-top:0;">מדידות שנוספו לתיק</h3>${measurementsTableHtml(m.rows)}</div>`;
   document.getElementById("pr-m-add").addEventListener("click", async () => {
     const errEl = document.getElementById("pr-m-error");
     hideError(errEl);

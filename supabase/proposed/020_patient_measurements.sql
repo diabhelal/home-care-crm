@@ -12,6 +12,8 @@
 --   measured_at  = when the measurement was taken (entered by the user, may be in the past, never in the future);
 --   recorded_at  = when it was entered (server clock, set by the trigger, not editable).
 --
+-- booking_id is OPTIONAL: several readings during one visit (start/middle/end) keep their visit link; NULL = outside any visit.
+--
 -- Rules (callers with a JWT subject; rows written without one, e.g. migrations, are not restricted, as in 005-012):
 --   * INSERT only: no UPDATE and no DELETE by anyone with a JWT (administrators included); authenticated has no such grant.
 --   * allowed for an administrator, or for the staff member ASSIGNED to the patient (is_my_patient). Nobody else; patients cannot write.
@@ -30,6 +32,7 @@
 create table if not exists public.patient_measurements (
   id                bigint generated always as identity primary key,
   patient_id        uuid   not null references public.patients(id) on delete restrict,
+  booking_id        bigint references public.bookings(id) on delete restrict,  -- optional: the visit this reading belongs to (NULL = taken outside any visit)
   measured_at       timestamptz not null,
   recorded_at       timestamptz not null default now(),
   recorded_by       uuid   not null default auth.uid(),
@@ -45,6 +48,7 @@ create table if not exists public.patient_measurements (
     systolic_bp is not null or diastolic_bp is not null or blood_sugar is not null
     or pulse is not null or temperature is not null or oxygen_saturation is not null)
 );
+create index if not exists patient_measurements_booking_idx on public.patient_measurements (booking_id) where booking_id is not null;
 create index if not exists patient_measurements_patient_idx on public.patient_measurements (patient_id, measured_at desc);
 
 alter table public.patient_measurements enable row level security;
@@ -70,6 +74,10 @@ begin
   end if;
   if not public._is_jwt_admin() and not public.is_my_patient(new.patient_id) then
     raise exception 'not your patient' using errcode = '42501';
+  end if;
+  if new.booking_id is not null and not exists (
+       select 1 from public.bookings b where b.id = new.booking_id and b.patient_id = new.patient_id) then
+    raise exception 'booking does not belong to this patient' using errcode = '22023';
   end if;
   if new.measured_at > now() + interval '5 minutes' then
     raise exception 'measured_at cannot be in the future' using errcode = '22023';

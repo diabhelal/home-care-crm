@@ -111,6 +111,9 @@ class FakeRepo:
                           and b.approval_status != "rejected" for b in self.bookings.values())
             if not related:
                 raise forbidden()
+        bid = payload.get("booking_id")
+        if bid is not None and not (bid in self.bookings and self.bookings[bid].patient_id == patient_id):
+            raise bad_request("invalid_value", "ערך לא תקין")
         now = self._now()
         if payload["measured_at"] > now + timedelta(minutes=5):
             raise bad_request("invalid_value", "ערך לא תקין")

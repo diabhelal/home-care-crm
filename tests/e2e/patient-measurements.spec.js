@@ -134,3 +134,26 @@ test("מיגרציה 020 עדיין לא הוחלה: הסבר במקום טופ�
   await expect(page.locator("#pr-measurement-form")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("שלוש מדידות באותו ביקור (כולל חזרה על אותו ערך) נשמרות מקושרות לביקור; מדידה עצמאית נשארת בלי קישור", async ({ browser }) => {
+  const { page, ctl, errors } = await setup(browser, { as: "admin" });
+  await expect(page.locator("#pr-m-booking option")).toHaveCount(2);              // "ללא ביקור" + הביקור #7
+  const base = Date.now() - 3 * 3600e3;
+  for (const [i, sys] of ["150", "140", "140"].entries()) {
+    await page.selectOption("#pr-m-booking", "7");
+    await page.fill("#pr-m-measured-at", local(new Date(base + i * 30 * 60e3)));
+    await page.fill("#pr-m-systolic_bp", sys);
+    await page.click("#pr-m-add");
+    await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(i + 1);
+  }
+  await page.selectOption("#pr-m-booking", "");                                    // עצמאית
+  await page.fill("#pr-m-measured-at", local(new Date(base - 5 * 3600e3)));
+  await page.fill("#pr-m-pulse", "70");
+  await page.click("#pr-m-add");
+  await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(4);
+  expect(ctl.measurements.map((m) => m.booking_id ?? null)).toEqual([7, 7, 7, null]);
+  const db = await page.evaluate(() => JSON.parse(localStorage.getItem("__demo_db")));
+  expect(db.patient_measurements.map((m) => m.systolic_bp ?? null)).toEqual([150, 140, 140, null]);   // שום דבר לא נדרס
+  expect(db.visit_reports[0]).toMatchObject({ id: 1, systolic_bp: 140 });
+  expect(errors).toEqual([]);
+});

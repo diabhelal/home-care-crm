@@ -86,6 +86,7 @@ class MeasurementIn(BaseModel):
     """A vital-sign reading added outside a booking (proposed/020). Same ranges as VisitReportIn.
     measured_at = when it was taken (must carry a timezone, may be in the past); the entry time is the server's."""
     measured_at: datetime
+    booking_id: Optional[int] = Field(default=None, ge=1)  # optional link to a visit of the SAME patient
     systolic_bp: Optional[int] = Field(default=None, ge=50, le=250)
     diastolic_bp: Optional[int] = Field(default=None, ge=30, le=150)
     blood_sugar: Optional[int] = Field(default=None, ge=20, le=600)

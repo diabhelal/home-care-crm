@@ -164,6 +164,7 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
         if (!isAdmin && !(db.bookings || []).some((b) => b.patient_id === id && b.staff_id === staff.id && b.status !== "cancelled" && b.approval_status !== "rejected"))
           return { status: 403, detail: "אין הרשאה לפעולה זו" };
         if (new Date(body.measured_at).getTime() > Date.now() + 5 * 60 * 1000) return { status: 400, detail: "ערך לא תקין" };
+        if (body.booking_id != null && !(db.bookings || []).some((b) => b.id === body.booking_id && b.patient_id === id)) return { status: 400, detail: "ערך לא תקין" };
         db.patient_measurements = db.patient_measurements || [];
         const row = { ...body, id: ++db.seq, patient_id: id, recorded_at: new Date().toISOString(), recorded_by: sess.user.id,
           recorded_by_role: isAdmin ? "admin" : staff.role };

@@ -83,3 +83,22 @@ def test_a_completed_visit_report_is_untouched(world):
     before = dict(world.repo.get_visit_report(done["id"]))
     world.client.post("/patients/p1/measurements", json=body(pulse=95), headers=H("staff1"))
     assert world.repo.get_visit_report(done["id"]) == before
+
+
+def test_several_readings_in_one_visit_keep_their_visit_link_and_repeats_are_allowed(world):
+    b = assigned_world(world)
+    for i, sys_bp in enumerate((150, 140, 130, 130)):          # start / middle / end / a repeat of the same value
+        t = (NOW - timedelta(hours=4 - i)).isoformat()
+        r = world.client.post("/patients/p1/measurements", json=body(booking_id=b["id"], measured_at=t, systolic_bp=sys_bp),
+                              headers=H("staff1"))
+        assert r.status_code == 201 and r.json()["measurement"]["booking_id"] == b["id"]
+    world.client.post("/patients/p1/measurements", json=body(), headers=H("staff1"))   # standalone: no link
+    rows = world.repo.measurements
+    assert [m["systolic_bp"] for m in rows] == [150, 140, 130, 130, 130]
+    assert [m.get("booking_id") for m in rows] == [b["id"]] * 4 + [None]
+
+
+def test_a_reading_cannot_be_linked_to_a_visit_of_another_patient_or_a_missing_one(world):
+    assigned_world(world)
+    r = world.client.post("/patients/p1/measurements", json=body(booking_id=99999), headers=H("staff1"))
+    assert r.status_code == 400 and world.repo.measurements == []
