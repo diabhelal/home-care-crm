@@ -58,6 +58,13 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 020
+-- אזהרה: מוחק את טבלת המדידות שנוספו מחוץ לביקור (אינן ניתנות לשחזור בלי גיבוי).
+drop table if exists public.patient_measurements;
+drop function if exists public.patient_measurements_guard();
+```
+
+```sql
 -- ROLLBACK 019
 -- מחזיר את ההגדרה המקורית (20260913230732): כל הזמנה, גם מבוטלת או נדחית, נותנת לצוות גישה לתיק.
 create or replace function public.is_my_patient(p_patient_id uuid) returns boolean

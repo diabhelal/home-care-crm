@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, time
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 @dataclass(frozen=True)
@@ -80,6 +80,41 @@ class VisitReportIn(BaseModel):
     performed_dressing_change: bool = False
     performed_catheter_change: bool = False
     patient_signature_data: Optional[str] = None
+
+
+class MeasurementIn(BaseModel):
+    """A vital-sign reading added outside a booking (proposed/020). Same ranges as VisitReportIn.
+    measured_at = when it was taken (must carry a timezone, may be in the past); the entry time is the server's."""
+    measured_at: datetime
+    systolic_bp: Optional[int] = Field(default=None, ge=50, le=250)
+    diastolic_bp: Optional[int] = Field(default=None, ge=30, le=150)
+    blood_sugar: Optional[int] = Field(default=None, ge=20, le=600)
+    pulse: Optional[int] = Field(default=None, ge=30, le=220)
+    temperature: Optional[float] = Field(default=None, ge=30.0, le=45.0)
+    oxygen_saturation: Optional[int] = Field(default=None, ge=50, le=100)
+    note: Optional[str] = Field(default=None, max_length=2000)
+
+    @field_validator("measured_at")
+    @classmethod
+    def _aware(cls, v: datetime) -> datetime:
+        if v.tzinfo is None or v.utcoffset() is None:
+            raise ValueError("measured_at must include a timezone")
+        return v
+
+    @field_validator("note")
+    @classmethod
+    def _note(cls, v):
+        if v is None:
+            return None
+        v = v.strip()
+        return v or None
+
+    @model_validator(mode="after")
+    def _has_a_value(self):
+        if all(getattr(self, k) is None for k in
+               ("systolic_bp", "diastolic_bp", "blood_sugar", "pulse", "temperature", "oxygen_saturation")):
+            raise ValueError("at least one measurement is required")
+        return self
 
 
 ClinicalOutcome = Literal["none", "hypoglycemia", "severe_hyperglycemia",
