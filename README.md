@@ -158,7 +158,7 @@ docs/                 architecture, database, risk engine, security, status, dem
 .github/              CI workflow, Dependabot
 .claude/              project agents and skills for the AI assistant (working aids, not product code)
 ```
-File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Folder responsibilities and what must be preserved: [`docs/PROJECT_MAP.md`](docs/PROJECT_MAP.md).
+File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Folder responsibilities and what must be preserved: [`docs/archive/PROJECT_MAP.md`](docs/archive/PROJECT_MAP.md).
 
 ## Development status
 `main` is the authoritative implemented baseline. Anything else below is **not** part of it.

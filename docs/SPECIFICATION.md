@@ -441,12 +441,12 @@ This document does not choose policy. Every item awaits a decision by the owner 
 ## 12. Contradictions and gaps found
 | ID | Description | Source | Handling |
 |---|---|---|---|
-| C-01 | `PLAN.md` describes 3 tables; the current database has 16 | `PLAN.md` versus `docs/DATABASE.md` | `PLAN.md` is historical. The current source: `docs/DATABASE.md` |
+| C-01 | `docs/archive/PLAN.md` describes 3 tables; the current database has 16 | `docs/archive/PLAN.md` versus `docs/DATABASE.md` | `docs/archive/PLAN.md` is historical. The current source: `docs/DATABASE.md` |
 | C-02 | `HANDOFF.md` in `main` still describes PR #19 and #20 as open, and they are merged | `HANDOFF.md` | An update is required (updating the handoff documents on a separate branch) |
 | C-03 | The list of visit types the UI offers is set in the configuration and customized (5), and the database allows 6 (including physiotherapy); the implementation has additional roles in the UI (doctor, physiotherapist) that are not offered | `public/config.js`, `backend/app/config.py`, a database constraint | **Intentional.** Not a behavioral contradiction; documented in NFR-ADP-01 |
 | C-04 | **Owner decision:** no physical deletion of a medical record. **In `main`:** there are delete buttons on the staff screen and for patient messages, and the permissions in the live database allow deletion (according to the migration files; live state checked read-only on 2026-10-31) | `public/js/admin/staff.js`, `public/js/admin/contacts.js` | Closed in PR #31 and #30 (not merged and not applied) |
 | C-05 | **Owner decision:** staff access ends with a cancelled or rejected booking. **In practice:** `is_my_patient` grants access for any booking, even cancelled or rejected (including national ID) | `supabase/migrations/20260913230732_add_staff_identity.sql` | Proposal `019` (PR #30), not applied |
-| C-06 | `docs/WORKPLAN.md` and `PLAN.md` describe completed plans and are not the current state | Historical documents | Explained in the headings; do not rely on them as a specification |
+| C-06 | `docs/archive/WORKPLAN.md` and `docs/archive/PLAN.md` describe completed plans and are not the current state | Historical documents | Explained in the headings; do not rely on them as a specification |
 | C-07 | Proposal `008` locks a completed report, and the owner asked that the author be able to amend | `docs/DATABASE.md` | The decision: an amendment as a new record (FR-MR-05, FR-MR-07); proposals `012`, `017` |
 | C-08 | The UI blocks measurement values outside the range, and so may prevent recording a genuinely severe case | `public/employee.html`, `backend/app/models.py` | O-02 |
 | C-09 | The `WORKFLOW_TRANSITIONS` table is defined in `state.py` and there is no evidence that the backend calls it | `backend/app/state.py` | Check before relying on it; no change here |
