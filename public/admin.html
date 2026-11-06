@@ -412,10 +412,6 @@
     const isAdmin = st.session.user?.app_metadata?.is_admin === true;
     return isAdmin ? { status: "ok", user: st.session.user } : { status: "not_admin" };
   }
-  async function isAdminSession() {
-    const r = await checkAdminSession();
-    return r.status === "ok" ? r.user : null;
-  }
 
   document.getElementById("admin-login-form").addEventListener("submit", async (e) => {
     e.preventDefault();

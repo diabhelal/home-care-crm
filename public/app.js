@@ -822,35 +822,6 @@ function riskBadgeHtml(currentRisk, nowMs = Date.now()) {
   return `<span class="risk-badge ${cls}${stale ? " risk-badge-stale" : ""}">${RISK_LEVEL_HE[currentRisk.risk_level] || currentRisk.risk_level}</span>${note}`;
 }
 
-// בונה תצוגת HTML (read-only) לדוח ביקור, לשימוש במסך "ההזמנות שלי" של המטופל
-function visitReportDetailsHtml(report) {
-  const vitalsHtml = VITALS_META.map((v) => {
-    const val = report[v.key];
-    if (val === null || val === undefined) return "";
-    return `<div class="vr-vital"><span class="vr-vital-label">${v.label}</span><span class="vr-vital-value">${val}${v.unit ? " " + v.unit : ""}</span></div>`;
-  }).join("");
-
-  const proceduresHtml = PROCEDURE_META.filter((p) => report[p.key]).map((p) => `<li>${p.label}</li>`).join("");
-  const date = new Date(report.visit_date);
-
-  return `
-    <div class="visit-report-card">
-      <div class="meta">בוצע ב-${formatDateHe(date)} ${formatTimeHe(date)}</div>
-      ${vitalsHtml ? `<div class="vr-vitals-grid">${vitalsHtml}</div>` : ""}
-      ${proceduresHtml ? `<div class="vr-procedures"><strong>פרוצדורות שבוצעו:</strong><ul>${proceduresHtml}</ul></div>` : ""}
-      <div class="vr-summary"><strong>סיכום:</strong> ${escapeHtml(report.treatment_summary)}</div>
-      ${report.patient_signature_data && report.patient_signature_data.startsWith("data:image/png;base64,") ? `<div class="vr-signature"><strong>חתימת מטופל:</strong><br><img src="${report.patient_signature_data}" alt="חתימת מטופל"></div>` : ""}
-    </div>
-  `;
-}
-
-function formatAvailability(staff) {
-  const days = (staff.available_weekdays || []).slice().sort().map((d) => WEEKDAY_SHORT[d]).join(", ");
-  const start = staff.work_start_time?.slice(0, 5);
-  const end = staff.work_end_time?.slice(0, 5);
-  return `ימים ${days} · ${start}–${end}`;
-}
-
 function formatDateHe(date) {
   return date.toLocaleDateString("he-IL", { day: "numeric", month: "numeric" });
 }

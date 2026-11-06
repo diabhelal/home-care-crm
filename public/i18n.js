@@ -556,9 +556,7 @@ function tf(key, vars) {
 }
 
 function roleLabel(role) { return I18N_STRINGS[getLang()].roleLabels[role] || role; }
-function roleDescription(role) { return I18N_STRINGS[getLang()].roleDescriptions[role] || ""; }
 function purposeLabel(purpose) { return I18N_STRINGS[getLang()].purposeLabels[purpose] || purpose; }
-function statusLabel(status) { return I18N_STRINGS[getLang()].statusLabels[status] || status; }
 function servicePlanStatusLabel(status) { return I18N_STRINGS[getLang()].servicePlanStatusLabels[status] || status; }
 function weekdayShortLabel(idx) { return I18N_STRINGS[getLang()].weekdayShort[idx]; }
 function vitalLabel(key) { return I18N_STRINGS[getLang()].vitalsLabels[key] || key; }
