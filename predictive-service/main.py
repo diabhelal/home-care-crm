@@ -22,9 +22,10 @@ app = FastAPI(title="home-care-crm predictive service")
 # מקומי: כל origin (כולל file:// ו-http://localhost:*). באירוח ציבורי מגדירים ALLOWED_ORIGINS
 # (מופרד בפסיקים) למקור המדויק של האתר, ו-DISABLE_TRAINING=1 לסגירת /train/*.
 _origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+_LOCAL_DEV_ORIGINS = ["http://localhost:8080", "http://127.0.0.1:8080"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins or ["*"],
+    allow_origins=_origins or _LOCAL_DEV_ORIGINS,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -537,7 +538,7 @@ class AnomalyResponse(BaseModel):
 
 
 class MultiVitalHistoryRequest(BaseModel):
-    history: list[VitalHistoryEntry]
+    history: list[VitalHistoryEntry] = Field(max_length=1000)
 
 
 @app.post("/predict/anomalies", response_model=list[AnomalyResponse])
@@ -612,8 +613,8 @@ def predict_future_event_endpoint(req: FutureEventRequest):
 
 
 class TrainModelRequest(BaseModel):
-    X: list[dict]
-    y: list[int]
+    X: list[dict] = Field(max_length=100_000)
+    y: list[int] = Field(max_length=100_000)
 
     @field_validator("X")
     @classmethod
@@ -644,7 +645,7 @@ def train_model_endpoint(target: str, algorithm: str, req: TrainModelRequest):
 
 class MedicalWarningRequest(BaseModel):
     patient_context: PatientContextInput
-    history: list[VitalHistoryEntry]
+    history: list[VitalHistoryEntry] = Field(max_length=1000)
     horizon: str = Field("24h", pattern="^(next|8h|24h|72h)$")
 
 
@@ -856,7 +857,7 @@ class ServicePlanGenerateRequest(BaseModel):
     start_date: date
     end_date: Optional[date] = None
     frequency: str
-    preferred_weekdays: list[int] = Field(default_factory=list, description="0=ראשון..6=שבת, כמו medical_staff.available_weekdays")
+    preferred_weekdays: list[int] = Field(default_factory=list, max_length=7, description="0=ראשון..6=שבת, כמו medical_staff.available_weekdays")
     preferred_time: Optional[time] = None
     planned_visit_count: Optional[int] = Field(None, gt=0)
 

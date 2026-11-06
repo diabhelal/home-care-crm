@@ -86,7 +86,7 @@ double booking, ownership, atomic completion, address privacy, RLS/column grants
     pytest -q --ignore=tests_db   # API/service unit tests
 
 ## Reproducible install
-`requirements.lock.txt` is the exact set of versions the tests were last verified with: `pip install -r requirements.lock.txt`.
+`requirements.lock.txt` is the exact set of versions the tests were last verified with: `pip install -r requirements.lock.txt`. `requirements.runtime.lock.txt` is the same versions restricted to what the service needs at runtime (no pytest, no local Postgres); it is what Render installs. Regenerate both together: install `requirements.txt` into a clean venv with `-c requirements.lock.txt`, then `pip freeze`.
 
 ## Risk-assessment response contract
 

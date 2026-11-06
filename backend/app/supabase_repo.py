@@ -86,6 +86,10 @@ class SupabaseRepo:
             transport=transport, timeout=timeout,
         )
 
+    def close(self) -> None:
+        """Release the pooled connections of this per-request client (called by the request dependency)."""
+        self._client.close()
+
     # -- low level
     @staticmethod
     def _classify_unique_violation(body: dict) -> Exception:
