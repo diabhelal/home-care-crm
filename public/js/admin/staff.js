@@ -30,7 +30,7 @@ async function loadStaff() {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td>${escapeHtml(s.full_name)}</td>
-      <td>${ROLE_LABELS[s.role] || s.role}</td>
+      <td>${escapeHtml(ROLE_LABELS[s.role] || s.role)}</td>
       <td>${escapeHtml(s.specialization || "")}</td>
       <td>${escapeHtml(s.phone || "")}</td>
       <td>${(s.available_weekdays || []).map((d) => WEEKDAY_SHORT[d]).join(", ")}</td>

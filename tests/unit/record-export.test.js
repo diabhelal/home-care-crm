@@ -28,7 +28,7 @@ test("מסמך ההדפסה: כולל ביקור, תיקון (והמקור), ה�
   const html = ctx.patientRecordPrintHtml(record);
   assert.match(html, /תיק מטופל מלא/); assert.match(html, /צו 123\/26/); assert.match(html, /גורם משפטי/);
   assert.match(html, /מספר רישום ביומן הגישה: 7/);
-  assert.match(html, /ל"ד סיסטולי: 140/);                 // המקור
+  assert.match(html, /ל(?:"|&quot;)ד סיסטולי: 140/);     // המקור (גרשיים מנוטרלים כישות HTML, וזה נכון גם בתוך מאפיינים)
   assert.match(html, /תיקונים והבהרות/); assert.match(html, /טעות/);
   assert.match(html, /אדום/); assert.match(html, /בארכיון מאז/);
   assert.doesNotMatch(html, /<script>alert/); assert.doesNotMatch(html, /דנה <b>/);   // לא מזריק HTML

@@ -176,7 +176,7 @@ function renderWorkQueueBuckets(container, bookings, riskByPatient, patientsWith
         <td>${escapeHtml(b.patients?.full_name || "—")}</td>
         <td>${escapeHtml(b.patients?.phone || "—")}</td>
         <td class="queue-staff-cell"></td>
-        <td>${PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose}</td>
+        <td>${escapeHtml(PURPOSE_LABELS[b.visit_purpose] || b.visit_purpose)}</td>
         <td>${formatDateHe(date)} ${formatTimeHe(date)}</td>
         <td>${riskBadgeHtml(riskByPatient.get(b.patient_id))}</td>
         <td></td>
