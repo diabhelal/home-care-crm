@@ -1,8 +1,8 @@
 # Repository status, branch and PR map
 
-> Snapshot **2026-11-06**, `main` @ `777191e` (after the integration merge #39). Describes the repository as a whole so a reviewer does not have to reconstruct it from 40 branches.
+> Snapshot **2026-11-06**, `main` @ `72134f6` (after the integration merge #39 and the deployment-config merge #40). Describes the repository as a whole so a reviewer does not have to reconstruct it from 40 branches.
 
-**תקציר בעברית:** `main` כולל כעת את הבסיס היציב ואת חבילת האיחוד הראשונה (10 PR-ים, מוזגו ב-#39 באישור הבעלים; CI ירוק על התוצאה המשולבת). נשארו פתוחים: #40 (קונפיג פריסה), חבילה ב' (#35, #34, #21, #23) ו-#18 (נדחה; סיכום LLM). אף מיגרציה לא הוחלה על מסד חי; לא בוצעה פריסה ציבורית.
+**תקציר בעברית:** `main` כולל כעת את הבסיס היציב ואת חבילת האיחוד הראשונה (10 PR-ים, מוזגו ב-#39 באישור הבעלים; CI ירוק על התוצאה המשולבת). #40 (קונפיג פריסה, ללא פריסה אוטומטית) מוזג. נשארו פתוחים: חבילה ב' (#35, #34, #21, #23) ו-#18 (נדחה; סיכום LLM). אף מיגרציה לא הוחלה על מסד חי; לא בוצעה פריסה ציבורית.
 
 ## 1. Where to start (reviewer path)
 | What | Where |
@@ -24,7 +24,7 @@ ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs n
 `booking.spec.js` / `visit-report.spec.js` talk to a real Supabase project and must **never** be run against the live project. Playwright runs serially on port 8080; since PR #29 it fails loudly if that port is already taken.
 
 ## 2. What is in `main`
-`main` @ `777191e`. Integration PR **#39** merged these ten PRs in one reviewed batch (CI green on the combined result; owner approved the batch):
+`main` @ `72134f6`. Integration PR **#39** (`777191e`) merged these ten PRs in one reviewed batch (CI green on the combined result; owner approved the batch):
 
 | PR | What it brought |
 |---|---|
@@ -39,12 +39,11 @@ ls tests/e2e/*.spec.js | grep -vE "/(booking|visit-report)\.spec\.js$" | xargs n
 | #31 | No physical delete of staff / patient messages in the UI; amendment form only for the author |
 | #30 | **Proposed** SQL 015–019 + DB tests + rollback blocks (files only, not applied) |
 
-Earlier merges: #19 (README and docs), #20, #22, #26 (patient isolation), #36 (`docs/SPECIFICATION.md`). Version: `CACHE_VERSION` **v58**, `APP_BUILD` **2026-11-06.58**. Two tests were corrected during integration (no product change): `comprehensive-wording` now starts the patient scope like the real modal; `staff-field-actions` pins the clock to 10:00 (it failed in the hour before local midnight, also on the old `main`).
+Then **#40** (`72134f6`): `render.yaml` (manual deploys only, no auto-deploy trigger anywhere), `scripts/make_release.py`, predictive `ALLOWED_ORIGINS`/`DISABLE_TRAINING`, DEPLOY.md. Earlier merges: #19 (README and docs), #20, #22, #26 (patient isolation), #36 (`docs/SPECIFICATION.md`). Version: `CACHE_VERSION` **v58**, `APP_BUILD` **2026-11-06.58**. Two tests were corrected during integration (no product change): `comprehensive-wording` now starts the patient scope like the real modal; `staff-field-actions` pins the clock to 10:00 (it failed in the hour before local midnight, also on the old `main`).
 
 ## 3. Open pull requests (each merge needs explicit owner approval)
 | PR | Branch | Content | Disposition |
 |---|---|---|---|
-| #40 | `chore/deploy-config` | `render.yaml` (manual deploys), `scripts/make_release.py`, predictive CORS/`DISABLE_TRAINING`, DEPLOY.md | CI green, no workflow or deployment trigger touched; ready for approval |
 | #35 | `feature/service-availability` | Admin can pause a service (proposed SQL `021`, not applied) | Batch B: update from `main`, bump version, add `js/admin/services.js` to the shell |
 | #34 | `docs/session-handoff` | Handoff docs, agents, settings | Batch B: conflicts in `CLAUDE.md`/`HANDOFF.md`; overlaps #23 |
 | #23 | `feature/agents-framework` | Agent framework | Batch B / deferred: not needed for the demo |
@@ -53,9 +52,9 @@ Earlier merges: #19 (README and docs), #20, #22, #26 (patient isolation), #36 (`
 | 15× | `dependabot/...` | Dependency bumps | Triage only those touching deployed requirements; one GitHub "critical" advisory not yet reviewed |
 
 ## 4. Branches
-**Merged into `main` (0 unique commits; proposed for deletion only after owner approval):** `chore/playwright-fail-on-busy-port`, `codex/predictive-response-contract-main`, `docs/project-specification`, `docs/readme-overhaul`, `docs/revert-spec-driven-extras`, `docs/spec-driven-workflow`, `feature/backend-booking-reliability`, `feature/cross-patient-isolation`, `feature/predictive-input-and-wording`, `feature/record-integrity-sql`, `feature/trend-forecast-button-fix`, `fix/ci-postgres-restrict-violation`, `fix/draft-409-same-risk-assessment`, `fix/offline-drafts-5xx-visibility`, `fix/service-worker-shell-and-api-cache`, `fix/ui-no-physical-delete`, `integration/release-1` (17).
+**Merged into `main` (0 unique commits; deletion needs separate owner approval, none has been deleted):** `chore/playwright-fail-on-busy-port`, `codex/predictive-response-contract-main`, `docs/project-specification`, `docs/readme-overhaul`, `docs/revert-spec-driven-extras`, `docs/spec-driven-workflow`, `feature/backend-booking-reliability`, `feature/cross-patient-isolation`, `feature/predictive-input-and-wording`, `feature/record-integrity-sql`, `feature/trend-forecast-button-fix`, `fix/ci-postgres-restrict-violation`, `fix/draft-409-same-risk-assessment`, `fix/offline-drafts-5xx-visibility`, `fix/service-worker-shell-and-api-cache`, `fix/ui-no-physical-delete`, `integration/release-1`, `chore/deploy-config` (18).
 
-**Keep (unique work):** `feature/offline-draft-safety` (3 commits, no PR: owner capture, server-ack-only removal, export controls; needs a PR and version coordination), `fix/ui-clinical-safety-visibility` (1 WIP commit: visible load failures and risk result), `feature/llm-clinical-summary` (#18), `feature/service-availability` (#35), `docs/session-handoff` (#34), `feature/agents-framework` (#23), `docs/archive-historical-plans` (#21), `chore/deploy-config` (#40).
+**Keep (unique work, 7 branches):** `feature/offline-draft-safety` (3 commits, no PR: owner capture, server-ack-only removal, export controls; needs a PR and version coordination), `fix/ui-clinical-safety-visibility` (1 WIP commit: visible load failures and risk result), `feature/llm-clinical-summary` (#18), `feature/service-availability` (#35), `docs/session-handoff` (#34), `feature/agents-framework` (#23), `docs/archive-historical-plans` (#21) (#40).
 
 **Decide:** `codex/predictive-response-contract` is the original of #28 (same 87-line change, stacked on older branches). Superseded; keep until the owner decides.
 
