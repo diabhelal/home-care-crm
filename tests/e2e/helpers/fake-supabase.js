@@ -68,6 +68,11 @@ function fakeSupabaseSource() {
         });
       }
       function run() {
+        // סימולציה של טבלה שעדיין לא קיימת במסד (מיגרציה שלא הוחלה): PostgREST מחזיר PGRST205
+        try {
+          if (JSON.parse(localStorage.getItem("__missing_tables") || "[]").includes(name))
+            return { data: null, error: { code: "PGRST205", message: `Could not find the table 'public.${name}' in the schema cache` } };
+        } catch (e) {}
         if (q.op !== "select") {
           try {
             const log = JSON.parse(localStorage.getItem("__write_log") || "[]");

@@ -18,8 +18,8 @@ from .errors import (DomainError, IdempotencyConflictError, SlotTakenError, forb
 
 log = logging.getLogger("app.main")
 from .geo import Geocoder, NoopGeocoder
-from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, ReassignIn, Staff,
-                     VisitReportIn, booking_to_dict)
+from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, MeasurementIn, ReassignIn,
+                     Staff, VisitReportIn, booking_to_dict)
 from .repo import Repository
 from .risk import HttpPredictiveClient, PredictiveClient, RiskService
 from .service import BookingService
@@ -182,6 +182,12 @@ def create_app(settings: Settings | None = None,
         staff = None if c.identity.is_admin else c.staff()
         return {"report": c.svc.set_clinical_outcome(
             c.identity, staff, report_id, body.clinical_outcome_8h)}
+
+    @app.post("/patients/{patient_id}/measurements", status_code=201)
+    def add_measurement(patient_id: str, body: MeasurementIn, c: Ctx = Depends(ctx)):
+        """A reading taken at another time, added to the chart outside a booking. Append-only; admin or assigned staff."""
+        staff = None if c.identity.is_admin else c.staff()
+        return {"measurement": c.svc.add_measurement(c.identity, staff, patient_id, body)}
 
     @app.post("/visits/{report_id}/risk-assessment")
     def risk_assessment(report_id: int, c: Ctx = Depends(ctx)):

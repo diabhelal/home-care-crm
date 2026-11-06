@@ -211,6 +211,15 @@ class SupabaseRepo:
             raise forbidden()
         return {k: rows[0].get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}
 
+    # -- measurements outside a booking (RLS + trigger of proposed/020 decide who may write)
+    def add_measurement(self, patient_id, payload, *, author_user_id, author_role, staff_id):
+        body = {"patient_id": patient_id,
+                **{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in payload.items() if v is not None}}
+        r = self._client.post("/patient_measurements", json=body, headers={"Prefer": "return=representation"})
+        self._raise_for(r)
+        rows = r.json()
+        return rows[0] if isinstance(rows, list) and rows else rows
+
     # -- clinical risk orchestration (all with the caller's JWT)
     _VITALS = "systolic_bp,diastolic_bp,blood_sugar,pulse,temperature,oxygen_saturation"
 

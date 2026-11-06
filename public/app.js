@@ -955,7 +955,7 @@ function prResetState(patientId) {
     patient: null, allergies: null, medicalHistory: null, currentRisk: null,
     bookings: null, visitReports: null, medications: null, servicePlans: null,
     servicePlanVisits: null, clinicalNotes: null, documents: null, alerts: null,
-    tasks: null, auditLog: null, riskHistory: null, amendments: null,
+    tasks: null, auditLog: null, riskHistory: null, amendments: null, measurements: null,
   };
 }
 
@@ -991,6 +991,18 @@ async function prFetchVisitReports() {
   const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
   if (error) { console.error("visit_reports", error); return []; }
   return data || [];
+}
+// מדידות שנוספו מחוץ לביקור (proposed/020). אם הטבלה עדיין לא קיימת במסד (המיגרציה לא הוחלה) — available:false
+// והטופס מוסתר עם הסבר, במקום שגיאה שבורה. כשל אחר (רשת/הרשאה) מוצג כשגיאה, לא כ"אין מדידות".
+async function prFetchMeasurements() {
+  const { data, error } = await supabaseClient.from("patient_measurements").select("*")
+    .eq("patient_id", window.currentPatientState.patientId).order("measured_at", { ascending: false }).limit(200);
+  if (error) {
+    const missing = error.code === "PGRST205" || error.code === "42P01" || /patient_measurements/.test(error.message || "") && /not find|does not exist/i.test(error.message || "");
+    console.error("patient_measurements", error);
+    return { rows: [], available: false, missing, error: missing ? null : error };
+  }
+  return { rows: data || [], available: true, missing: false, error: null };
 }
 async function prFetchRiskHistory() {
   const { data, error } = await supabaseClient.from("risk_predictions").select("id, risk_level, trend, predicted_at, visit_report_id").eq("patient_id", window.currentPatientState.patientId).order("predicted_at", { ascending: false }).limit(200);

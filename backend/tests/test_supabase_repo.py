@@ -246,3 +246,33 @@ def test_history_tie_is_returned_ascending():
     rows = [{"id": 9, "visit_date": "2026-10-03"}, {"id": 8, "visit_date": "2026-10-03"}]
     out = make(lambda req: httpx.Response(200, json=rows)).list_patient_reports("p1")
     assert [r["id"] for r in out] == [8, 9]
+
+
+def test_add_measurement_posts_with_caller_jwt_and_iso_time():
+    seen = {}
+    def h(req):
+        seen["req"] = req
+        return httpx.Response(201, json=[{**json.loads(req.content), "id": 4, "recorded_at": "2026-10-14T09:00:00Z"}])
+    taken = datetime(2026, 10, 13, 8, 30, tzinfo=timezone.utc)
+    out = make(h).add_measurement("p1", {"measured_at": taken, "pulse": 80, "note": None},
+                                  author_user_id="u", author_role="nurse", staff_id=1)
+    r = seen["req"]
+    assert r.method == "POST" and str(r.url) == "https://x.supabase.co/rest/v1/patient_measurements"
+    assert r.headers["authorization"] == f"Bearer {JWT}"
+    body = json.loads(r.content)
+    assert body == {"patient_id": "p1", "measured_at": "2026-10-13T08:30:00+00:00", "pulse": 80}   # no author/entry time from the client
+    assert out["id"] == 4
+
+
+def test_add_measurement_rls_or_trigger_denial_maps_to_forbidden_and_future_to_bad_request():
+    from app.errors import DomainError
+    repo = make(lambda req: httpx.Response(403, json={"code": "42501", "message": "not your patient"}))
+    with pytest.raises(DomainError) as e:
+        repo.add_measurement("p1", {"measured_at": datetime(2026, 1, 1, tzinfo=timezone.utc), "pulse": 70},
+                             author_user_id="u", author_role="nurse", staff_id=1)
+    assert e.value.status == 403
+    repo = make(lambda req: httpx.Response(400, json={"code": "22023", "message": "measured_at cannot be in the future"}))
+    with pytest.raises(DomainError) as e:
+        repo.add_measurement("p1", {"measured_at": datetime(2026, 1, 1, tzinfo=timezone.utc), "pulse": 70},
+                             author_user_id="u", author_role="nurse", staff_id=1)
+    assert e.value.status == 400

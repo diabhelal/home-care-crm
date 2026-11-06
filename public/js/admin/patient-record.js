@@ -489,7 +489,11 @@ function prVitalChartSvg(points) {
 
 async function prRenderVitalsTab(content) {
   const [visits, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments)]);
-  if (!visits.length) { content.innerHTML = `<div class="empty-state">אין עדיין מדידות למטופל זה</div>`; return; }
+  if (!visits.length) {
+    content.innerHTML = `<div class="empty-state">אין עדיין מדידות מביקורים למטופל זה</div><div id="pr-measurements"></div>`;
+    renderMeasurementsSection(document.getElementById("pr-measurements"), () => prRenderVitalsTab(content));
+    return;
+  }
   const latest = visits[0];
   const latestHtml = VITALS_META.filter((v) => latest[v.key] != null).map((v) => `<div>${v.label}: <strong>${latest[v.key]}${v.unit}</strong></div>`).join("");
   const vitalsWithData = VITALS_META.filter((v) => visits.some((r) => r[v.key] != null));
@@ -505,7 +509,9 @@ async function prRenderVitalsTab(content) {
     </div>
     <div class="pr-card"><h3 style="margin-top:0;">היסטוריית מדידות</h3>${vitalsHistoryTableHtml(visits, amendments)}</div>
     <div id="pr-vitals-baseline"><p style="color:var(--text-muted);">טוען ניתוח בסיס אישי...</p></div>
+    <div id="pr-measurements"></div>
   `;
+  renderMeasurementsSection(document.getElementById("pr-measurements"), () => prRenderVitalsTab(content));
 
   const renderChartFor = (key) => {
     const points = visits.filter((r) => r[key] != null).slice().sort((a, b) => new Date(a.visit_date) - new Date(b.visit_date)).map((r) => ({ value: r[key] }));
