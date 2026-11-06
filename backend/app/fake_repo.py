@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Callable, Optional
+from typing import Callable
 
 from .errors import SlotTakenError, bad_request, forbidden
 from .models import Booking, Staff
