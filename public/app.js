@@ -754,7 +754,8 @@ const PROCEDURE_META = [
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
-  return div.innerHTML;
+  // innerHTML escapes & < > only; quotes must be escaped too because values are also placed inside value="..." / data-*="..." attributes
+  return div.innerHTML.replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 const RISK_LEVEL_HE = { green: "ירוק", yellow: "צהוב", red: "אדום", no_data: "אין נתונים" };
