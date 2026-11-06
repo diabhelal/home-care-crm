@@ -44,6 +44,7 @@ for (const who of ["admin", "staff"]) {
     await expect(err).toBeVisible();                                           // לא נמחק מיד אחרי שהוצג
     await expect(err).toContainText("הביקור כבר הושלם");
     await expect(err).toContainText("תיקון");                                   // הדרך לתיקון מקושר (למחבר)
+    await expect(err).toContainText("מדדים");                                   // מדידה חדשה (#42)
     await expect(err).toContainText("הערות קליניות");
     await expect(page.locator("#visit-report-modal-save")).toBeDisabled();
     const db = await page.evaluate(() => JSON.parse(localStorage.getItem("__demo_db")));
