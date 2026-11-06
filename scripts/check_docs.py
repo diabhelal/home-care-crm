@@ -23,7 +23,8 @@ LINK = re.compile(r"!?\[[^\]]*\]\(([^)\s]+)(?:\s+\"[^\"]*\")?\)")
 HEAD = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$", re.M)
 TICK = re.compile(r"`([^`\n]+)`")
 SPEC = ROOT / "docs" / "SPECIFICATION.md"
-STATUSES = ("מתוכננת", "ממומשת", "נבדקה", "הופעלה", "בוטלה", "לא מוגדרת")
+STATUSES = ("planned", "implemented", "tested", "activated", "cancelled", "not defined",   # English (the specification is in English)
+            "מתוכננת", "ממומשת", "נבדקה", "הופעלה", "בוטלה", "לא מוגדרת")   # Hebrew kept for older documents
 PATHLIKE = re.compile(r"^[\w.\-]+(/[\w.\-]+)+/?$")
 
 
@@ -90,7 +91,7 @@ def main() -> int:
                 if rid in kind:
                     problems.append(f"{rel}: duplicate requirement ID {rid} in the {'requirement' if kind is req else 'traceability'} tables")
                 kind[rid] = cells
-                if kind is req and not any(k in cells[3] for k in STATUSES):
+                if kind is req and not any(k in cells[3].lower() for k in STATUSES):
                     problems.append(f"{rel}: {rid} has no valid status ({'/'.join(STATUSES)})")
             for rid in sorted(set(req) - set(trace)):
                 problems.append(f"{rel}: {rid} has no traceability row")
