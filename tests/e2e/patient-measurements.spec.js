@@ -130,7 +130,7 @@ test("רענון אחרי שמירה: המדידה נשארת ברשימה", asy
 
 test("מיגרציה 020 עדיין לא הוחלה: הסבר במקום טופס שבור", async ({ browser }) => {
   const { page, errors } = await setup(browser, { missing: ["patient_measurements"] });
-  await expect(page.locator("#pr-measurements")).toContainText("לאחר עדכון מסד הנתונים");
+  await expect(page.locator("#pr-measurements")).toContainText("מיגרציה 020");
   await expect(page.locator("#pr-measurement-form")).toHaveCount(0);
   expect(errors).toEqual([]);
 });

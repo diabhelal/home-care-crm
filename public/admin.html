@@ -365,11 +365,16 @@
   // js/admin/staff.js (נטען לפני הסקריפט הזה — ר' תגית ה-script למעלה) — נגישים כאן
   // כשם חשוף בדיוק כמו קודם, כי סקריפטים קלאסיים חולקים scope עליון.
 
+  // { status: "ok", user } | { status: "no_session" } | { status: "not_admin" } | { status: "connectivity" }
+  async function checkAdminSession() {
+    const st = await readSessionState();
+    if (st.status !== "ok") return { status: st.status };
+    const isAdmin = st.session.user?.app_metadata?.is_admin === true;
+    return isAdmin ? { status: "ok", user: st.session.user } : { status: "not_admin" };
+  }
   async function isAdminSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return null;
-    const isAdmin = session.user?.app_metadata?.is_admin === true;
-    return isAdmin ? session.user : null;
+    const r = await checkAdminSession();
+    return r.status === "ok" ? r.user : null;
   }
 
   document.getElementById("admin-login-form").addEventListener("submit", async (e) => {
@@ -976,16 +981,28 @@
     // אם הגענו מקישור איפוס סיסמה (type=recovery ב-URL), onAuthStateChange כבר מציג
     // את מסך "בחירת סיסמה חדשה" — לא ממשיכים לבדוק session/כניסה אוטומטית לאפליקציה.
     if (window.location.hash.includes("type=recovery")) return;
-    const admin = await isAdminSession();
-    if (admin) {
+    await startAdminPage();
+  })();
+  async function startAdminPage() {
+    const r = await checkAdminSession();
+    if (r.status === "connectivity") {                    // לא מציגים טופס כניסה ולא מידע מוגן; לא נותקתם
+      loginScreen.style.display = "none";
+      showConnectivityNotice(startAdminPage);
+      return;
+    }
+    hideConnectivityNotice();
+    if (r.status === "ok") {
+      loginScreen.style.display = "none";
       showAdminApp();
       if (navigator.onLine) {
         const result = await flushOfflineQueue();
         reportOfflineQueueResult(result);
         if (result.synced > 0) loadBookings();
       }
+    } else {
+      loginScreen.style.display = "flex";                // no_session / not_admin: מסך כניסה כרגיל
     }
-  })();
+  }
 </script>
 </body>
 </html>
