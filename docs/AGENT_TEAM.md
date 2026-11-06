@@ -1,45 +1,45 @@
-# צוות הסוכנים של Home Care CRM
+# Home Care CRM agent team
 
-מסמך זה מתאר איך עובדים עם הסוכנים ב-`.claude/agents/`. הוא כלי עבודה, לא תחליף לבדיקות, לסקירה רפואית אנושית או לבדיקת חדירה. סוכן AI לא מבטיח קוד נטול תקלות.
+This document describes how to work with the agents in `.claude/agents/`. It is a working tool, not a substitute for tests, human medical review, or penetration testing. An AI agent does not guarantee defect-free code.
 
-## היררכיה
-| דרגה | תפקיד | מי |
+## Hierarchy
+| Tier | Role | Who |
 |---|---|---|
-| 0 | בעלים (סמכות סופית: דרישות, מיזוג, DB, פריסה) | אתה |
-| 1 | מתזמר: מסווג סיכון, בוחר מינימום מומחים, אוסף דוחות | סשן Claude Code הראשי (אין קובץ סוכן) |
-| 2A | צוות מומחים | `security-privacy` (קריאה בלבד), `backend-database`, `clinical-ai` (קריאה בלבד), Frontend/UX: `frontend-design-integrator` (מממש), `clinical-ux-accessibility-lead` (נגישות וזרימות), QA/Sentinel: `qa-regression-debugger` |
-| 2B | מועצת ביקורת עצמאית (קריאה בלבד) | `audit-security`, `audit-reliability`, `medical-records-reviewer` (בטיחות קלינית) |
-| 3 | ניהול סיכונים ולמידה | skill `lessons-learned` |
-| שער | אישור אנושי למימוש, מיזוג, שינוי DB ופריסה | אתה |
+| 0 | Owner (final authority: requirements, merges, database, deployment) | you |
+| 1 | Orchestrator: classifies risk, picks the minimum set of specialists, collects reports | the main Claude Code session (no agent file) |
+| 2A | Specialist team | `security-privacy` (read-only), `backend-database`, `clinical-ai` (read-only); Frontend/UX: `frontend-design-integrator` (implements), `clinical-ux-accessibility-lead` (accessibility and flows); QA/Sentinel: `qa-regression-debugger` |
+| 2B | Independent review board (read-only) | `audit-security`, `audit-reliability`, `medical-records-reviewer` (clinical safety) |
+| 3 | Risk management and learning | skill `lessons-learned` |
+| Gate | Human approval for implementation, merge, database change and deployment | you |
 
-## הפעלה לפי סיכון
-- **P0** אבטחה, פרטיות, בטיחות מטופל, שלמות רשומות. **P1** backend, הזמנות, עקביות DB. **P2** אנליטיקה ו-AI. **P3** מובייל, נגישות, זרימות. **P4** עיצוב.
-- **נמוך:** מומחה אחד + בדיקה ממוקדת. **בינוני:** מומחים + QA + מבקר אחד רלוונטי. **גבוה** (רשומות קליניות, RLS, אימות, מיגרציות, AI קליני, אחסון אופליין רגיש): מומחים + QA + שלושת המבקרים, ואישור מפורש שלך.
-- המתזמר מפעיל את המבקרים בנפרד, בלי להעביר ממצאי מבקר אחד לאחר, ומציג את הדוחות כפי שהם לפני כל סיכום. הסיכום של המתזמר אינו ביקורת עצמאית נוספת.
-- סוכנים לא מפעילים סוכנים אחרים (`Agent` חסום בהגדרות של כל סוכן).
+## Activation by risk
+- **P0** security, privacy, patient safety, record integrity. **P1** backend, bookings, database consistency. **P2** analytics and AI. **P3** mobile, accessibility, flows. **P4** visual design.
+- **Low:** one specialist plus a focused check. **Medium:** specialists, QA and one relevant reviewer. **High** (clinical records, RLS, authentication, migrations, clinical AI, sensitive offline storage): specialists, QA, all three reviewers, and your explicit approval.
+- The orchestrator runs the reviewers separately, without passing one reviewer's findings to another, and shows their reports as they are before any summary. The orchestrator's summary is not an additional independent review.
+- Agents do not launch other agents (`Agent` is blocked in every agent's configuration).
 
-## זרימה
-בקשה → סיווג סיכון → מומחים → הצעת מימוש → **אישור שלך** → מימוש בענף `feature/*` → בדיקות אוטומטיות → ביקורת לפי סיכון → דוח → **אישור שחרור שלך**. המתזמר אינו מאשר מימוש משלו.
+## Flow
+Request → risk classification → specialists → implementation proposal → **your approval** → implementation on a `feature/*` branch → automated tests → risk-based review → report → **your release approval**. The orchestrator does not approve its own implementation.
 
-## החלטות ביקורת
-PASS · PASS WITH CONDITIONS · CHANGES REQUIRED · BLOCK. ל-BLOCK נדרש תיקון וביקורת חוזרת לפני שהשינוי נחשב מאושר.
+## Review decisions
+PASS · PASS WITH CONDITIONS · CHANGES REQUIRED · BLOCK. A BLOCK requires a fix and a repeat review before the change counts as approved.
 
 ## Sentinel
-תפקיד לפי דרישה, לא תהליך רץ ברקע. `qa-regression-debugger` מריץ בדיקות ממוקקות, בודק שגיאות קונסול ורשת, כפתורים וטפסים, סנכרון והודעות שגיאה, ומדווח עם ראיות בלי לתקן קוד. כתיבת בדיקות רגרסיה רק כשהמשימה מאשרת במפורש. ה-CI הוא מה שרץ ברציפות.
+A role on demand, not a background process. `qa-regression-debugger` runs mocked tests, checks console and network errors, buttons and forms, synchronization and error messages, and reports with evidence without fixing code. It writes regression tests only when the task explicitly allows it. CI is what runs continuously.
 
-## הרשאות (נאכפות טכנית, לא רק בניסוח)
-- בכל סוכן מוגדרים `tools` או `disallowedTools`. כל הסוכנים חסומים מ-`Agent` ומ-MCP של Supabase. מבקרים: `Read, Grep, Glob` בלבד.
-- `.claude/settings.json` (משותף): `ask` עבור `apply_migration`, `execute_sql`, `deploy_edge_function`, `create_edge_function_secret`, `merge_branch`, `reset_branch`, `delete_branch`; `deny` עבור `create_project`, `pause_project`, `restore_project`.
-- `ask` אינו חסימה: אישור בלחיצה על `execute_sql` יכול לבצע כתיבה, כי כלי אחד משמש לקריאה ולכתיבה. אין גיבוי אוטומטי ל-Supabase בתוכנית הנוכחית, ולכן כל שינוי ב-DB החי עובר את `db-migration-workflow` ואישורך.
+## Permissions (enforced technically, not only in wording)
+- Every agent defines `tools` or `disallowedTools`. All agents are blocked from `Agent` and from the Supabase MCP. Reviewers have `Read, Grep, Glob` only.
+- `.claude/settings.json` (shared): `ask` for `apply_migration`, `execute_sql`, `deploy_edge_function`, `create_edge_function_secret`, `merge_branch`, `reset_branch`, `delete_branch`; `deny` for `create_project`, `pause_project`, `restore_project`.
+- `ask` is not a block: approving `execute_sql` with one click can perform a write, because one tool serves both reads and writes. The current plan has no automatic Supabase backup, so every change to the live database goes through `db-migration-workflow` and your approval.
 
-## מגבלות
-- המבקרים הם אותו מודל; האי-תלות נובעת מהוראות, כלים והקשר נפרד.
-- כל הפעלה של סוכן עולה טוקנים בהקשר נפרד. ביקורת גבוהה (3 מבקרים + QA) יקרה בערך פי כמה משיחה אחת.
-- `.codex/` משקף את הסוכנים הישנים ואינו מסונכרן עם השינויים כאן. החלטה פתוחה: האם לתחזק אותו.
-- `docs/` מתאר מבנה; מקור האמת להרשאות הוא קבצי ההגדרות.
+## Limitations
+- The reviewers are the same model; their independence comes from instructions, tools and separate context.
+- Every agent run costs tokens in a separate context. A high-risk review (3 reviewers + QA) costs several times a single conversation.
+- `.codex/` mirrors the older agents and is not synchronized with the changes here. Open decision: whether to maintain it.
+- `docs/` describes structure; the source of truth for permissions is the configuration files.
 
-## שיעורים נלמדים
-לכשל משמעותי ומוכח: skill `lessons-learned`. כללים חדשים לצמיתות מוצעים לך בלבד; אין עדכון אוטומטי של `CLAUDE.md`.
+## Lessons learned
+For a significant, proven failure: skill `lessons-learned`. New permanent rules are proposed to you only; `CLAUDE.md` is never updated automatically.
 
-## סוכנים שהוסרו
-ארבעה סוכני עיצוב ישנים (`medical-design-director`, `medical-color-specialist`, `medical-brand-content-designer`, `interaction-controls-designer`) הוסרו מהפרויקט כי העבודה הנוכחית היא יציבות ואבטחה ולא עיצוב מחדש (נשאר `clinical-ux-accessibility-lead` לנגישות). הם נשארו בהיסטוריית Git ואפשר להחזיר כל אחד: `git checkout <commit-לפני-ההסרה> -- .claude/agents/<שם>.md`. עותקי Codex שלהם ב-`.codex/agents/` נשארו ללא שינוי.
+## Removed agents
+Four older design agents (`medical-design-director`, `medical-color-specialist`, `medical-brand-content-designer`, `interaction-controls-designer`) were removed from the project because current work is about stability and security, not redesign (`clinical-ux-accessibility-lead` remains for accessibility). They remain in Git history and any one can be restored with `git checkout <commit-before-removal> -- .claude/agents/<name>.md`. Their Codex copies in `.codex/agents/` were left unchanged.

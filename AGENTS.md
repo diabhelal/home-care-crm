@@ -1,3 +1,3 @@
 # AGENTS.md
 
-הקובץ הזה הוא מצביע בלבד. כל ההנחיות לסוכנים ולמפתחים נמצאות ב-[CLAUDE.md](./CLAUDE.md) — מקור האמת היחיד (כדי למנוע סטייה בין עותקים).
+This file is a pointer only. All guidance for agents and developers lives in [CLAUDE.md](./CLAUDE.md), the single source of truth (this avoids drift between copies).
