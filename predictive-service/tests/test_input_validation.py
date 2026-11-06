@@ -91,3 +91,12 @@ def test_train_response_is_honest_about_validation(monkeypatch):
     assert r.status_code == 200
     assert r.json()["validated"] is False
     assert "אימות קליני" in r.json()["validation_note"]
+
+
+def test_training_endpoint_can_be_disabled_for_public_hosting(monkeypatch):
+    import ml_targets
+    called = []
+    monkeypatch.setattr(ml_targets, "train_model", lambda *a: called.append(1) or {"auc": 0.5})
+    monkeypatch.setenv("DISABLE_TRAINING", "1")
+    r = client.post("/train/anything/logistic_regression", json={"X": [{"a": 1}], "y": [0]})
+    assert r.status_code == 403 and not called
