@@ -115,3 +115,28 @@ def test_completed_visit_report_is_not_touched_by_a_new_measurement(db):
     before = db.execute("select pulse, systolic_bp, treatment_summary from visit_reports where id=%s", (rid,)).fetchone()
     db.execute(INS, (d["pa"], PAST, 150, 99, "מדידת המשך"))
     assert db.execute("select pulse, systolic_bp, treatment_summary from visit_reports where id=%s", (rid,)).fetchone() == before
+
+
+def test_readings_can_be_linked_to_the_patients_own_visit_and_repeats_are_kept(db):
+    d = seed(db); assigned(db, d)
+    as_postgres(db)
+    bid = db.execute("select id from bookings where patient_id=%s", (d["pa"],)).fetchone()[0]
+    as_user(db, d["staff_user"])
+    ins = ("insert into patient_measurements(patient_id, booking_id, measured_at, systolic_bp) values (%s,%s,%s,%s) returning id")
+    ids = [db.execute(ins, (d["pa"], bid, t, v)).fetchone()[0]
+           for t, v in (("2026-10-01 08:00:00+00", 150), ("2026-10-01 08:30:00+00", 140), ("2026-10-01 09:00:00+00", 140))]
+    db.execute(INS, (d["pa"], PAST, 120, 70, None))                                    # a standalone one (no booking)
+    rows = db.execute("select booking_id, systolic_bp from patient_measurements where patient_id=%s order by measured_at, id", (d["pa"],)).fetchall()
+    assert len(set(ids)) == 3 and [r[1] for r in rows].count(140) == 2                  # nothing overwritten, repeats allowed
+    assert sum(1 for r in rows if r[0] == bid) == 3 and sum(1 for r in rows if r[0] is None) == 1
+
+
+def test_a_reading_cannot_be_linked_to_another_patients_visit(db):
+    d = seed(db); assigned(db, d)
+    as_postgres(db)
+    other_booking = insert_booking(db, d["pb"], d["s1"], "2026-11-21 09:00:00+00")[0]   # same nurse, DIFFERENT patient
+    as_user(db, d["staff_user"])
+    attempt(db, "insert into patient_measurements(patient_id, booking_id, measured_at, pulse) values (%s,%s,%s,80)",
+            (d["pa"], other_booking, PAST), psycopg.errors.InvalidParameterValue)
+    attempt(db, "insert into patient_measurements(patient_id, booking_id, measured_at, pulse) values (%s,99999999,%s,80)",
+            (d["pa"], PAST), psycopg.errors.InvalidParameterValue)
