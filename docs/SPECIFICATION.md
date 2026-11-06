@@ -118,7 +118,7 @@
 | `FR-AD-06` | ניהול צוות: הוספה, עריכה, הפעלה והשבתה. יצירת כניסה לאיש צוות בהזמנה דרך Edge Function | איש צוות מושבת לא מקבל שיבוצים חדשים וההיסטוריה נשמרת | נבדקה (מדומה). חסימת מחיקה ב-DB: FR-MR-09 |
 | `FR-AD-07` | מנהל יכול להתחיל ביקור ולהשלים אותו בשם איש הצוות המשובץ; הדוח נשאר משויך לשיבוץ | check-in והשלמה ע"י מנהל מצליחים עם שעת שרת | נבדקה |
 | `FR-AD-08` | תיק מטופל מלא לכל מטופל עם חיפוש | תיק נטען לפי חיפוש; החלפת מטופל לא מציגה נתוני קודם (FR-RK-08) | נבדקה (מדומה) |
-| `FR-AD-10` | מנהל יכול להשהות שירות (למשל בדיקות דם) לטווח תאריכים או עד חידוש, עם הודעה למטופל. אין שורה לשירות = זמין. נאכף בטופס ההזמנה, בשרת (409) ובטריגר במסד | הזמנה לשירות מושהה נדחית בכל שלוש השכבות; שירות לא מושהה לא מושפע | נבדקה (מדומה ו-DB חד-פעמי). **לא הופעלה** (הצעה `021`, לא הוחלה) |
+| `FR-AD-13` | מנהל יכול להשהות שירות (למשל בדיקות דם) לטווח תאריכים או עד חידוש, עם הודעה למטופל. אין שורה לשירות = זמין. נאכף בטופס ההזמנה, בשרת (409) ובטריגר במסד | הזמנה לשירות מושהה נדחית בכל שלוש השכבות; שירות לא מושהה לא מושפע | נבדקה (מדומה ו-DB חד-פעמי). **לא הופעלה** (הצעה `021`, לא הוחלה) |
 | `FR-AD-09` | תחזית קיבולת לחודש הבא | הערכה מוצגת לפי פרמטרי הקלט | ממומשת |
 | `FR-AD-10` | תחזית מגמה לכל מטופל; הודעה כשאין מספיק נתונים או כשהשירות לא זמין; תוצאה של מטופל אחר לא מוצגת | לפי בדיקות הכפתור | נבדקה (מדומה) |
 | `FR-AD-11` | ארכוב מטופל בלי מחיקה והוצאת תיק משפטי מלא עם רישום ביומן גישה ובסיס הבקשה | הוצאה רושמת יומן; ארכוב משאיר את ההיסטוריה קריאה | נבדקה. **לא הופעלה** (`013` לא הוחלה; הקליינט קורא לפונקציה שלא קיימת במסד החי) |
@@ -137,7 +137,7 @@
 | `FR-AD-06` | `public/js/admin/staff.js`<br>`supabase/functions/create-staff-login` | `tests/e2e/staff-deactivation.spec.js` |
 | `FR-AD-07` | `backend/app/service.py` (`*_admin`) | `backend/tests/test_api.py::test_complete_by_admin_ok_keeps_booking_staff`<br>`backend/tests/test_api.py::test_checkin_by_admin_ok_server_time_and_idempotent`<br>`tests/e2e/admin-lifecycle.spec.js` |
 | `FR-AD-08` | `public/js/admin/patient-record.js`<br>`public/js/admin/patients.js` | `tests/e2e/cross-patient-isolation.spec.js`<br>`tests/e2e/admin-lifecycle.spec.js` |
-| `FR-AD-10` | הצעה `021_service_availability.sql`; `backend/app/service.py`<br>`public/js/admin/services.js` | `backend/tests_db/test_service_availability.py`<br>`tests/e2e/service-availability.spec.js` |
+| `FR-AD-13` | הצעה `021_service_availability.sql`; `backend/app/service.py`<br>`public/js/admin/services.js` | `backend/tests_db/test_service_availability.py`<br>`tests/e2e/service-availability.spec.js` |
 | `FR-AD-09` | `public/js/admin/capacity.js`<br>`predictive-service/main.py` (`/predict/capacity`) | — |
 | `FR-AD-10` | `public/admin.html`<br>`predictive-service/timeseries.py` | `tests/e2e/trend-forecast.spec.js` |
 | `FR-AD-11` | `public/js/admin/patient-record.js`; הצעה `013_patient_archive_and_record_export.sql` | `backend/tests_db/test_patient_archive_export.py`<br>`tests/e2e/admin-lifecycle.spec.js`<br>`tests/unit/record-export.test.js` |
