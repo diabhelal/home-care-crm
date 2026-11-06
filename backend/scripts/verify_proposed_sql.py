@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017", "018", "019"]   # 014 is reserved by another open PR
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017", "018", "019", "020"]   # 014 is reserved by another open PR; 021 is on PR #35
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -119,6 +119,9 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "020": [("020 patient_measurements table and guard gone",
+             "select to_regclass('public.patient_measurements') is null "
+             "and to_regprocedure('public.patient_measurements_guard()') is null")],
     "019": [("019 is_my_patient back to 'any booking'",
              "select pg_get_functiondef('public.is_my_patient(uuid)'::regprocedure) not like '%cancelled%'")],
     "018": [("018 columns, triggers and helpers gone",

@@ -9,7 +9,7 @@ from .config import Settings
 from .errors import (IdempotencyConflictError, SlotTakenError, bad_request, conflict, forbidden,
                      idempotency_conflict, not_found, slot_taken)
 from .geo import Geocoder
-from .models import Booking, BookingRequestIn, Identity, Staff, VisitReportIn
+from .models import Booking, BookingRequestIn, Identity, MeasurementIn, Staff, VisitReportIn
 from .repo import Repository
 from .state import cancel_decision, ensure_transition
 
@@ -205,6 +205,17 @@ class BookingService:
             if staff is None or b is None or b.staff_id != staff.id:
                 raise forbidden("דוח הביקור אינו משויך אליך")
         return self.repo.set_clinical_outcome(report_id, value)
+
+    # ---- a reading added to the chart outside a booking (never touches a visit report)
+    def add_measurement(self, who: Identity, staff: Optional[Staff], patient_id: str, m: MeasurementIn) -> dict:
+        """Admin, or the staff member assigned to the patient (the DB is the authority: RLS + trigger; the
+        in-memory repo mirrors it). `staff` is None for admin."""
+        if not who.is_admin and staff is None:
+            raise forbidden("נדרשת הרשאת צוות")
+        payload = m.model_dump()
+        return self.repo.add_measurement(
+            patient_id, payload, author_user_id=who.user_id,
+            author_role="admin" if who.is_admin else staff.role, staff_id=None if staff is None else staff.id)
 
     def complete(self, staff: Staff, booking_id: int, report: VisitReportIn) -> dict:
         return self._complete(self._own_booking(staff, booking_id), report)

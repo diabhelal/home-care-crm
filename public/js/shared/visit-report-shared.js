@@ -178,3 +178,115 @@ async function recalculateRiskAfterSave(patientId, savedReportId) {
   prInvalidate("currentRisk", "riskHistory");
   if (out.alert) { prInvalidate("alerts"); if (typeof loadAttentionDashboard === "function") loadAttentionDashboard(); }
 }
+
+
+// ----- מדידה שנוספה לתיק מחוץ לביקור (proposed/020) -----
+// זמן המדידה (measured_at, נבחר ע"י המשתמש, יכול להיות בעבר) נפרד מזמן ההזנה (recorded_at, שעון השרת).
+// רשומה חדשה בלבד: לא עורכת ולא דורסת דוח ביקור, ואין עריכה או מחיקה. הרשאה נאכפת בשרת ובמסד
+// (מנהל, או איש צוות המשויך למטופל). אינה נכנסת לחישוב הערכת הסיכון.
+const MEASUREMENT_LIMITS = { systolic_bp: [50, 250], diastolic_bp: [30, 150], blood_sugar: [20, 600], pulse: [30, 220], temperature: [30, 45], oxygen_saturation: [50, 100] };
+const MEASUREMENT_ROLE_HE = { admin: "מנהל/ת", nurse: "אח/ות", doctor: "רופא/ה", physiotherapist: "פיזיותרפיסט/ית", caregiver: "מטפל/ת" };
+
+function localDateTimeInputValue(date) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}T${p(date.getHours())}:${p(date.getMinutes())}`;
+}
+
+function measurementFormHtml() {
+  const fields = VITALS_META.map((v) => {
+    const [min, max] = MEASUREMENT_LIMITS[v.key];
+    return `<div class="field"><label for="pr-m-${v.key}">${v.label}${v.unit ? ` (${v.unit})` : ""}</label>
+      <input id="pr-m-${v.key}" type="number" inputmode="decimal" min="${min}" max="${max}" ${v.key === "temperature" ? 'step="0.1"' : 'step="1"'}></div>`;
+  }).join("");
+  return `
+    <div class="pr-card" id="pr-measurement-form">
+      <h3>הוספת מדידה לתיק</h3>
+      <p style="color:var(--text-muted); font-size:13px; margin:0 0 8px;">מדידה שנלקחה בזמן אחר, מחוץ לביקור מתוכנן. נשמרת כרשומה חדשה; דוחות שנחתמו אינם משתנים (תיקון דוח נעשה בלשונית "ביקורים").</p>
+      <div class="field"><label for="pr-m-measured-at">מתי נמדד?</label>
+        <input id="pr-m-measured-at" type="datetime-local" value="${localDateTimeInputValue(new Date())}" max="${localDateTimeInputValue(new Date())}"></div>
+      ${fields}
+      <div class="field"><label for="pr-m-note">הערה (אופציונלי)</label><textarea id="pr-m-note" rows="2" maxlength="2000"></textarea></div>
+      <div class="error-msg" id="pr-m-error" role="alert" aria-live="assertive"></div>
+      <button class="btn btn-primary btn-sm" id="pr-m-add">שמירת מדידה</button>
+      <p style="color:var(--text-muted); font-size:12px; margin-top:6px;">זמן ההזנה נרשם אוטומטית בשרת, יחד עם שם המזין. אין עריכה או מחיקה.</p>
+    </div>`;
+}
+
+function measurementsTableHtml(rows) {
+  if (!rows.length) return `<div class="empty-state">עדיין לא נוספו מדידות מחוץ לביקור</div>`;
+  const head = `<tr><th scope="col">זמן המדידה</th><th scope="col">זמן ההזנה</th><th scope="col">הוזן ע"י</th>${VITALS_META.map((v) => `<th scope="col">${v.label}</th>`).join("")}<th scope="col">הערה</th></tr>`;
+  const fmt = (iso) => { const d = new Date(iso); return `${formatDateHe(d)} ${formatTimeHe(d)}`; };
+  const body = rows.map((m) => `<tr>
+    <td>${fmt(m.measured_at)}</td><td>${fmt(m.recorded_at)}</td><td>${escapeHtml(MEASUREMENT_ROLE_HE[m.recorded_by_role] || m.recorded_by_role || "")}</td>
+    ${VITALS_META.map((v) => `<td>${m[v.key] != null ? escapeHtml(String(m[v.key])) : "—"}</td>`).join("")}
+    <td>${m.note ? escapeHtml(m.note) : ""}</td></tr>`).join("");
+  return `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="מדידות מחוץ לביקור (ניתנת לגלילה אופקית)"><table class="admin-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+}
+
+function measurementErrorMessage(err) {
+  if (err && err.kind === "network") return "המדידה לא נשמרה: אין חיבור לשירות. נא לנסות שוב כשהחיבור חוזר.";
+  if (err && err.kind === "timeout") return "המדידה לא נשמרה: השירות לא הגיב בזמן. נא לבדוק ברשימה אם נשמרה לפני שמנסים שוב.";
+  if (err && err.kind === "forbidden") return "אין הרשאה: ניתן להוסיף מדידה רק למטופל המשויך אליך (או כמנהל).";
+  if (err && err.kind === "auth") return err.message;
+  if (err && err.kind === "unconfigured") return "שירות השמירה אינו מוגדר. המדידה לא נשמרה.";
+  if (err && err.kind === "validation") return "המדידה לא נשמרה: " + (err.message || "הערכים שהוזנו אינם תקינים.");
+  return "המדידה לא נשמרה בגלל תקלה בשירות. נא לנסות שוב.";
+}
+
+// בונה את הגוף לשליחה; מחזיר { body } או { error }. תקינות הערכים נבדקת גם בשרת ובמסד.
+function collectMeasurementFromForm() {
+  const raw = document.getElementById("pr-m-measured-at").value;
+  if (!raw) return { error: "יש לבחור מתי נמדד." };
+  const when = new Date(raw);
+  if (isNaN(when.getTime())) return { error: "זמן המדידה אינו תקין." };
+  if (when.getTime() > Date.now() + 5 * 60 * 1000) return { error: "זמן המדידה לא יכול להיות בעתיד." };
+  const body = { measured_at: when.toISOString() };
+  let any = false;
+  for (const v of VITALS_META) {
+    const txt = document.getElementById("pr-m-" + v.key).value.trim();
+    if (txt === "") continue;
+    const n = Number(txt);
+    const [min, max] = MEASUREMENT_LIMITS[v.key];
+    if (!isFinite(n) || n < min || n > max) return { error: `${v.label}: הערך חייב להיות בין ${min} ל-${max}.` };
+    body[v.key] = n; any = true;
+  }
+  if (!any) return { error: "יש להזין לפחות מדד אחד." };
+  const note = document.getElementById("pr-m-note").value.trim();
+  if (note) body.note = note;
+  return { body };
+}
+
+// מצייר את אזור המדידות בתוך container (טופס + רשימה) ומחבר שמירה. rerender נקרא אחרי שמירה מאושרת בלבד.
+async function renderMeasurementsSection(container, rerender) {
+  const state = window.currentPatientState;
+  const m = await prCached("measurements", prFetchMeasurements);
+  if (window.currentPatientState !== state) return;
+  if (m.missing) {
+    container.innerHTML = `<div class="pr-card"><h3>מדידות מחוץ לביקור</h3><p style="color:var(--text-muted);">האפשרות להוסיף מדידה מחוץ לביקור תהיה זמינה לאחר עדכון מסד הנתונים.</p></div>`;
+    return;
+  }
+  if (m.error) {
+    container.innerHTML = `<div class="pr-card"><h3>מדידות מחוץ לביקור</h3><div class="error-msg show" role="alert">לא ניתן היה לטעון את המדידות שנוספו מחוץ לביקור. היעדר רשימה אינו אומר שאין מדידות.</div></div>`;
+    return;
+  }
+  container.innerHTML = measurementFormHtml() + `<div class="pr-card"><h3 style="margin-top:0;">מדידות שנוספו מחוץ לביקור</h3>${measurementsTableHtml(m.rows)}</div>`;
+  document.getElementById("pr-m-add").addEventListener("click", async () => {
+    const errEl = document.getElementById("pr-m-error");
+    hideError(errEl);
+    const parsed = collectMeasurementFromForm();
+    if (parsed.error) { showError(errEl, parsed.error); return; }
+    const btn = document.getElementById("pr-m-add");
+    setButtonLoading(btn, true, "שומר...");
+    try {
+      await backendFetch(`/patients/${encodeURIComponent(state.patientId)}/measurements`, { method: "POST", body: parsed.body });
+    } catch (err) {
+      setButtonLoading(btn, false);
+      showError(errEl, measurementErrorMessage(err));
+      return;
+    }
+    if (window.currentPatientState !== state) return;
+    prInvalidate("measurements");
+    flashSuccess("המדידה נשמרה בתיק");
+    rerender();
+  });
+}
