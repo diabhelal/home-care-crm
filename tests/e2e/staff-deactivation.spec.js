@@ -1,4 +1,4 @@
-// השבתת איש צוות במקום מחיקה: ההיסטוריה נשמרת, מושבת לא מוצג למטופלים, ומחיקה שה-DB מסרב לה (RESTRICT) מקבלת
+// השבתת איש צוות במקום מחיקה: ההיסטוריה נשמרת, מושבת לא מוצג למטופלים, ואין מחיקה פיזית בממשק (כלל: רשומות לא נמחקות)
 // הודעה ברורה. fake supabase-js + backend ממוקק, אפס DB חי.
 const { test, expect } = require("@playwright/test");
 const { fakeSupabaseSource } = require("./helpers/fake-supabase");
@@ -45,24 +45,13 @@ test("מנהל: השבתה שומרת את ההיסטוריה ומשנה רק is
   expect(db.bookings).toHaveLength(1);              // ההיסטוריה שלמה
 });
 
-test("מנהל: מחיקה ש-DB מסרב לה (RESTRICT 23001) מציגה הודעה שמפנה להשבתה, והשורה נשארת", async ({ browser }) => {
+test("מנהל: אין כפתור מחיקה לאיש צוות - רק השבתה/הפעלה, וההיסטוריה נשארת", async ({ browser }) => {
   const { page } = await setup(browser, { admin: true });
-  page.on("dialog", (d) => d.accept());
   await page.goto(BASE + "/admin.html");
   await expect(page.locator("#staff-table")).toContainText("אחות מושבתת");
-  await page.evaluate(() => {
-    // ה-fake מוחק בלי FK; מדמים את תשובת PostgREST כשהמפתח הזר חוסם
-    const from = supabaseClient.from.bind(supabaseClient);
-    supabaseClient.from = (n) => {
-      const api = from(n);
-      if (n === "medical_staff") api.delete = () => ({ eq: () => Promise.resolve({ error: { code: "23001", message: "violates RESTRICT" } }) });
-      return api;
-    };
-  });
-  await page.locator("#staff-table tbody tr", { hasText: "אחות מושבתת" }).getByRole("button", { name: "מחיקה" }).click();
-  await expect(page.locator("#app-error")).toContainText("השתמשו ב");
-  await expect(page.locator("#app-error")).toContainText("השבתה");
-  await expect(page.locator("#staff-table")).toContainText("אחות מושבתת");
+  await expect(page.locator("#staff-table").getByRole("button", { name: "מחיקה" })).toHaveCount(0);
+  await expect(page.locator("#staff-table tbody tr", { hasText: "אחות מושבתת" }).getByRole("button", { name: "הפעלה" })).toHaveCount(1);
+  expect(await page.evaluate(() => typeof deleteStaff)).toBe("undefined");
 });
 
 test("מטופל: איש צוות מושבת לא מוצג ברשימת הבחירה, גם אם יש לו היסטוריה", async ({ browser }) => {

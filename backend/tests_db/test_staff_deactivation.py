@@ -26,25 +26,22 @@ def counts(db, bid, rid):
 def test_deleting_staff_with_history_is_refused_and_history_survives(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_user(db, d["admin"], admin=True)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), RESTRICT_ERRORS)
-    assert_delete_restricts(db, "bookings", "staff_id", "medical_staff")
-    assert_delete_restricts(db, "visit_reports", "staff_id", "medical_staff")
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), psycopg.errors.InsufficientPrivilege)   # 015: no DELETE grant
     assert counts(db, bid, rid) == (1, 1)
 
 
 def test_even_a_superuser_cannot_cascade_away_history(db):
     d = seed(db); bid, rid = completed_visit(db, d)
     as_postgres(db)
-    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), RESTRICT_ERRORS)
-    assert_delete_restricts(db, "bookings", "staff_id", "medical_staff")
-    assert_delete_restricts(db, "visit_reports", "staff_id", "medical_staff")
+    db.execute("select set_config('request.jwt.claims', '', true)")
+    attempt(db, "delete from medical_staff where id=%s", (d["s1"],), RESTRICT_ERRORS)                          # 009 FK, still true
     assert counts(db, bid, rid) == (1, 1)
 
 
-def test_staff_without_any_history_can_still_be_deleted(db):
-    d = seed(db)
+def test_staff_without_any_history_cannot_be_deleted_by_the_application_either(db):
+    d = seed(db)                                     # 015 supersedes 009: deactivate (is_active=false), never delete
     as_user(db, d["admin"], admin=True)
-    assert db.execute("delete from medical_staff where id=%s", (d["s2"],)).rowcount == 1
+    attempt(db, "delete from medical_staff where id=%s", (d["s2"],), psycopg.errors.InsufficientPrivilege)
 
 
 def test_deactivation_keeps_history_visible_to_patient_and_admin(db):

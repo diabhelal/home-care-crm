@@ -13,7 +13,7 @@
 // - appError/flashSuccess (עדיין ב-admin.html, מוגדרים למעלה בסקריפט הראשי לפני שהוא
 //   בכלל רץ, אבל נקראים כאן רק בזמן ריצה מאוחר) — startVisit/renderQueueStaffCell/
 //   cancelBookingAdmin.
-// - loadBookings() נקרא גם מ-js/admin/staff.js (deleteStaff) וגם מהאתחול ומהבלוק
+// - loadBookings() נקרא גם מ-js/admin/staff.js (setStaffActive) וגם מהאתחול ומהבלוק
 //   "דוח ביקור" ב-admin.html — כל הקריאות האלה הן forward/lateral references בטוחות
 //   מאותה סיבה.
 

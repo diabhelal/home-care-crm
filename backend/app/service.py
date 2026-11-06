@@ -6,10 +6,10 @@ from zoneinfo import ZoneInfo
 
 from . import scheduling as sch
 from .config import Settings
-from .errors import (SlotTakenError, bad_request, conflict, forbidden,
-                     not_found, service_unavailable, slot_taken)
+from .errors import (IdempotencyConflictError, SlotTakenError, bad_request, conflict, forbidden,
+                     idempotency_conflict, not_found, service_unavailable, slot_taken)
 from .geo import Geocoder
-from .models import Booking, BookingRequestIn, Identity, Staff, VisitReportIn
+from .models import Booking, BookingRequestIn, Identity, MeasurementIn, Staff, VisitReportIn
 from .repo import Repository
 from .state import cancel_decision, ensure_transition
 
@@ -103,6 +103,13 @@ class BookingService:
                 if again:
                     return again, False
             raise slot_taken()
+        except IdempotencyConflictError:
+            # the unique index on (patient_id, idempotency_key) fired: not a slot conflict
+            again = (self.repo.find_by_idempotency(who.user_id, idempotency_key)
+                     if idempotency_key else None)
+            if again:
+                return again, False
+            raise idempotency_conflict()
 
     def _require_service_available(self, purpose: str, day: date) -> None:
         """An administrator can pause a service (service_availability). Same rule as the DB trigger, checked first so the
@@ -209,6 +216,17 @@ class BookingService:
             if staff is None or b is None or b.staff_id != staff.id:
                 raise forbidden("דוח הביקור אינו משויך אליך")
         return self.repo.set_clinical_outcome(report_id, value)
+
+    # ---- a reading added to the chart outside a booking (never touches a visit report)
+    def add_measurement(self, who: Identity, staff: Optional[Staff], patient_id: str, m: MeasurementIn) -> dict:
+        """Admin, or the staff member assigned to the patient (the DB is the authority: RLS + trigger; the
+        in-memory repo mirrors it). `staff` is None for admin."""
+        if not who.is_admin and staff is None:
+            raise forbidden("נדרשת הרשאת צוות")
+        payload = m.model_dump()
+        return self.repo.add_measurement(
+            patient_id, payload, author_user_id=who.user_id,
+            author_role="admin" if who.is_admin else staff.role, staff_id=None if staff is None else staff.id)
 
     def complete(self, staff: Staff, booking_id: int, report: VisitReportIn) -> dict:
         return self._complete(self._own_booking(staff, booking_id), report)

@@ -540,6 +540,130 @@ def test_reassign_lost_race_is_reported_as_a_clear_conflict(world, monkeypatch):
     assert r.json()["detail"]
 
 
+# ---- SlotTakenError / unexpected repo errors must never leak as a bare HTTP 500
+def _raise(exc):
+    def f(*a, **k):
+        raise exc
+    return f
+
+
+def test_approve_hitting_slot_conflict_is_409_hebrew(world, monkeypatch):
+    from app.errors import SlotTakenError
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "update_booking", _raise(SlotTakenError()))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 409 and r.json()["code"] == "slot_taken" and r.json()["detail"]
+
+
+def test_cancel_and_reject_slot_conflict_is_409(world, monkeypatch):
+    from app.errors import SlotTakenError
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "update_booking", _raise(SlotTakenError()))
+    for path, who in ((f"/bookings/{bid}/cancel", "patient"), (f"/admin/bookings/{bid}/cancel", "admin"),
+                      (f"/admin/bookings/{bid}/reject", "admin")):
+        r = world.client.post(path, headers=H(who))
+        assert r.status_code == 409 and r.json()["code"] == "slot_taken", path
+
+
+def test_checkin_slot_conflict_is_409(world, monkeypatch):
+    from app.errors import SlotTakenError
+    bid = _confirmed(world)
+    monkeypatch.setattr(world.repo, "check_in", _raise(SlotTakenError()))
+    r = world.client.post(f"/staff/bookings/{bid}/check-in", headers=H("staff1"))
+    assert r.status_code == 409 and r.json()["code"] == "slot_taken"
+
+
+def test_idempotency_unique_violation_with_failed_relookup_is_not_slot_taken(world, monkeypatch):
+    from app.errors import IdempotencyConflictError
+    monkeypatch.setattr(world.repo, "insert_booking", _raise(IdempotencyConflictError()))
+    h = {**H("patient"), "Idempotency-Key": "k1"}
+    r = world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1), headers=h)
+    assert r.status_code == 500 and r.json()["code"] == "idempotency_conflict"
+    assert "פנוי" not in r.json()["detail"]
+
+
+def test_idempotency_unique_violation_with_relookup_returns_existing(world, monkeypatch):
+    from app.errors import IdempotencyConflictError
+    h = {**H("patient"), "Idempotency-Key": "k2"}
+    first = world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1), headers=h).json()
+    calls = {"n": 0}  # counted from here: first lookup of the retry misses, the re-lookup hits
+    real = world.repo.find_by_idempotency
+    def lookup(pid, key):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else real(pid, key)   # race: invisible first, visible after
+    monkeypatch.setattr(world.repo, "find_by_idempotency", lookup)
+    monkeypatch.setattr(world.repo, "insert_booking", _raise(IdempotencyConflictError()))
+    r = world.client.post("/bookings/request", json=req(local(18, 11), staff_id=1), headers=h)
+    assert r.status_code == 200 and r.json()["id"] == first["id"]
+
+
+def test_database_unreachable_is_a_structured_502_not_a_bare_500(world, monkeypatch):
+    import httpx
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(httpx.ConnectError("db down")))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+# ---- upstream HTTP errors: status-aware mapping + server-side logging (representative payloads)
+import logging  # noqa: E402
+import httpx as _httpx  # noqa: E402
+
+
+def _status_err(status, payload):
+    return _httpx.HTTPStatusError(
+        "x", request=_httpx.Request("GET", "http://db/rest/v1/bookings"),
+        response=_httpx.Response(status, json=payload))
+
+
+@pytest.mark.parametrize("status,payload", [
+    (400, {"code": "22P02", "message": "invalid input syntax for type uuid"}),
+    (404, {"code": "PGRST202", "message": "Could not find the function"}),
+    (406, {"code": "PGRST116", "message": "JSON object requested, multiple rows"}),
+    (409, {"code": "23503", "message": "violates foreign key constraint"}),
+])
+def test_unmapped_postgrest_4xx_is_500_upstream_error_not_unavailable(world, monkeypatch, status, payload):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(status, payload)))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 500 and r.json()["code"] == "upstream_error"
+    assert "אינו זמין" not in r.json()["detail"] and "invalid" not in r.json()["detail"]
+
+
+def test_postgrest_5xx_is_502_unavailable(world, monkeypatch):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(503, {"message": "down"})))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+def test_network_timeout_is_502(world, monkeypatch):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_httpx.ReadTimeout("t")))
+    r = world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    assert r.status_code == 502 and r.json()["code"] == "upstream_unavailable"
+
+
+def test_handlers_log_cause_server_side_without_jwt(world, monkeypatch, caplog):
+    bid = _new(world)
+    monkeypatch.setattr(world.repo, "get_booking", _raise(_status_err(
+        400, {"code": "22P02", "message": "bad uuid", "details": "x"})))
+    with caplog.at_level(logging.WARNING, logger="app"):
+        world.client.post(f"/admin/bookings/{bid}/approve", headers=H("admin"))
+    text = caplog.text
+    assert "22P02" in text and "400" in text and "bad uuid" in text
+    assert "Bearer" not in text and H("admin")["Authorization"].split()[-1] not in text
+
+
+def test_idempotency_conflict_is_logged(world, monkeypatch, caplog):
+    from app.errors import IdempotencyConflictError
+    monkeypatch.setattr(world.repo, "insert_booking", _raise(IdempotencyConflictError()))
+    with caplog.at_level(logging.WARNING, logger="app"):
+        world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1),
+                          headers={**H("patient"), "Idempotency-Key": "kk"})
+    assert "idempotency_conflict" in caplog.text
+
+
 def test_paused_service_is_refused_with_the_admin_message_only_inside_the_window(world):
     world.repo.service_pauses.append({"purpose": "blood_test", "paused_from": "2026-10-18", "paused_until": "2026-10-20",
                                       "public_message": "אין בדיקות דם עד יום ג'"})

@@ -3,6 +3,9 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from typing import Callable, Optional
 
+import logging
+
+import httpx
 from fastapi import Depends, FastAPI, Header, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -10,10 +13,13 @@ from fastapi.responses import JSONResponse
 from .auth import (HS256Verifier, JWKSVerifier, SupabaseTokenVerifier, TokenVerifier, extract_bearer,
                    identity_from_claims, require_admin)
 from .config import Settings
-from .errors import DomainError, forbidden
+from .errors import (DomainError, IdempotencyConflictError, SlotTakenError, forbidden,
+                     idempotency_conflict, redact_details, slot_taken)
+
+log = logging.getLogger("app.main")
 from .geo import Geocoder, NoopGeocoder
-from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, ReassignIn, Staff,
-                     VisitReportIn, booking_to_dict)
+from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, MeasurementIn, ReassignIn,
+                     Staff, VisitReportIn, booking_to_dict)
 from .repo import Repository
 from .risk import HttpPredictiveClient, PredictiveClient, RiskService
 from .service import BookingService
@@ -55,7 +61,49 @@ def create_app(settings: Settings | None = None,
 
     @app.exception_handler(DomainError)
     async def _domain(_: Request, e: DomainError):
+        if e.status >= 500:   # server-side faults (e.g. idempotency_conflict): keep the cause in the log
+            log.warning("domain error status=%s code=%s", e.status, e.code)
         return JSONResponse({"code": e.code, "detail": e.message}, status_code=e.status)
+
+    # Safety nets for repository exceptions an endpoint did not translate itself
+    # (request_booking/reassign keep their own explicit handling and 409 behaviour).
+    @app.exception_handler(SlotTakenError)
+    async def _slot(_: Request, e: SlotTakenError):
+        d = slot_taken()
+        return JSONResponse({"code": d.code, "detail": d.message}, status_code=d.status)
+
+    @app.exception_handler(IdempotencyConflictError)
+    async def _idem(_: Request, e: IdempotencyConflictError):
+        d = idempotency_conflict()
+        log.warning("%s: idempotency unique violation and re-lookup found nothing", d.code)
+        return JSONResponse({"code": d.code, "detail": d.message}, status_code=d.status)
+
+    def _unavailable():
+        return JSONResponse({"code": "upstream_unavailable",
+                             "detail": "שירות הנתונים אינו זמין כרגע, אנא נסה שוב"}, status_code=502)
+
+    @app.exception_handler(httpx.HTTPStatusError)
+    async def _upstream_status(_: Request, e: httpx.HTTPStatusError):
+        status = e.response.status_code
+        try:
+            body = e.response.json()
+        except ValueError:
+            body = {}
+        body = body if isinstance(body, dict) else {}
+        log.warning("postgrest error status=%s code=%s message=%s details=%s", status,
+                    body.get("code"), body.get("message"), redact_details(body.get("details")))
+        if status >= 500:
+            return _unavailable()
+        # an unmapped 4xx is a bug/contract problem on our side, not an outage: do not say "down"
+        return JSONResponse({"code": "upstream_error",
+                             "detail": "שגיאה בעיבוד הבקשה בשרת. אנא נסה שוב או פנה לתמיכה"},
+                            status_code=500)
+
+    @app.exception_handler(httpx.HTTPError)
+    async def _upstream(_: Request, e: httpx.HTTPError):
+        # network error / timeout (no HTTP answer): loud, structured, no internals leaked
+        log.warning("upstream unreachable: %s", type(e).__name__)
+        return _unavailable()
 
     class Ctx:
         def __init__(self, identity: Identity, svc: BookingService):
@@ -134,6 +182,12 @@ def create_app(settings: Settings | None = None,
         staff = None if c.identity.is_admin else c.staff()
         return {"report": c.svc.set_clinical_outcome(
             c.identity, staff, report_id, body.clinical_outcome_8h)}
+
+    @app.post("/patients/{patient_id}/measurements", status_code=201)
+    def add_measurement(patient_id: str, body: MeasurementIn, c: Ctx = Depends(ctx)):
+        """A reading taken at another time, added to the chart outside a booking. Append-only; admin or assigned staff."""
+        staff = None if c.identity.is_admin else c.staff()
+        return {"measurement": c.svc.add_measurement(c.identity, staff, patient_id, body)}
 
     @app.post("/visits/{report_id}/risk-assessment")
     def risk_assessment(report_id: int, c: Ctx = Depends(ctx)):

@@ -5,7 +5,7 @@
 // מוגדרים — בדיוק כמו היום. ES module היה נטען *אחרי* כל הסקריפטים הקלאסיים (סדר
 // טעינה שונה לגמרי בספסיפיקציה), מה שהיה שובר את סדר האתחול הקיים. סקריפטים
 // קלאסיים שנטענים בסדר חולקים scope עליון משותף (כמו app.js -> admin.html היום) —
-// staffListCache/loadStaff/openStaffModal/deleteStaff/createStaffLogin נשארים
+// staffListCache/loadStaff/openStaffModal/createStaffLogin נשארים
 // נגישים כשם חשוף (bare identifier) לשאר admin.html בדיוק כמו לפני ההוצאה הזו,
 // בלי צורך ב-window.* גישור.
 let staffListCache = []; // מתמלא ב-loadStaff(), נעזרים בו בתפריט שיוך-מחדש בתור העבודה
@@ -61,13 +61,8 @@ async function loadStaff() {
     activeBtn.className = "btn btn-secondary btn-sm";
     activeBtn.textContent = s.is_active ? "השבתה" : "הפעלה";
     activeBtn.addEventListener("click", () => setStaffActive(s.id, s.full_name, !s.is_active, activeBtn));
-    const delBtn = document.createElement("button");
-    delBtn.className = "btn btn-danger btn-sm";
-    delBtn.textContent = "מחיקה";
-    delBtn.addEventListener("click", () => deleteStaff(s.id, s.full_name, delBtn));
     actionsTd.appendChild(editBtn);
     actionsTd.appendChild(activeBtn);
-    actionsTd.appendChild(delBtn);
     tbody.appendChild(tr);
   });
   if (!data || data.length === 0) {
@@ -135,31 +130,7 @@ async function setStaffActive(id, name, active, btn) {
   loadBookings();
 }
 
-async function deleteStaff(id, name, btn) {
-  if (!confirm(`למחוק את ${name} לצמיתות? אפשרי רק אם אין לו/ה שום היסטוריית ביקורים או דוחות. אחרת השתמשו ב"השבתה".`)) return;
-  hideError(appError);
-  if (btn) setButtonLoading(btn, true, "מוחק...");
-  let error;
-  try {
-    ({ error } = await supabaseClient.from("medical_staff").delete().eq("id", id));
-  } catch (err) {
-    error = err;
-  } finally {
-    if (btn) setButtonLoading(btn, false);
-  }
-  if (error) {
-    // 23001/23503: מפתח זר (ON DELETE RESTRICT) — יש היסטוריה, אסור למחוק
-    if (error.code === "23001" || error.code === "23503") {
-      showError(appError, "לא ניתן למחוק איש צוות שיש לו היסטוריית ביקורים או דוחות רפואיים. השתמשו ב\"השבתה\" כדי לשמור את ההיסטוריה.");
-    } else {
-      showError(appError, friendlyErrorMessage(error));
-    }
-    return;
-  }
-  flashSuccess("איש הצוות נמחק");
-  loadStaff();
-  loadBookings();
-}
+// אין מחיקה פיזית של איש צוות (כלל בעלים: רשומות רפואיות לא נמחקות; "הוצאה משימוש" = השבתה, ר' setStaffActive למעלה).
 
 // מודל הוספה/עריכה של איש צוות
 const staffModal = document.getElementById("staff-modal");

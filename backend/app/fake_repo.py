@@ -1,10 +1,10 @@
 """In-memory repository for tests/local dev. Mimics the DB unique index."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Callable, Optional
 
-from .errors import SlotTakenError
+from .errors import SlotTakenError, bad_request, forbidden
 from .models import Booking, Staff
 from .risk import VITAL_KEYS, verify_attestation
 
@@ -25,6 +25,7 @@ class FakeRepo:
         self.attestation_secret: str | None = None
         self.fail_record = False
         self.service_pauses: list[dict] = []   # rows of service_availability with is_paused = true
+        self.measurements: list[dict] = []
 
     def list_service_pauses(self): return list(self.service_pauses)
 
@@ -102,6 +103,21 @@ class FakeRepo:
         rep = self.get_visit_report(report_id)
         rep["clinical_outcome_8h"] = value
         return {k: rep.get(k) for k in ("id", "booking_id", "clinical_outcome_8h")}
+
+    def add_measurement(self, patient_id, payload, *, author_user_id, author_role, staff_id):
+        # mirrors proposed/020: admin, or staff with a non-cancelled, non-rejected booking with the patient
+        if author_role != "admin":
+            related = any(b.patient_id == patient_id and b.staff_id == staff_id and b.status != "cancelled"
+                          and b.approval_status != "rejected" for b in self.bookings.values())
+            if not related:
+                raise forbidden()
+        now = self._now()
+        if payload["measured_at"] > now + timedelta(minutes=5):
+            raise bad_request("invalid_value", "ערך לא תקין")
+        row = {"id": len(self.measurements) + 1, "patient_id": patient_id, **payload,
+               "recorded_at": now, "recorded_by": author_user_id, "recorded_by_role": author_role}
+        self.measurements.append(row)
+        return row
 
     # ---- clinical risk orchestration
     def get_report_for_risk(self, report_id):

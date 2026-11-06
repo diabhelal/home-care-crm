@@ -13,13 +13,17 @@ async function setup(browser, viewport = { width: 1000, height: 800 }) {
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
   const backend = await installBackendMock(context);
+  await context.clock.setFixedTime(FIXED_NOW);
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (e) => errors.push(String(e)));
   return { context, page, backend, errors };
 }
 
-function inHours(h) { return new Date(Date.now() + h * 3600 * 1000).toISOString(); }
+// שעון קבוע ל-10:00 מקומי: "בעוד שעה/שעתיים" נשארים באותו יום גם כשהבדיקה רצה סמוך לחצות
+// (בלי זה "העבודה שלי" מציגה ביקורים רק של היום ובדיקה נכשלת בשעה שלפני חצות).
+const FIXED_NOW = (() => { const d = new Date(); d.setHours(10, 0, 0, 0); return d; })();
+function inHours(h) { return new Date(FIXED_NOW.getTime() + h * 3600 * 1000).toISOString(); }
 
 async function seed(page, { patients, bookings, allergies = [] }) {
   await page.goto(BASE + "/index.html");

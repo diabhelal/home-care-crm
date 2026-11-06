@@ -33,6 +33,10 @@ class Repository(Protocol):
         """RLS-scoped: a non-owner staff member simply does not see the row."""
     def set_clinical_outcome(self, report_id: int, value: Optional[str]) -> dict:
         """Writes ONLY clinical_outcome_8h, with the caller's JWT."""
+    def add_measurement(self, patient_id: str, payload: dict, *, author_user_id: str, author_role: str,
+                        staff_id: Optional[int]) -> dict:
+        """Append-only vital-sign reading outside a booking (proposed/020). The DB sets recorded_at/recorded_by and
+        enforces admin-or-assigned-staff; `author_*`/`staff_id` are for in-memory implementations only."""
     # ---- clinical risk orchestration (see app/risk.py)
     def get_report_for_risk(self, report_id: int) -> Optional[dict]:
         """id, booking_id, patient_id, staff_id, visit_date + the six vitals (RLS-scoped)."""

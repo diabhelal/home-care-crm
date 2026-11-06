@@ -127,7 +127,8 @@ def _seed_committed(pg_uri, n_staff):
 
 def _cleanup(pg_uri, admin, pa, pb, staff):
     with psycopg.connect(pg_uri, autocommit=True) as c:
-        c.execute("delete from patients where id in (%s,%s)", (pa, pb))          # cascades the bookings
+        c.execute("delete from bookings where patient_id in (%s,%s)", (pa, pb))   # 015: patients no longer cascade to bookings
+        c.execute("delete from patients where id in (%s,%s)", (pa, pb))
         c.execute("delete from medical_staff where id = any(%s)", (staff,))
         c.execute("delete from auth.users where id in (%s,%s,%s)", (admin, pa, pb))
 

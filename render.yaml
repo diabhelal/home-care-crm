@@ -1,0 +1,45 @@
+# Render Blueprint for the public DEMO (synthetic data only). Nothing deploys automatically:
+# autoDeployTrigger is off; deploy manually from the dashboard after approval.
+# Secrets (sync: false) are entered in the Render dashboard, never in this file or in Git.
+services:
+  - type: web
+    name: home-care-crm-backend
+    runtime: python
+    rootDir: backend
+    plan: starter            # no sleep (about $7/month); "free" sleeps after 15 min idle
+    region: frankfurt
+    buildCommand: pip install -r requirements.lock.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false           # exact origin of the static site, no wildcard
+      - key: RISK_ATTESTATION_SECRET
+        sync: false           # >= 32 random bytes; same value as server_secrets in the demo database
+      - key: PREDICTIVE_SERVICE_URL
+        sync: false           # https URL of home-care-crm-predictive
+
+  - type: web
+    name: home-care-crm-predictive
+    runtime: python
+    rootDir: predictive-service
+    plan: free               # may sleep; reports are saved even when it is asleep (risk shows "unavailable")
+    region: frankfurt
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    autoDeployTrigger: "off"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.5
+      - key: DISABLE_TRAINING
+        value: "1"
+      - key: ALLOWED_ORIGINS
+        sync: false           # exact origin of the static site

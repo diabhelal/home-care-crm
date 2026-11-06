@@ -3,12 +3,15 @@
 הפרונט (admin.html) קורא ל-endpoints האלה דרך fetch, ומציג את התוצאה בדשבורד הניהול.
 """
 
+import os
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 import ml_targets
 from clinical_baseline import compute_baseline, compute_trigger_event, detect_anomaly, weighted_severity
@@ -16,19 +19,48 @@ from timeseries import MIN_POINTS_FOR_ARIMA, avg_gap_hours, forecast_arima
 
 app = FastAPI(title="home-care-crm predictive service")
 
-# שירות מקומי בלבד לצורך פיתוח: מאפשר קריאה מכל origin (כולל file:// ו-http://localhost:*)
+# מקומי: כל origin (כולל file:// ו-http://localhost:*). באירוח ציבורי מגדירים ALLOWED_ORIGINS
+# (מופרד בפסיקים) למקור המדויק של האתר, ו-DISABLE_TRAINING=1 לסגירת /train/*.
+_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def _validation_error_handler(request: Request, exc: RequestValidationError):
+    """422 ברור. לא מחזירים את ה-input (עלול להכיל NaN/inf שאינו JSON תקין)."""
+    errors = [
+        {"loc": list(e.get("loc", [])), "msg": str(e.get("msg", "")), "type": e.get("type", "")}
+        for e in exc.errors()
+    ]
+    return JSONResponse(status_code=422, content={"detail": errors})
+
+
+@app.exception_handler(Exception)
+async def _unexpected_error_handler(request: Request, exc: Exception):
+    return JSONResponse(status_code=500, content={"detail": "שגיאה פנימית בשירות התחזית; הקלט לא עובד."})
+
+
+# מספר סופי בלבד: NaN/Infinity נדחים ב-422 (לא משנה שום נוסחה, רק ולידציית קלט)
+FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
+
+
+def _require_finite_numbers(d: dict) -> dict:
+    import math
+    for k, v in d.items():
+        if isinstance(v, float) and not math.isfinite(v):
+            raise ValueError(f"הערך '{k}' חייב להיות מספר סופי (לא NaN/Infinity)")
+    return d
+
+
 class CapacityForecastRequest(BaseModel):
     visits_this_month: int = Field(..., ge=0, description="כמות ביקורי בית שבוצעו בחודש הנוכחי")
     active_patients: int = Field(..., gt=0, description="כמות המטופלים הפעילים כרגע במערכת")
-    growth_rate: float = Field(..., gt=-1, description="אחוז צמיחה משוער לחודש הבא, לדוגמה 0.05 עבור 5%")
+    growth_rate: float = Field(..., gt=-1, allow_inf_nan=False, description="אחוז צמיחה משוער לחודש הבא, לדוגמה 0.05 עבור 5%")
 
 
 class CapacityForecastResponse(BaseModel):
@@ -150,12 +182,12 @@ def caregiver_status_message(level: str, trend: Optional[str]) -> str:
 
 
 class VitalsInput(BaseModel):
-    systolic_bp: Optional[float] = Field(None, ge=50, le=250)
-    diastolic_bp: Optional[float] = Field(None, ge=30, le=150)
-    blood_sugar: Optional[float] = Field(None, ge=20, le=600)
-    pulse: Optional[float] = Field(None, ge=30, le=220)
-    temperature: Optional[float] = Field(None, ge=30.0, le=45.0)
-    oxygen_saturation: Optional[float] = Field(None, ge=50, le=100)
+    systolic_bp: Optional[float] = Field(None, allow_inf_nan=False, ge=50, le=250)
+    diastolic_bp: Optional[float] = Field(None, allow_inf_nan=False, ge=30, le=150)
+    blood_sugar: Optional[float] = Field(None, allow_inf_nan=False, ge=20, le=600)
+    pulse: Optional[float] = Field(None, allow_inf_nan=False, ge=30, le=220)
+    temperature: Optional[float] = Field(None, allow_inf_nan=False, ge=30.0, le=45.0)
+    oxygen_saturation: Optional[float] = Field(None, allow_inf_nan=False, ge=50, le=100)
 
 
 class FlaggedVital(BaseModel):
@@ -304,17 +336,17 @@ def predict_risk_assessment(req: RiskAssessmentRequest):
 
 class VitalPoint(BaseModel):
     measured_at: datetime
-    value: float
+    value: FiniteFloat
 
 
 class VitalHistoryEntry(BaseModel):
     measured_at: datetime
-    systolic_bp: Optional[float] = None
-    diastolic_bp: Optional[float] = None
-    blood_sugar: Optional[float] = None
-    pulse: Optional[float] = None
-    temperature: Optional[float] = None
-    oxygen_saturation: Optional[float] = None
+    systolic_bp: Optional[FiniteFloat] = None
+    diastolic_bp: Optional[FiniteFloat] = None
+    blood_sugar: Optional[FiniteFloat] = None
+    pulse: Optional[FiniteFloat] = None
+    temperature: Optional[FiniteFloat] = None
+    oxygen_saturation: Optional[FiniteFloat] = None
 
 
 
@@ -528,7 +560,7 @@ def predict_anomalies(req: MultiVitalHistoryRequest):
 class TimeseriesForecastRequest(BaseModel):
     vital: str
     points: list[VitalPoint]
-    horizon_hours: float = 24
+    horizon_hours: FiniteFloat = 24
 
 
 class TimeseriesForecastResponse(BaseModel):
@@ -554,6 +586,8 @@ class FutureEventRequest(BaseModel):
     target: str
     algorithm: str = "logistic_regression"
     features: dict
+
+    _check_features = field_validator("features")(_require_finite_numbers)
 
 
 class FutureEventResponse(BaseModel):
@@ -581,16 +615,29 @@ class TrainModelRequest(BaseModel):
     X: list[dict]
     y: list[int]
 
+    @field_validator("X")
+    @classmethod
+    def _finite_rows(cls, rows):
+        for r in rows:
+            _require_finite_numbers(r)
+        return rows
+
 
 @app.post("/train/{target}/{algorithm}")
 def train_model_endpoint(target: str, algorithm: str, req: TrainModelRequest):
     """אימון אמיתי — קיים כארכיטקטורה. שום דבר בפרויקט הזה לא קורא לאנדפוינט הזה
     כרגע כי אין דאטה מתויג עם תוצאה קלינית אמיתית לאימון (ר' ml_targets.py)."""
+    if os.environ.get("DISABLE_TRAINING") == "1":
+        raise HTTPException(status_code=403, detail="אימון מודלים מושבת בסביבה זו.")
     try:
         metrics = ml_targets.train_model(target, algorithm, req.X, req.y)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return {"target": target, "algorithm": algorithm, "trained": True, "metrics": metrics}
+    return {"target": target, "algorithm": algorithm, "trained": True,
+            # אימון רץ, אך אין אימות קליני: לא להציג כמודל מאומן/מאושר
+            "validated": False,
+            "validation_note": "האימון הושלם טכנית; לא בוצע אימות קליני ולכן אין להסתמך על המודל להחלטות קליניות.",
+            "metrics": metrics}
 
 
 # ===== 6. אנדפוינט מאוחד: /predict/medical-warning =====

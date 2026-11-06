@@ -41,6 +41,8 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     riskLevel: "green",    // risk_level שהשירות "מחזיר" (green|yellow|red|no_data)
     riskAlert: null,       // { alert_type, severity, message } שהשרת יוצר יחד עם ההערכה
     risks: [],             // { report_id, user_id } שעובדו בהצלחה (הכתיבה נעשית "בשרת" ולא דרך __write_log)
+    measurementFail: null, // סטטוס HTTP לכישלון POST /patients/{id}/measurements, או 'abort' לניתוק רשת לפני עיבוד
+    measurements: [],      // גופי בקשות measurement שעובדו בהצלחה
     autoAlertFail: null,   // סטטוס HTTP לכישלון POST /patients/{id}/auto-alert
     autoAlertResponse: null, // { alert_type, severity, message } או null (אין התראה)
     autoAlerts: [],        // patient_id שעובדו בהצלחה
@@ -147,6 +149,33 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     }
 
     // ---- תוצאה קלינית בדיעבד — משקף PATCH /visits/{id}/clinical-outcome (צוות משויך או מנהל)
+    const ms = path.match(/^\/patients\/([^/]+)\/measurements$/);
+    if (req.method() === "POST" && ms) {
+      if (ctl.measurementFail === "abort") return route.abort("connectionreset");
+      if (ctl.measurementFail) return json(ctl.measurementFail, { code: "error", detail: "שגיאת בדיקה" });
+      const result = await inPage(({ id, body }) => {
+        // משקף backend + proposed/020: מנהל, או איש צוות עם הזמנה שאינה מבוטלת/נדחית עם המטופל; זמן ההזנה והמחבר מהשרת
+        const sess = JSON.parse(localStorage.getItem("__demo_session") || "null");
+        if (!sess) return { status: 401 };
+        const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+        const isAdmin = (sess.user.app_metadata || {}).is_admin === true;
+        const staff = (db.medical_staff || []).find((s) => s.auth_user_id === sess.user.id && s.is_active !== false);
+        if (!isAdmin && !staff) return { status: 403, detail: "נדרשת הרשאת צוות" };
+        if (!isAdmin && !(db.bookings || []).some((b) => b.patient_id === id && b.staff_id === staff.id && b.status !== "cancelled" && b.approval_status !== "rejected"))
+          return { status: 403, detail: "אין הרשאה לפעולה זו" };
+        if (new Date(body.measured_at).getTime() > Date.now() + 5 * 60 * 1000) return { status: 400, detail: "ערך לא תקין" };
+        db.patient_measurements = db.patient_measurements || [];
+        const row = { ...body, id: ++db.seq, patient_id: id, recorded_at: new Date().toISOString(), recorded_by: sess.user.id,
+          recorded_by_role: isAdmin ? "admin" : staff.role };
+        db.patient_measurements.push(row);
+        localStorage.setItem("__demo_db", JSON.stringify(db));
+        return { status: 201, row };
+      }, { id: ms[1], body });
+      if (result.status !== 201) return json(result.status, { code: "error", detail: result.detail });
+      ctl.measurements.push(body);
+      return json(201, { measurement: result.row });
+    }
+
     const oc = path.match(/^\/visits\/(\d+)\/clinical-outcome$/);
     if (req.method() === "PATCH" && oc) {
       if (ctl.outcomeFail === "abort") return route.abort("connectionreset");

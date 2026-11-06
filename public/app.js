@@ -70,8 +70,14 @@ const OFFLINE_QUEUE_KEY = "visitReportOfflineQueue";
 // נקרא לצורך סנכרון (RLS מחליט מי רשאי לכתוב) ונמחק רק לאחר שמירה מוצלחת.
 let offlineQueueOwnerId = null;
 
+// כשלים אחרונים של סנכרון הטיוטות (להצגה בבאנר). שייכים למשתמש הנוכחי בלבד: החלפת משתמש מנקה אותם.
+let offlineQueueLastErrors = [];
+function getOfflineQueueLastErrors() { return offlineQueueLastErrors.slice(); }
+
 function setOfflineQueueOwner(uid) {
-  offlineQueueOwnerId = uid || null;
+  const next = uid || null;
+  if (next !== offlineQueueOwnerId) offlineQueueLastErrors = [];
+  offlineQueueOwnerId = next;
 }
 
 function offlineQueueKey() {
@@ -207,11 +213,12 @@ function sameReportValue(key, a, b) {
 
 // אימות אחרי 409: האם תוכן הטיוטה אכן נשמר בדוח של ההזמנה בשרת? "same" | "different" | "unverified".
 // רק "same" מאפשר להסיר את הטיוטה. ההשוואה נעשית מול הדוח בשרת בקריאה בלבד, עם אותו משתמש.
-async function verifyReportPersisted(draft, ownerId) {
+async function verifyReportPersisted(draft, ownerId, out) {
   try {
     if (offlineQueueOwnerId !== ownerId) return "unverified";
-    const { data, error } = await supabaseClient.from("visit_reports").select(VISIT_BODY_KEYS.join(",")).eq("booking_id", draft.booking_id).maybeSingle();
+    const { data, error } = await supabaseClient.from("visit_reports").select(["id", ...VISIT_BODY_KEYS].join(",")).eq("booking_id", draft.booking_id).maybeSingle();
     if (error || !data) return "unverified";
+    if (out) out.reportId = data.id;   // לשימוש הקורא: הערכת סיכון לדוח שכבר נשמר
     const body = visitCompletionBody(draft);
     return VISIT_BODY_KEYS.every((k) => sameReportValue(k, body[k], data[k])) ? "same" : "different";
   } catch (e) {
@@ -278,6 +285,17 @@ function isDefinitiveRiskRejection(err) {
   return !!err && (err.status === 403 || err.status === 404);
 }
 
+// אחרי השלמה מאושרת (תשובת הצלחה, או 409 שאומת כ"same"): מבקשים הערכת סיכון, ובכשל זמני מתורים לניסיון חוזר.
+// 409+"same" מגיע כשהשרת שמר את הדוח אך התשובה אבדה — אז הבקשה לא נשלחה מעולם, ובלי זה לא תיווצר הערכה/התראה.
+async function requestRiskAfterCompletion(reportId, bookingId, ownerId) {
+  if (reportId === undefined || reportId === null) return;
+  try { await requestRiskAssessment(reportId, ownerId); }
+  catch (riskErr) {
+    // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
+    if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(reportId, bookingId, ownerId);
+  }
+}
+
 let pendingRiskRetrying = false;
 
 // מנסה שוב את הרשימה של המשתמש הנוכחי בלבד. מחזירה {retried, remaining}. לעולם לא זורקת.
@@ -331,6 +349,20 @@ function visitCompletionErrorMessage(err, queued = true) {
   return "לא ניתן לשמור את הדוח כרגע." + kept;
 }
 
+// הדוח לא אושר בשרת (5xx / לא הגיבו בזמן / השירות לא מוגדר): התוכן שמור במכשיר ולא נמחק; אפשר לנסות שוב בלי אובדן.
+// timeout: לא ידוע אם השרת כן שמר - ניסיון חוזר יקבל 409, והאימות מול הדוח השמור יזהה "זהה" בלי ליצור כפילות.
+function unconfirmedSaveMessage(err) {
+  const kind = err && err.kind;
+  if (kind === "timeout") {
+    return "לא התקבל אישור שמירה מהשרת בזמן — לא ידוע אם הדוח נשמר שם. התוכן שמור במכשיר ולא נמחק; ניסיון חוזר יבדוק זאת מול השרת בלי ליצור כפילות.";
+  }
+  if (kind === "unconfigured") {
+    return "שירות השמירה אינו מוגדר — הדוח לא נשמר בשרת. התוכן שמור במכשיר ולא נמחק.";
+  }
+  const st = err && err.status ? ` (שגיאה ${err.status})` : "";
+  return `השרת לא אישר את שמירת הדוח${st} — הדוח עדיין לא נשמר בשרת. התוכן שמור במכשיר ולא נמחק; אפשר לנסות שוב.`;
+}
+
 // מחזירה {synced, failed, partial, errors}. partial תמיד 0 (השמירה אטומית בשרת) ונשמר
 // לתאימות. errors: [{booking_id, kind, status, message}] לכשלים שאינם רשת.
 let offlineQueueSyncing = false;
@@ -343,7 +375,9 @@ function flushOfflineQueue() {
   riskQueuedThisFlush = new Set();
   offlineFlushPromise = (async () => {
     try {
-      return await withQueueLock(() => flushOfflineQueueDrafts());
+      const result = await withQueueLock(() => flushOfflineQueueDrafts());
+      if (result && !result.busy) offlineQueueLastErrors = Array.isArray(result.errors) ? result.errors : [];
+      return result;
     } finally {
       // ניסיון חוזר של הערכות סיכון שנכשלו אחרי השלמה; לא משפיע על תוצאת הסנכרון.
       try { await retryPendingRiskAssessments(riskQueuedThisFlush); } catch (e) { /* הודעה בלבד */ }
@@ -415,8 +449,13 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
       } catch (err) {
         if (err && err.kind === "conflict") {
           // 409 לא מוכיח שהתוכן נשמר: מסירים את הטיוטה רק אם הדוח בשרת זהה לה.
-          const verdict = await verifyReportPersisted(draft, ownerId);
-          if (verdict === "same") { synced++; acknowledge(draft); continue; }
+          const persisted = {};
+          const verdict = await verifyReportPersisted(draft, ownerId, persisted);
+          if (verdict === "same") {
+            synced++; acknowledge(draft);
+            await requestRiskAfterCompletion(persisted.reportId, draft.booking_id, ownerId);
+            continue;
+          }
           const why = verdict === "different"
             ? " תוכן הדוח השמור בשרת שונה מהטיוטה שבמכשיר, והטיוטה לא נמחקה."
             : " לא ניתן היה לאמת שהתוכן נשמר בשרת, והטיוטה לא נמחקה.";
@@ -425,6 +464,11 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
           continue;
         }
         if (isRetryableCompletionError(err)) {
+          // רשת (אין חיבור) היא מצב צפוי והבאנר כבר מסביר אותו. 5xx / timeout / לא מוגדר: הדוח לא אושר בשרת - מציגים זאת במפורש.
+          if (err.kind === "server" || err.kind === "timeout" || err.kind === "unconfigured") {
+            errors.push({ booking_id: draft.booking_id, kind: err.kind, status: (err && err.status) || 0, retryable: true,
+              message: unconfirmedSaveMessage(err) });
+          }
           if (err.kind !== "server") offline = true;
         } else {
           errors.push({ booking_id: draft.booking_id, kind: (err && err.kind) || "unknown",
@@ -436,13 +480,7 @@ async function flushOfflineQueueKey(queueKey, ownerId) {
       synced++;
       acknowledge(draft);
       const doneId = done && done.report && done.report.id;
-      if (doneId) {
-        try { await requestRiskAssessment(doneId, ownerId); }
-        catch (riskErr) {
-          // השלמה כבר אושרה: לא מבטלים. כשל זמני → ניסיון חוזר בהמשך; 403/404 → סופי, לא נשמר.
-          if (!isDefinitiveRiskRejection(riskErr)) queuePendingRisk(doneId, draft.booking_id, ownerId);
-        }
-      }
+      if (doneId) await requestRiskAfterCompletion(doneId, draft.booking_id, ownerId);
     }
   } finally {
     offlineQueueSyncing = false;
@@ -599,7 +637,16 @@ function amendmentsListHtml(list) {
   }).join("")}</div>`;
 }
 
-function amendmentBlockHtml(visit, amendments, canAmend = true) {
+// כלל בעלים: רק המחבר המקורי של הדוח מתקן אותו (מנהל לא מתקן תיעוד של אחר). המקור הוא author_user_id (הצעה 016);
+// כשהוא חסר (DB בלי 016, או דוח ישן בלי מחבר מזוהה) נופלים לשיוך: איש צוות — הדוח משויך אליו; מנהל — אי אפשר להוכיח, ולכן אין טופס.
+// זו רק הסתרה בממשק; האכיפה האמיתית היא בטריגר ובמדיניות RLS של הצעה 017.
+function canAmendVisit(visit, { staffId = null } = {}) {
+  const uid = offlineQueueOwnerId;
+  if (visit && visit.author_user_id) return !!uid && visit.author_user_id === uid;
+  return staffId !== null && staffId !== undefined && visit && visit.staff_id === staffId;
+}
+
+function amendmentBlockHtml(visit, amendments, canAmend = false) {
   const mine = (amendments || []).filter((a) => a.visit_report_id === visit.id);
   const fieldOpts = `<option value="">הבהרה בלבד (בלי שינוי ערך)</option>${VITALS_META.map((m) => `<option value="${m.key}">${m.label}</option>`).join("")}`;
   return `${amendmentsListHtml(mine)}${canAmend ? `
@@ -610,7 +657,7 @@ function amendmentBlockHtml(visit, amendments, canAmend = true) {
       <div class="error-msg amend-error" role="alert"></div>
       <button type="button" class="btn btn-secondary btn-sm amend-save">שמירת התיקון</button>
       <p class="amend-note">הדוח המקורי לא ישתנה ולא יימחק; התיקון נוסף כרשומה חדשה עם שם, תאריך ושעה.</p>
-    </details>` : ""}`;
+    </details>` : `<p class="amend-note amend-no-permission">תיקון לדוח זה אפשרי רק למי שתיעד אותו. הדוח המקורי נשמר ללא שינוי.</p>`}`;
 }
 
 // מחבר את טפסי התיקון בתוך container. onSaved נקרא אחרי שמירה מוצלחת (לרענון התצוגה).
@@ -908,7 +955,7 @@ function prResetState(patientId) {
     patient: null, allergies: null, medicalHistory: null, currentRisk: null,
     bookings: null, visitReports: null, medications: null, servicePlans: null,
     servicePlanVisits: null, clinicalNotes: null, documents: null, alerts: null,
-    tasks: null, auditLog: null, riskHistory: null, amendments: null,
+    tasks: null, auditLog: null, riskHistory: null, amendments: null, measurements: null,
   };
 }
 
@@ -944,6 +991,18 @@ async function prFetchVisitReports() {
   const { data, error } = await supabaseClient.from("visit_reports").select("*").eq("patient_id", window.currentPatientState.patientId).order("visit_date", { ascending: false });
   if (error) { console.error("visit_reports", error); return []; }
   return data || [];
+}
+// מדידות שנוספו מחוץ לביקור (proposed/020). אם הטבלה עדיין לא קיימת במסד (המיגרציה לא הוחלה) — available:false
+// והטופס מוסתר עם הסבר, במקום שגיאה שבורה. כשל אחר (רשת/הרשאה) מוצג כשגיאה, לא כ"אין מדידות".
+async function prFetchMeasurements() {
+  const { data, error } = await supabaseClient.from("patient_measurements").select("*")
+    .eq("patient_id", window.currentPatientState.patientId).order("measured_at", { ascending: false }).limit(200);
+  if (error) {
+    const missing = error.code === "PGRST205" || error.code === "42P01" || /patient_measurements/.test(error.message || "") && /not find|does not exist/i.test(error.message || "");
+    console.error("patient_measurements", error);
+    return { rows: [], available: false, missing, error: missing ? null : error };
+  }
+  return { rows: data || [], available: true, missing: false, error: null };
 }
 async function prFetchRiskHistory() {
   const { data, error } = await supabaseClient.from("risk_predictions").select("id, risk_level, trend, predicted_at, visit_report_id").eq("patient_id", window.currentPatientState.patientId).order("predicted_at", { ascending: false }).limit(200);
@@ -1250,20 +1309,45 @@ function initPredictiveServiceHealthCheck() {
 function updateOfflineDraftBanner() {
   let banner = document.getElementById("offline-draft-banner");
   const count = getQueuedDraftCount();
+  const problems = getOfflineQueueLastErrors();
   if (!count && !offlineQueueSyncing) { if (banner) banner.style.display = "none"; return; }
   if (!banner) {
     banner = document.createElement("div");
     banner.id = "offline-draft-banner";
     banner.className = "predictive-offline-banner";
-    banner.setAttribute("role", "status");
     document.body.prepend(banner);
   }
-  banner.textContent = offlineQueueSyncing
-    ? "📶 מסנכרן דוחות ביקור שמורים מקומית..."
-    : count === 1
-      ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
-      : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
   banner.style.display = "block";
+  if (offlineQueueSyncing) {
+    banner.setAttribute("role", "status");
+    banner.textContent = "📶 מסנכרן דוחות ביקור שמורים מקומית...";
+    return;
+  }
+  if (problems.length) {
+    // לא התקבל אישור שמירה מהשרת: אומרים זאת במפורש, מבטיחים שהתוכן נשמר, ומציעים ניסיון חוזר (בלי למחוק דבר).
+    banner.setAttribute("role", "alert");
+    const text = document.createElement("span");
+    text.textContent = `⚠️ ${count === 1 ? "דוח ביקור אחד" : count + " דוחות ביקור"} לא אושרו בשרת ועדיין שמורים רק במכשיר הזה. התוכן לא אבד ולא נמחק. ${problems[0].message}`;
+    const retry = document.createElement("button");
+    retry.type = "button";
+    retry.className = "btn btn-secondary btn-sm";
+    retry.textContent = "נסה שוב עכשיו";
+    retry.addEventListener("click", async () => {
+      retry.disabled = true;
+      try {
+        const result = await flushOfflineQueue();
+        reportOfflineQueueResult(result);
+      } finally {
+        updateOfflineDraftBanner();
+      }
+    });
+    banner.replaceChildren(text, retry);
+    return;
+  }
+  banner.setAttribute("role", "status");
+  banner.textContent = count === 1
+    ? "📶 דוח ביקור אחד שמור מקומית וממתין לסנכרון — יסונכרן אוטומטית כשהחיבור יחזור."
+    : `📶 ${count} דוחות ביקור שמורים מקומית וממתינים לסנכרון — יסונכרנו אוטומטית כשהחיבור יחזור.`;
 }
 
 // ===== התראת הזמנות חדשות (בתוך האפליקציה בלבד) =====

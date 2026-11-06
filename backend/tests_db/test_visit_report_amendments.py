@@ -31,8 +31,9 @@ def test_staff_amends_a_completed_report_and_the_original_is_untouched(db):
 
 def test_amendments_are_append_only_even_for_admin(db):
     d = seed(db); rid = report(db, d)
-    as_user(db, d["admin"], admin=True)
+    as_user(db, d["staff_user"])                      # 017: only the author (the nurse) can write the amendment itself
     aid = db.execute(INS, (rid, d["pa"], "הבהרה", "{}")).fetchone()[0]
+    as_user(db, d["admin"], admin=True)
     attempt(db, "update visit_report_amendments set reason='שונה' where id=%s", (aid,), psycopg.errors.InsufficientPrivilege)
     attempt(db, "delete from visit_report_amendments where id=%s", (aid,), psycopg.errors.InsufficientPrivilege)
 

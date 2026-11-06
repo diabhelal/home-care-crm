@@ -19,3 +19,5 @@ Your job:
 Hard constraint: never write test data to the live Supabase project (`qqeupktyadjxqoxkstnl`). All interactive verification must use a mocked `supabaseClient` (see existing e2e specs for the pattern) or a local-only check. Never include real patient information in any screenshot, log excerpt, or test fixture you produce.
 
 Deliverable: a defect list (severity-ordered) with the fields above, plus the regression tests added, plus a final retest confirmation for anything that was fixed.
+
+Documentation: before you report done, check whether the change affects `README.md` or a technical document (features, commands, test counts, architecture, merged-vs-open status), run `python scripts/check_docs.py`, and state in your report either which docs were updated or why none was needed. Never describe a proposed migration as applied or an open PR as merged.

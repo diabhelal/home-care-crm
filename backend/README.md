@@ -65,7 +65,7 @@ Browser inserts into `risk_predictions`/`alerts` are revoked by that migration. 
 - Set `ALLOWED_ORIGINS` to the exact production frontend origin(s); no wildcards.
 - Secrets come from the host's secret store, never from the repo (`.env` is git-ignored).
 - The production frontend must use a configured backend URL, not localhost.
-- Hosting is not decided yet.
+- Hosting: Render (`render.yaml` at the repo root); start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/healthz`; manual deploys only. See DEPLOY.md, step 3a.
 
 ## Database
 The SQL in `supabase/proposed/001–007` was applied to the live project on 2026-10-15 (see `supabase/proposed/APPLIED.md`); a fresh Supabase project needs all `supabase/migrations/*.sql` applied in order.
@@ -87,3 +87,16 @@ double booking, ownership, atomic completion, address privacy, RLS/column grants
 
 ## Reproducible install
 `requirements.lock.txt` is the exact set of versions the tests were last verified with: `pip install -r requirements.lock.txt`.
+
+## Risk-assessment response contract
+
+The HTTP client validates the fields used for attestation before signing or persisting an
+assessment: a known risk level and trend, finite confidence/probability in [0, 1], a positive
+integer horizon, a status string and a nonempty model version. Numeric strings and booleans
+are rejected. Additional response fields are allowed and preserved. Malformed responses use
+the existing `503 predictive_unavailable` path; the visit report remains saved and no risk
+assessment is written. This validates structure, not clinical correctness. Alert evaluation
+and medical-warning response validation are outside this change.
+
+Verified locally on 2026-11-04: `python -m pytest backend/tests -q` — 158 passed,
+including 19 new response-contract cases. No live database or external service was used.
