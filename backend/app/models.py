@@ -79,7 +79,7 @@ class VisitReportIn(BaseModel):
     performed_infusion: bool = False
     performed_dressing_change: bool = False
     performed_catheter_change: bool = False
-    patient_signature_data: Optional[str] = None
+    patient_signature_data: Optional[str] = Field(default=None, max_length=400_000)   # a PNG data URL from the signature canvas
 
 
 class MeasurementIn(BaseModel):

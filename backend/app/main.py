@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
-from typing import Callable, Optional
+from typing import Callable, Iterator, Optional
 
 import logging
 
@@ -119,10 +119,16 @@ def create_app(settings: Settings | None = None,
                 raise forbidden("נדרשת הרשאת צוות")
             return s
 
-    def ctx(authorization: Optional[str] = Header(default=None)) -> Ctx:
+    def ctx(authorization: Optional[str] = Header(default=None)) -> Iterator[Ctx]:
         token = extract_bearer(authorization)
         identity = identity_from_claims(verifier.verify(token))
-        return Ctx(identity, BookingService(repo_factory(token), cfg, geocoder, clock))
+        repo = repo_factory(token)
+        try:
+            yield Ctx(identity, BookingService(repo, cfg, geocoder, clock))
+        finally:
+            close = getattr(repo, "close", None)     # SupabaseRepo owns an httpx client per request; fakes have none
+            if callable(close):
+                close()
 
     @app.get("/healthz")
     def healthz():
@@ -136,7 +142,7 @@ def create_app(settings: Settings | None = None,
 
     @app.post("/bookings/request", status_code=201)
     def request_booking(body: BookingRequestIn, request: Request,
-                        idempotency_key: Optional[str] = Header(default=None),
+                        idempotency_key: Optional[str] = Header(default=None, max_length=128),
                         c: Ctx = Depends(ctx)):
         b, created = c.svc.request_booking(c.identity, body, idempotency_key)
         return JSONResponse(_view(b), status_code=201 if created else 200)

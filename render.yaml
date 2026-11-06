@@ -8,7 +8,7 @@ services:
     rootDir: backend
     plan: starter            # no sleep (about $7/month); "free" sleeps after 15 min idle
     region: frankfurt
-    buildCommand: pip install -r requirements.lock.txt
+    buildCommand: pip install -r requirements.runtime.lock.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /healthz
     autoDeployTrigger: "off"
@@ -32,7 +32,7 @@ services:
     rootDir: predictive-service
     plan: free               # may sleep; reports are saved even when it is asleep (risk shows "unavailable")
     region: frankfurt
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.lock.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     autoDeployTrigger: "off"
