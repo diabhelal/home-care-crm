@@ -2,7 +2,7 @@
 
 > Snapshot **2026-11-06**, `main` @ `78d93fa` (after #39, #40, #42, the three bug-fix PRs #43/#45/#44 and #35). Describes the repository as a whole so a reviewer does not have to reconstruct it from 40 branches.
 
-**תקציר בעברית:** `main` כולל את הבסיס היציב, חבילת האיחוד (#39), קונפיג הפריסה (#40), הוספת מדידה מחוץ לביקור (#42), שלושה תיקוני באגים (#43 הסבר דוח חתום, #45 עמידות הפעלה, #44 הגנה על טיוטות בעמוד האיפוס) והשהיית שירות (#35). כל אלה מוזגו באישור הבעלים וה-CI ירוק. **אף מיגרציה לא הוחלה על מסד חי (020 ו-021 הן הצעות), ולא בוצעה פריסה ציבורית.** נשארו פתוחים: #34, #23, #21, #18 ו-Dependabot.
+**תקציר בעברית:** `main` כולל את הבסיס היציב, חבילת האיחוד (#39), קונפיג הפריסה (#40), מדידה מחוץ לביקור (#42) עם שיוך אופציונלי לביקור (#47), שלושה תיקוני באגים (#43, #45, #44), השהיית שירות (#35), תיקון XSS שמור ב-`escapeHtml` ועוד (#48), עדכון `certifi` הקריטי (#17), הסוכנים והאפיון באנגלית (#49) ו-#23 (מסגרת סוכנים, מוזג על ידי הבעלים). **אף מיגרציה לא הוחלה על מסד חי (008-021 הן הצעות; 019 חייבת לבוא לפני 020), ולא בוצעה פריסה ציבורית.** נשארו פתוחים: #34, #21, #18, ו-Dependabot (ללא התראת אבטחה פתוחה).
 
 ## 1. Where to start (reviewer path)
 | What | Where |
@@ -50,6 +50,10 @@ After #39, #40 (`72134f6`), approved batch of 2026-11-06 (each PR merged only af
 | #45 | `582063b` | Fix: connectivity failures during the session check no longer send a signed-in user to the login form (staff and admin); denied states still do; plain-language messages |
 | #44 | `1674c2e` | Fix: `reset.html` counts unsynchronized drafts, warns, offers a JSON backup and never touches localStorage |
 | #35 | `78d93fa` | Admin can pause a service (e.g. blood tests) with a patient-facing message, enforced in the form, backend and trigger (proposed SQL `021`, **not applied**; the admin section shows "cannot load" until it is) |
+| #47 | `35d7ae6` | Measurements: optional link to the patient's own visit (`booking_id` in proposed `020`; the guard rejects another patient's visit), several readings per visit, repeats kept |
+| #17 | `2d788f7` | `certifi` 2026.10.18 in `backend/requirements.lock.txt` (GitHub critical advisory; 0 open alerts) |
+| #48 | `10419e2` | `escapeHtml` escapes quotes (stored XSS in attributes), two unescaped labels, two more specs in CI, `DEPLOY.md` consistency |
+| #49 | `4f06cfd` | Specification and agent documents in English; `check_docs.py` accepts English status keywords |
 
 Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 
@@ -57,10 +61,9 @@ Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 | PR | Branch | Content | Disposition |
 |---|---|---|---|
 | #34 | `docs/session-handoff` | Handoff docs, agents, settings | Batch B: conflicts in `CLAUDE.md`/`HANDOFF.md`; overlaps #23 |
-| #23 | `feature/agents-framework` | Agent framework | Batch B / deferred: not needed for the demo |
 | #21 | `docs/archive-historical-plans` | Archives two old plans | Retarget base to `main` (its base #19 is merged) |
 | #18 | `feature/llm-clinical-summary` | Opt-in AI visit summary (synthetic only), migration `014` | **Deferred** (lecturer: no new AI component); branch kept |
-| 15× | `dependabot/...` | Dependency bumps | Triage only those touching deployed requirements; one GitHub "critical" advisory not yet reviewed |
+| 13× | `dependabot/...` | Routine dependency bumps (#15 is superseded by #17) | No open security alert; review `fastapi` (#13) and `pandas>=3` (#7) individually after the demo |
 
 ## 4. Branches
 **Merged into `main` (0 unique commits; deletion needs separate owner approval, none has been deleted):** `feature/patient-measurements`, `feature/service-availability`, `fix/completed-report-guidance`, `fix/session-resilience`, `fix/reset-protect-drafts`, `chore/playwright-fail-on-busy-port`, `codex/predictive-response-contract-main`, `docs/project-specification`, `docs/readme-overhaul`, `docs/revert-spec-driven-extras`, `docs/spec-driven-workflow`, `feature/backend-booking-reliability`, `feature/cross-patient-isolation`, `feature/predictive-input-and-wording`, `feature/record-integrity-sql`, `feature/trend-forecast-button-fix`, `fix/ci-postgres-restrict-violation`, `fix/draft-409-same-risk-assessment`, `fix/offline-drafts-5xx-visibility`, `fix/service-worker-shell-and-api-cache`, `fix/ui-no-physical-delete`, `integration/release-1`, `chore/deploy-config` (18).
