@@ -3,6 +3,7 @@
 הפרונט (admin.html) קורא ל-endpoints האלה דרך fetch, ומציג את התוצאה בדשבורד הניהול.
 """
 
+import os
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated, Optional
 
@@ -18,10 +19,12 @@ from timeseries import MIN_POINTS_FOR_ARIMA, avg_gap_hours, forecast_arima
 
 app = FastAPI(title="home-care-crm predictive service")
 
-# שירות מקומי בלבד לצורך פיתוח: מאפשר קריאה מכל origin (כולל file:// ו-http://localhost:*)
+# מקומי: כל origin (כולל file:// ו-http://localhost:*). באירוח ציבורי מגדירים ALLOWED_ORIGINS
+# (מופרד בפסיקים) למקור המדויק של האתר, ו-DISABLE_TRAINING=1 לסגירת /train/*.
+_origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_origins or ["*"],
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -624,6 +627,8 @@ class TrainModelRequest(BaseModel):
 def train_model_endpoint(target: str, algorithm: str, req: TrainModelRequest):
     """אימון אמיתי — קיים כארכיטקטורה. שום דבר בפרויקט הזה לא קורא לאנדפוינט הזה
     כרגע כי אין דאטה מתויג עם תוצאה קלינית אמיתית לאימון (ר' ml_targets.py)."""
+    if os.environ.get("DISABLE_TRAINING") == "1":
+        raise HTTPException(status_code=403, detail="אימון מודלים מושבת בסביבה זו.")
     try:
         metrics = ml_targets.train_model(target, algorithm, req.X, req.y)
     except ValueError as e:

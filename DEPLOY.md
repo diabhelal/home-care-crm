@@ -16,7 +16,7 @@
 
 אין build step לאתר: מעלים את התיקייה `public/` כמו שהיא.
 
-> ⚠️ **האתר הסטטי לבדו אינו מספיק.** הזמנה, אישור, check-in, השלמת ביקור והערכת סיכון עוברים דרך `backend/`; הדפדפן לא כותב ישירות לטבלאות האלה. בלי backend מאורח (HTTPS) הזמנה מציגה "השירות אינו זמין" (בכוונה). **ה-backend אינו מאורח היום** ורץ מקומית בלבד - ר' שלב 3א.
+> ⚠️ **האתר הסטטי לבדו אינו מספיק.** הזמנה, אישור, check-in, השלמת ביקור והערכת סיכון עוברים דרך `backend/`; הדפדפן לא כותב ישירות לטבלאות האלה. בלי backend מאורח (HTTPS) הזמנה מציגה "השירות אינו זמין" (בכוונה). **ה-backend עדיין לא פרוס**; ההגדרות מוכנות ב-`render.yaml` (Render), ר' שלב 3א. עד הפריסה הוא רץ מקומית בלבד.
 
 ## בחירת אירוח (המלצה: Cloudflare Pages)
 
@@ -43,16 +43,24 @@
 - [ ] **Edge Function `create-staff-login`:** לוודא שה-CORS מתיר את הדומיין החדש (לבדוק בקוד ה-Function, מקור ה-Origin).
 - [ ] משתמש מנהל: ליצור בדאשבורד דרך Auth ← Add user, ואז להגדיר `app_metadata.is_admin = true` (רק דרך Admin API/SQL). סיסמה נמסרת בצ'אט בלבד, לא בקובץ.
 
-### 3. אירוח
-- [ ] ליצור פרויקט Cloudflare Pages מחובר לריפו `diabhelal/home-care-crm`, branch `main`.
-- [ ] Build command: *(ריק)*. Output directory: `public`.
-- [ ] לא להגדיר משתני סביבה סודיים (אין צורך — הקליינט משתמש רק במפתח publishable).
+### 3. אירוח האתר הסטטי
+- [ ] Cloudflare Pages מחובר לריפו `diabhelal/home-care-crm`. **Production branch: `release`** (לא `main`), כך שמיזוג ל-`main` לא מפרסם דבר אוטומטית; לפרסום מקדמים את `release` ל-commit המאושר.
+- [ ] Build command: `python3 scripts/make_release.py`. Output directory: `dist`.
+- [ ] משתני סביבה (ציבוריים, לא סודות): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable בלבד; הסקריפט דוחה מפתח סודי), `BACKEND_URL`, `PREDICTIVE_SERVICE_URL`. הסקריפט כותב אותם ל-`config.js` ול-`connect-src` ב-`_headers` של `dist/` בלבד; הקבצים בריפו לא משתנים.
 
-### 3א. אירוח ה-backend (חובה לפני שהאתר יכול לקבל הזמנות)
-- [ ] לארח את `backend/` (FastAPI) מאחורי **HTTPS בלבד**; ההוראות והמשתנים ב-`backend/README.md` (סעיפי Environment, Deployment requirements).
-- [ ] משתנים בסוד-סטור של המארח (לא בריפו): `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS` (המקור המדויק של האתר, בלי wildcard), `RISK_ATTESTATION_SECRET` (**להחליף לערך חדש**; הערך המקורי הופיע בשיחת עבודה ויש לעדכן גם את השורה ב-`server_secrets`), `PREDICTIVE_SERVICE_URL`.
-- [ ] להגדיר `window.BACKEND_URL` ב-`public/config.js` לכתובת ה-HTTPS של ה-backend, ולהוסיף אותה ל-`connect-src` ב-`public/_headers` (אחרת ה-CSP יחסום את הקריאות).
-- [ ] שירות התחזית (`predictive-service/`) חייב להיות נגיש ל-backend; אם לא, הערכת סיכון מחזירה 503 ולא נכתב דבר (הדוח עצמו נשמר).
+### 3א. אירוח ה-backend ושירות התחזית (Render; חובה לפני שהאתר יכול לקבל הזמנות)
+שני שירותי FastAPI נפרדים (אין קוד משותף ביניהם), מוגדרים ב-`render.yaml`:
+
+| שירות | root | הפעלה | בדיקת בריאות | תוכנית |
+|---|---|---|---|---|
+| `home-care-crm-backend` | `backend` | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` | `/healthz` | Starter (~$7/חודש, לא נרדם) |
+| `home-care-crm-predictive` | `predictive-service` | `uvicorn main:app --host 0.0.0.0 --port $PORT` | `/health` | Free (נרדם אחרי 15 דקות; ~דקה להתעוררות) |
+
+- [ ] אין פריסה אוטומטית (`autoDeployTrigger: off`): פורסים ידנית מהדשבורד, אחרי אישור.
+- [ ] סודות בדשבורד בלבד (לא בריפו): backend — `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `ALLOWED_ORIGINS` (המקור המדויק של האתר, בלי wildcard), `RISK_ATTESTATION_SECRET` (ערך חדש לפחות 32 בתים, זהה ל-`server_secrets` במסד ההדגמה), `PREDICTIVE_SERVICE_URL`. שירות התחזית — `ALLOWED_ORIGINS`; `DISABLE_TRAINING=1` סוגר את `/train/*`.
+- [ ] שירות התחזית ישן = הערכת סיכון מחזירה 503 והדוח נשמר (ההשלמה והסיכון הם קריאות נפרדות).
+- [ ] Free של Render: 750 שעות לחודש לכל ה-workspace; אם שני שירותים יישארו ערים ברציפות הם עלולים להיות מושעים עד סוף החודש.
+- [ ] אימות לפני שליחת קישור: `curl https://<backend>/healthz` ו-`https://<predictive>/health`, ואז הבדיקות מסעיף 6 בדפדפן.
 
 ### 4. דומיין
 - [ ] לחבר דומיין מותאם (או להשתמש ב-`*.pages.dev` להדגמה).
