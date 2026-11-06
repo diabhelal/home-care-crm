@@ -99,7 +99,7 @@ test("כשל שרת זמני בשמירת דוח: התוכן נשמר בטיוט
   await page.fill("#vr-summary", "סיכום שלא יאבד בכשל זמני");
   ctl.completeFail = 500;
   await page.click("#visit-report-modal-save");
-  await expect(page.locator("body")).toContainText("לא אושר בשרת");                          // לא מוצג כ"נשמר"
+  await expect(page.locator("body")).toContainText("נשמר מקומית");                           // מוצג כשמור מקומית בלבד, לא כמאושר בשרת
   const stored = await page.evaluate(() => Object.entries(localStorage).filter(([k]) => k.startsWith("visitReportOfflineQueue")).map(([, v]) => JSON.parse(v)));
   expect(stored.flat().map((d) => d.treatment_summary)).toContain("סיכום שלא יאבד בכשל זמני");   // התוכן נשמר
   ctl.completeFail = null;
