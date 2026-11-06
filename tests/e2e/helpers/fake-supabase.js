@@ -68,6 +68,14 @@ function fakeSupabaseSource() {
         });
       }
       function run() {
+        // סימולציה של כשל חיבור בטבלה: __fail_tables = {"medical_staff": N} => N הקריאות הבאות נכשלות (-1 = תמיד), ואז חוזר לעבוד
+        try {
+          const ft = JSON.parse(localStorage.getItem("__fail_tables") || "{}");
+          if (ft[name] !== undefined && ft[name] !== 0) {
+            if (ft[name] > 0) { ft[name] -= 1; localStorage.setItem("__fail_tables", JSON.stringify(ft)); }
+            return { data: null, error: { message: "TypeError: Failed to fetch" } };
+          }
+        } catch (e) {}
         // סימולציה של טבלה שעדיין לא קיימת במסד (מיגרציה שלא הוחלה): PostgREST מחזיר PGRST205
         try {
           if (JSON.parse(localStorage.getItem("__missing_tables") || "[]").includes(name))
@@ -188,7 +196,17 @@ function fakeSupabaseSource() {
       },
       functions: { invoke: () => Promise.resolve({ data: null, error: null }) },
       auth: {
-        getSession: () => Promise.resolve({ data: { session: session() ? { user: session().user, access_token: ["fake", "jwt", session().user.id].join("-") } : null } }),
+        getSession: () => {
+          // __fail_auth = N: getSession נכשל N פעמים בכשל חיבור (כמו רענון טוקן בלי רשת); -1 = תמיד
+          try {
+            const n = Number(localStorage.getItem("__fail_auth") || 0);
+            if (n !== 0) {
+              if (n > 0) localStorage.setItem("__fail_auth", String(n - 1));
+              return Promise.resolve({ data: { session: null }, error: { name: "AuthRetryableFetchError", message: "Failed to fetch", status: 0 } });
+            }
+          } catch (e) {}
+          return Promise.resolve({ data: { session: session() ? { user: session().user, access_token: ["fake", "jwt", session().user.id].join("-") } : null } });
+        },
         getUser: () => Promise.resolve({ data: { user: session() ? session().user : null } }),
         signInAnonymously() {
           const db = load(); const id = "guest-" + (++db.seq); save(db);

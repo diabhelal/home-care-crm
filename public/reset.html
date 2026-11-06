@@ -14,30 +14,88 @@
     <p id="status" role="status">מנקה גרסאות ישנות שנשמרו בדפדפן…</p>
     <p style="color:var(--text-muted);font-size:14px;">
       הפעולה מוחקת רק את ה-Service Worker ואת מטמון הקבצים. טיוטות דוחות שטרם סונכרנו
-      (שמורות במכשיר) <strong>לא</strong> נמחקות.
+      (שמורות במכשיר) <strong>לא</strong> נמחקות על ידי דף זה.
     </p>
+    <div id="drafts-warning" hidden style="border:2px solid #b45309;background:#fffbeb;border-radius:12px;padding:16px;margin:16px 0;">
+      <p id="drafts-text" role="alert" style="margin:0 0 8px;font-weight:600;"></p>
+      <p style="margin:0 0 12px;font-size:14px;">
+        <strong>אל תנקו נתוני אתר או עוגיות מהגדרות הדפדפן</strong> — פעולה כזו מוחקת את הטיוטות שלא סונכרנו.
+        דף זה אינו מוחק אותן.
+      </p>
+      <button type="button" class="btn btn-secondary" id="backup-btn">הורדת גיבוי טיוטות (JSON)</button>
+      <button type="button" class="btn btn-primary" id="continue-btn">המשך באיפוס המטמון</button>
+    </div>
     <a class="btn btn-primary" id="go" href="index.html" style="display:none;">חזרה לאתר</a>
   </main>
 </div>
 <script>
 (async function () {
+  var PREFIX = "visitReportOfflineQueue";
   var status = document.getElementById("status");
-  var removed = 0, cleared = 0;
-  try {
-    if ("serviceWorker" in navigator) {
-      var regs = await navigator.serviceWorker.getRegistrations();
-      for (var i = 0; i < regs.length; i++) { if (await regs[i].unregister()) removed++; }
-    }
-    if (window.caches) {
-      var keys = await caches.keys();
-      for (var j = 0; j < keys.length; j++) { if (await caches.delete(keys[j])) cleared++; }
-    }
-    status.textContent = "בוצע: הוסרו " + removed + " Service Workers ו-" + cleared + " מטמוני קבצים. טוען את האתר מחדש…";
-    setTimeout(function () { window.location.replace("index.html"); }, 1200);
-  } catch (e) {
-    status.textContent = "לא הצלחנו לאפס אוטומטית. ב-Chrome: כלי פיתוח ← Application ← Service Workers ← Unregister, ואז רענון קשיח.";
+
+  // קריאה בלבד מ-localStorage: הדף לעולם לא כותב ולא מוחק מפתח.
+  function readDrafts() {
+    var keys = [], entries = {}, count = 0;
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && k.indexOf(PREFIX) === 0) keys.push(k);
+      }
+      keys.sort();
+      keys.forEach(function (k) {
+        var raw = localStorage.getItem(k);
+        entries[k] = raw;
+        try {
+          var v = JSON.parse(raw);
+          count += Array.isArray(v) ? v.length : (v && typeof v === "object" ? 1 : 0);
+        } catch (e) { count += 1; }
+      });
+    } catch (e) { /* אין גישה ל-localStorage */ }
+    return { entries: entries, count: count };
   }
-  document.getElementById("go").style.display = "inline-flex";
+
+  async function cleanup() {
+    var removed = 0, cleared = 0;
+    try {
+      if ("serviceWorker" in navigator) {
+        var regs = await navigator.serviceWorker.getRegistrations();
+        for (var i = 0; i < regs.length; i++) { if (await regs[i].unregister()) removed++; }
+      }
+      if (window.caches) {
+        var keys = await caches.keys();
+        for (var j = 0; j < keys.length; j++) { if (await caches.delete(keys[j])) cleared++; }
+      }
+      status.textContent = "בוצע: הוסרו " + removed + " Service Workers ו-" + cleared + " מטמוני קבצים. טוען את האתר מחדש…";
+      if (!drafts.count) setTimeout(function () { window.location.replace("index.html"); }, 1200);
+    } catch (e) {
+      status.textContent = "לא הצלחנו לאפס אוטומטית. ב-Chrome: כלי פיתוח ← Application ← Service Workers ← Unregister, ואז רענון קשיח.";
+    }
+    document.getElementById("go").style.display = "inline-flex";
+  }
+
+  var drafts = readDrafts();
+  if (!drafts.count) { await cleanup(); return; }
+
+  status.textContent = "נמצאו טיוטות שלא סונכרנו. האיפוס ממתין לאישורך.";
+  document.getElementById("drafts-text").textContent =
+    "נמצאו " + drafts.count + " טיוטות דוחות שלא סונכרנו במכשיר זה.";
+  document.getElementById("drafts-warning").hidden = false;
+
+  document.getElementById("backup-btn").addEventListener("click", function () {
+    var blob = new Blob([JSON.stringify({ exportedAt: new Date().toISOString(), localStorage: drafts.entries }, null, 2)],
+      { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = "visit-drafts-backup-" + new Date().toISOString().slice(0, 10) + ".json";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  });
+  document.getElementById("continue-btn").addEventListener("click", function () {
+    this.disabled = true;
+    status.textContent = "מנקה גרסאות ישנות שנשמרו בדפדפן…";
+    cleanup();
+  });
 })();
 </script>
 </body>
