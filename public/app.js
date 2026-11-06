@@ -1111,6 +1111,53 @@ async function prCached(key, fetchFn) {
 // err עשוי להיות Error רגיל, PostgrestError של supabase-js, מחרוזת, או משהו אחר —
 // String(err) על אובייקט בלי .message תקין מדפיס "[object Object]" למשתמש, אז יש
 // ברירת מחדל כללית וקריאה במקום זאת (לא JSON גולמי — גם הוא לא ידידותי למשתמש).
+// ===== בדיקת הפעלה: להבדיל בין תקלת חיבור לבין "אין הרשאה" =====
+// "connectivity" (רשת, אופליין, שרת מתחיל מחדש, 5xx) אינו הוכחה שהמשתמש לא מחובר או לא מורשה: נשארים מחוברים,
+// לא מציגים מידע מוגן, ומציעים "נסו שוב". רק "no_session" (אין הפעלה / פג תוקף ואין רענון), וקביעה של השרת שאין
+// הרשאה (חשבון חסר / לא פעיל), מובילות למסך התחברות.
+function isConnectivityError(err) {
+  if (!err) return false;
+  const status = Number(err.status || err.statusCode || 0);
+  if (status === 401 || status === 403) return false;
+  if (status >= 500 || status === 0 && /fetch|network|load failed|retryable|timeout|abort/i.test(String(err.name || "") + " " + String(err.message || ""))) return true;
+  if (String(err.name || "") === "AuthRetryableFetchError") return true;
+  if (err.code === "PGRST301" || err.code === "PGRST303" || err.code === "42501") return false;   // JWT לא תקף / אין הרשאה
+  return /failed to fetch|network|load failed|ERR_|connection|timeout/i.test(String(err.message || ""));
+}
+
+// { status: "ok", session } | { status: "no_session" } | { status: "connectivity", error }
+async function readSessionState() {
+  let res;
+  try { res = await supabaseClient.auth.getSession(); } catch (e) { return { status: "connectivity", error: e }; }
+  const session = res && res.data ? res.data.session : null;
+  if (session) return { status: "ok", session };
+  if (res && res.error) return isConnectivityError(res.error) ? { status: "connectivity", error: res.error } : { status: "no_session" };
+  return { status: "no_session" };
+}
+
+// באנר "אי אפשר לאמת כרגע": לא מציג מידע מוגן, נשארים מחוברים. onRetry נקרא בלחיצה על "נסו שוב".
+function showConnectivityNotice(onRetry) {
+  const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+  let box = document.getElementById("session-check-failure");
+  if (!box) {
+    box = document.createElement("div");
+    box.id = "session-check-failure";
+    box.setAttribute("role", "alert");
+    box.style.cssText = "margin:24px auto; max-width:480px; padding:16px; border:1px solid var(--border); border-radius:12px; background:#fff; text-align:center;";
+    box.innerHTML = `<p id="session-check-failure-text" style="margin:0 0 12px;"></p><button type="button" class="btn btn-primary" id="session-check-retry">נסו שוב</button>`;
+    document.body.prepend(box);
+  }
+  box.querySelector("#session-check-retry").onclick = () => { box.style.display = "none"; onRetry(); };
+  document.getElementById("session-check-failure-text").textContent = offline
+    ? "אין חיבור כרגע. לא נותקתם מהחשבון; כשהחיבור יחזור לחצו על נסו שוב."
+    : "לא הצלחנו לאמת את החשבון כרגע (בעיית חיבור או שרת). לא נותקתם מהחשבון; נסו שוב בעוד רגע.";
+  box.style.display = "block";
+}
+function hideConnectivityNotice() {
+  const box = document.getElementById("session-check-failure");
+  if (box) box.style.display = "none";
+}
+
 function friendlyErrorMessage(err) {
   let msg;
   if (typeof err === "string" && err.trim()) {

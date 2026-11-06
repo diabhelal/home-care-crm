@@ -128,15 +128,21 @@
   // גישה — ה-RLS עצמו (current_staff_id עם is_active) כבר חוסם את הנתונים בכל מקרה,
   // זו רק שכבת הגנה נוספת שמונעת אפילו הצגת מסך ריק/שגוי.
   async function resolveActiveStaffSession() {
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return null;
-    const { data, error } = await supabaseClient
-      .from("medical_staff")
-      .select("id, full_name, role, is_active")
-      .eq("auth_user_id", session.user.id)
-      .maybeSingle();
-    if (error || !data || !data.is_active) return null;
-    return data;
+    const st = await readSessionState();
+    if (st.status !== "ok") return { status: st.status };            // no_session | connectivity
+    const session = st.session;
+    let data, error;
+    try {
+      ({ data, error } = await supabaseClient
+        .from("medical_staff")
+        .select("id, full_name, role, is_active")
+        .eq("auth_user_id", session.user.id)
+        .maybeSingle());
+    } catch (e) { return { status: "connectivity", error: e }; }
+    if (error) return isConnectivityError(error) ? { status: "connectivity", error } : { status: "no_session" };   // פג תוקף/נדחה = כניסה מחדש
+    if (!data) return { status: "no_staff" };
+    if (!data.is_active) return { status: "inactive" };
+    return { status: "ok", staff: data };
   }
 
   document.getElementById("staff-logout-btn").addEventListener("click", async () => {
@@ -530,7 +536,7 @@
     // דוח נשמר רק יחד עם השלמת הביקור (פעולה אטומית בשרת); ביקור שהושלם — נעול לעריכה כאן.
     const vrLocked = booking.status === "completed";
     document.getElementById("visit-report-modal-save").disabled = vrLocked;
-    if (vrLocked) showError(document.getElementById("visit-report-modal-error"), "הביקור כבר הושלם — לא ניתן לערוך את הדוח מכאן.");
+    if (vrLocked) showError(document.getElementById("visit-report-modal-error"), SIGNED_REPORT_MSG);
     document.getElementById("vr-allergy-banner").style.display = "none";
     visitReportModal.style.display = "flex";
     const scope = visitReportScope.start(booking.patient_id);
@@ -1155,20 +1161,23 @@
   setupAllModalsAccessibility();
   window.onOfflineQueueFlushed = (count, partial) => flashSuccess(offlineQueueFlushMessage(count, partial));
   window.onOfflineQueueError = (message) => flashError(message);
-  (async () => {
-    const staff = await resolveActiveStaffSession();
-    if (!staff) {
+  async function startStaffPage() {
+    const result = await resolveActiveStaffSession();
+    if (result.status === "connectivity") { showConnectivityNotice(startStaffPage); return; }   // נשארים מחוברים, בלי מידע מוגן
+    if (result.status !== "ok") {                                                              // no_session / no_staff / inactive
       window.location.href = "employee-login.html";
       return;
     }
-    myStaffRow = staff;
+    hideConnectivityNotice();
+    myStaffRow = result.staff;
     await showStaffApp();
     if (navigator.onLine) {
-      const result = await flushOfflineQueue();
-      reportOfflineQueueResult(result);
-      if (result.synced > 0) loadMyBookings();
+      const flushResult = await flushOfflineQueue();
+      reportOfflineQueueResult(flushResult);
+      if (flushResult.synced > 0) loadMyBookings();
     }
-  })();
+  }
+  startStaffPage();
 </script>
 </body>
 </html>
