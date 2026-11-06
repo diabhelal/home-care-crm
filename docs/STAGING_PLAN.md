@@ -58,6 +58,19 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 021
+-- אזהרה: מוחק את רשימת ההשהיות (ואת יומן השינויים שלהן נשאר ב-audit_log). הזמנות קיימות לא מושפעות.
+drop trigger if exists bookings_service_pause_guard_upd on public.bookings;
+drop trigger if exists bookings_service_pause_guard_ins on public.bookings;
+drop function if exists public.bookings_service_pause_guard();
+drop function if exists public.service_is_paused(text, date);
+drop function if exists public.list_service_pauses();
+drop table if exists public.service_availability;
+drop function if exists public.service_availability_stamp();
+drop function if exists public.service_availability_audit();
+```
+
+```sql
 -- ROLLBACK 020
 -- אזהרה: מוחק את טבלת המדידות שנוספו מחוץ לביקור (אינן ניתנות לשחזור בלי גיבוי).
 drop table if exists public.patient_measurements;

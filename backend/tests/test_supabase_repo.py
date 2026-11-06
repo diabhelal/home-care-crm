@@ -107,6 +107,21 @@ def test_db_errors_map_to_domain_errors():
         assert e.value.status == status
 
 
+def test_pause_guard_error_and_pause_list_query():
+    import pytest
+    from app.errors import DomainError
+    with pytest.raises(DomainError) as e:
+        make(lambda r: httpx.Response(400, json={"code": "SV001", "message": "service_unavailable"})).complete_visit_atomic(1, {})
+    assert e.value.status == 409 and e.value.code == "service_unavailable"
+    seen = {}
+    def h(req):
+        seen["url"] = str(req.url)
+        return httpx.Response(200, json=[{"purpose": "blood_test", "paused_from": None, "paused_until": None, "public_message": "x"}])
+    rows = make(h).list_service_pauses()
+    assert rows[0]["purpose"] == "blood_test"
+    assert "/rest/v1/service_availability" in seen["url"] and "is_paused=eq.true" in seen["url"]
+
+
 def test_clinical_outcome_patch_uses_caller_jwt_and_only_that_column():
     seen = {}
     def h(req):

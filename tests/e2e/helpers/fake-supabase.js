@@ -187,6 +187,10 @@ function fakeSupabaseSource() {
             .map((b) => ({ scheduled_at: b.scheduled_at }));
           return Promise.resolve({ data, error: null });
         }
+        if (fn === "list_service_pauses") {   // כמו הפונקציה בשרת: רק שורות מושהות, רק העמודות הציבוריות
+          return Promise.resolve({ data: table(load(), "service_availability").filter((r) => r.is_paused)
+            .map((r) => ({ purpose: r.purpose, paused_from: r.paused_from || null, paused_until: r.paused_until || null, public_message: r.public_message || null })), error: null });
+        }
         if (fn === "admin_list_staff") return Promise.resolve({ data: table(load(), "medical_staff"), error: null });
         return Promise.resolve({ data: null, error: null });
       },

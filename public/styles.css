@@ -453,6 +453,9 @@ label:has(> input[type="checkbox"]), label:has(> input[type="radio"]) {
 .status-badge.scheduled { background: var(--primary-light); color: var(--primary-dark); }
 .status-badge.completed { background: #e6ecf5; color: #33507a; }
 .status-badge.cancelled { background: var(--danger-light); color: var(--danger); }
+.status-badge.paused { background: #fff1d6; color: #7a4b00; }
+.chip.paused, .chip:disabled { opacity: .55; cursor: not-allowed; }
+.chip-note { display: block; font-size: 12px; font-weight: 400; }
 
 .section-title {
   margin: 32px 0 14px;
