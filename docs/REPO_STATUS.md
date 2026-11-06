@@ -83,6 +83,8 @@ Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 | `021` | Service pause, **not applied** | `main` (`supabase/proposed/`) |
 A fresh project (the planned demo database) takes `supabase/migrations/*.sql` (23 files) and then `008`–`021` (except `014`) in order; `backend/scripts/verify_proposed_sql.py` does exactly this on a throwaway Postgres. Applying anything to a remote database needs a separate owner approval, a verified backup and one file at a time.
 
+**Demo project (separate from the live project):** `home-care-crm-demo` has migrations 001-007 + 008-013, 015-021 applied (2026-11-07), synthetic data only. The live project `qqeupktyadjxqoxkstnl` is unchanged. Not yet hosted: the Render services and the static site are waiting for the owner's Render and Cloudflare accounts.
+
 ## 6. Test evidence (2026-11-06)
 | Checkout | Unit | Backend `pytest` | `tests_db` | Mocked Playwright (Chromium, serial) | Predictive |
 |---|---|---|---|---|---|
