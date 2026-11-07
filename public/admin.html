@@ -682,6 +682,8 @@
     const level = data.current_risk && data.current_risk.level;
     // "אין נתונים" אינו "אין חריגה": בלי מדדים בדוח האחרון לא מציגים באנר "נמוך" ולא ניסוח מרגיע.
     const noData = !level || level === "no_data";
+    // אין המלצת זמן (null) כשאין מספיק נתונים: לא מציגים שורת הערכה חוזרת ולא "null"/"undefined שעות".
+    const hasInterval = typeof data.reassessment_recommended_in_hours === "number" && isFinite(data.reassessment_recommended_in_hours);
     const concernClass = noData ? "" : ({ high: "warning-banner-high", moderate: "warning-banner-moderate", low: "warning-banner-low" }[data.short_term_concern] || "warning-banner-low");
     const concernIcon = noData ? "" : ({ high: "🚨", moderate: "⚠️" }[data.short_term_concern] || "");
     const statusClass = `caregiver-status-${level in CAREGIVER_STATUS_BY_LEVEL ? level : "no_data"}`;
@@ -695,8 +697,8 @@
         ${esc(statusText)}
       </p>
       <div class="warning-banner ${concernClass}">
-        ${concernIcon} ${esc(data.explanation)}<br>
-        <span style="font-weight:400;">הערכה חוזרת מומלצת בתוך ${esc(data.reassessment_recommended_in_hours)} שעות · חלון תוקף: ${esc(data.risk_window_hours)} שעות</span>
+        ${concernIcon} ${esc(data.explanation)}${hasInterval ? `<br>
+        <span style="font-weight:400;">הערכה חוזרת מומלצת בתוך ${esc(data.reassessment_recommended_in_hours)} שעות · חלון תוקף: ${esc(data.risk_window_hours)} שעות</span>` : ""}
       </div>
     `;
 
