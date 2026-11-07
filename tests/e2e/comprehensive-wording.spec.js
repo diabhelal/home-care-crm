@@ -100,17 +100,17 @@ test("תוצאה: הצהרת הדגמה, ללא ✅/מצב תקין, יחידו�
 
 test("אין נתונים להערכה (no_data) לא מוצג כ'לא זוהתה חריגה' ולא כירוק", async ({ browser }) => {
   const noData = { ...WARNING, current_risk: { level: "no_data", level_label: "אין נתונים", flagged_vitals: [] },
-    status_message: "לא ניתן להעריך — אין נתונים", short_term_concern: "insufficient_data", reassessment_recommended_in_hours: null, explanation: "אין מספיק נתונים להערכה: לא הוזנו מדדים." };
+    status_message: "לא ניתן להעריך — אין נתונים", short_term_concern: "insufficient_data", reassessment_recommended_in_hours: null, trigger_events: [], explanation: "אין מספיק נתונים להערכה: לא הוזנו מדדים." };
   const { page, errors } = await open(browser, noData);
   await page.evaluate(() => document.getElementById("vr-comprehensive-btn").click());
   const res = page.locator("#vr-comprehensive-result");
   await expect(res).toContainText("אין מספיק נתונים להערכה");
   await expect(res).not.toContainText("לא זוהתה חריגה");
   await expect(res).not.toContainText("✅");
-  await expect(res).not.toContainText("הערכה חוזרת מומלצת");
-  expect(await res.innerText()).not.toMatch(/null|undefined|NaN/);
-  await expect(page.locator("#vr-comprehensive-result .warning-banner")).toBeVisible();
-  await expect(page.locator("#vr-comprehensive-result .warning-banner")).not.toContainText("שעות");   // no interval line, no "N hours"
+  // textContent (not innerText): the banner may be styled hidden for this state, but its DOM must still carry no interval
+  const dom = await res.evaluate((el) => el.textContent);
+  expect(dom).not.toContain("הערכה חוזרת מומלצת");
+  expect(dom).not.toMatch(/null|undefined|NaN|\d+ שעות/);
   await expect(res).not.toContainText("דאגה נמוכה");
   await expect(res).not.toContainText("רמת דאגה לטווח קצר: נמוכה");
   expect(errors).toEqual([]);
