@@ -528,20 +528,6 @@ const ROLE_LABELS = {
   caregiver: "מטפל/ת סיעודי/ת",
 };
 
-const ROLE_DESCRIPTIONS = {
-  nurse: "טיפול בפצעים, מתן תרופות ובדיקות דם — בבית שלך",
-  doctor: "ביקור רפואי כללי, אבחון ומעקב מצב בריאותי",
-  physiotherapist: "שיקום תנועה וטיפול פיזיותרפי בבית",
-  caregiver: "סיוע וליווי סיעודי יומיומי",
-};
-
-const ROLE_ICONS = {
-  nurse: "💉",
-  doctor: "🩺",
-  physiotherapist: "🏃",
-  caregiver: "🤝",
-};
-
 const PURPOSE_LABELS = {
   checkup: "בדיקה כללית",
   wound_care: "טיפול בפצע",
