@@ -146,8 +146,24 @@ class SupabaseRepo:
 
     # -- service pauses (admin-managed; readable by every signed-in user)
     def list_service_pauses(self):
-        return self._get("/service_availability", {"is_paused": "eq.true",
-                         "select": "purpose,paused_from,paused_until,public_message"})
+        r = self._client.get("/service_availability", params={"is_paused": "eq.true",
+                             "select": "purpose,paused_from,paused_until,public_message"})
+        if r.status_code == 404 and self._is_missing_pause_table(r):
+            # Migration 021 is not applied on this database. No table = no row for any purpose = nothing is paused (the documented
+            # default), so a missing optional table must not make every booking request fail.
+            log.warning("service_availability table not found (proposed/021 not applied): treating every service as available")
+            return []
+        self._raise_for(r)
+        return r.json()
+
+    @staticmethod
+    def _is_missing_pause_table(resp: httpx.Response) -> bool:
+        try:
+            body = resp.json()
+        except ValueError:
+            return False
+        return (isinstance(body, dict) and body.get("code") in ("PGRST205", "42P01")
+                and "service_availability" in str(body.get("message") or ""))
 
     # -- staff
     def get_staff(self, staff_id):
