@@ -116,7 +116,7 @@ Full variable list and defaults: `backend/README.md`.
 home-care-crm/
 ├── public/                   # Static frontend — no build step
 │   ├── index.html            # Landing page + service catalog + public contact form
-│   ├── staff.html            # Staff selection (supports ?role= filter)
+│   ├── staff.html            # Staff directory (informational; patients do not choose staff)
 │   ├── booking.html          # Purpose/date/time selection + guest checkout form
 │   ├── my-bookings.html      # Patient's own bookings, status, saved reports, optional email/SMS history saving
 │   ├── admin.html            # Admin panel (work queue, staff, patients, contacts, patient records)
