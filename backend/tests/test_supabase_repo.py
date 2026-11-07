@@ -122,6 +122,21 @@ def test_pause_guard_error_and_pause_list_query():
     assert "/rest/v1/service_availability" in seen["url"] and "is_paused=eq.true" in seen["url"]
 
 
+def test_missing_service_availability_table_means_no_pauses_not_an_error():
+    """Migration 021 may not be applied on a database yet: no table = no row for any purpose = every service is available
+    (the documented default). A missing optional table must not make booking requests fail."""
+    for code in ("PGRST205", "42P01"):
+        rows = make(lambda r, c=code: httpx.Response(404, json={"code": c, "message": "Could not find the table 'public.service_availability' in the schema cache"})).list_service_pauses()
+        assert rows == []
+
+
+def test_other_failures_of_the_pause_lookup_are_still_errors():
+    with pytest.raises(Exception):
+        make(lambda r: httpx.Response(500, json={"code": "XX000", "message": "boom"})).list_service_pauses()
+    with pytest.raises(Exception):   # a 404 for some OTHER table/route is not hidden
+        make(lambda r: httpx.Response(404, json={"code": "PGRST205", "message": "Could not find the table 'public.bookings'"})).list_service_pauses()
+
+
 def test_clinical_outcome_patch_uses_caller_jwt_and_only_that_column():
     seen = {}
     def h(req):
