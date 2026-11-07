@@ -136,7 +136,7 @@
     grid.innerHTML = "";
 
     if (error || !staff) {
-      grid.innerHTML = `<div class="empty-state">${friendlyErrorMessageLocalized(error || t("index.errLoadingServices"))}</div>`;
+      grid.innerHTML = `<div class="empty-state">${escapeHtml(friendlyErrorMessageLocalized(error || t("index.errLoadingServices")))}</div>`;
       return;
     }
 

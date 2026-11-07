@@ -22,7 +22,7 @@ async function loadContacts() {
     error = err;
   }
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="6">${friendlyErrorMessage(error)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6">${escapeHtml(friendlyErrorMessage(error))}</td></tr>`;
     return;
   }
   tbody.innerHTML = "";

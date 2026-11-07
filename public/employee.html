@@ -342,7 +342,7 @@
       .order("scheduled_at", { ascending: false })
       .range(myWorkHistoryOffset, myWorkHistoryOffset + MY_WORK_HISTORY_PAGE_SIZE - 1);
     if (error) {
-      historyEl.insertAdjacentHTML("beforeend", `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`);
+      historyEl.insertAdjacentHTML("beforeend", `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(error))}</p>`);
       if (moreBtn) moreBtn.remove();
       return;
     }
@@ -386,7 +386,7 @@
       bookingsError = err;
     }
     if (bookingsError) {
-      container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(bookingsError)}</p>`;
+      container.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(bookingsError))}</p>`;
       return;
     }
     bookings = bookings || [];
@@ -643,7 +643,7 @@
       .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
       .limit(10);
     if (requestToken !== prSearchRequestToken) return; // תוצאה מיושנת
-    if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
+    if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(error))}</p>`; return; }
     if (!data || data.length === 0) { resultsEl.innerHTML = `<p class="empty-state">לא נמצאו מטופלים משויכים אליך בחיפוש זה.</p>`; return; }
     resultsEl.innerHTML = "";
     data.forEach((p) => {
@@ -671,7 +671,7 @@
       await prRenderHeader();
     } catch (err) {
       if (prIsStale(err)) return;
-      document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+      document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(err))}</p>`;
       return;
     }
     if (window.currentPatientState !== recordState) return;
@@ -733,7 +733,7 @@
       await tab.render(content);
     } catch (err) {
       if (prIsStale(err) || window.currentPatientState !== state || content._prRenderToken !== token) return;
-      content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+      content.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(err))}</p>`;
     }
   }
 

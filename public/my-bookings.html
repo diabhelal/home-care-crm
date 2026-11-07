@@ -252,15 +252,21 @@
       if (!serviceType || !startDate) { showError(errEl, t("myBookings.fillServiceFields")); return; }
       const btn = document.getElementById("mb-plan-submit");
       setButtonLoading(btn, true, t("myBookings.sending"));
-      const { error } = await supabaseClient.from("service_plans").insert({
-        patient_id: user.id,
-        service_type: serviceType,
-        start_date: startDate,
-        frequency: frequencySelect.value,
-        notes: document.getElementById("mb-plan-notes").value || null,
-        status: "requested",
-      });
-      setButtonLoading(btn, false);
+      let error;
+      try {
+        ({ error } = await supabaseClient.from("service_plans").insert({
+          patient_id: user.id,
+          service_type: serviceType,
+          start_date: startDate,
+          frequency: frequencySelect.value,
+          notes: document.getElementById("mb-plan-notes").value || null,
+          status: "requested",
+        }));
+      } catch (err) {
+        error = err;   // network failure: show an error and re-enable the button instead of hanging
+      } finally {
+        setButtonLoading(btn, false);
+      }
       if (error) { showError(errEl, friendlyErrorMessageLocalized(error)); return; }
       document.getElementById("mb-plan-type").value = "";
       document.getElementById("mb-plan-start").value = "";

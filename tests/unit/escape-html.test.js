@@ -26,3 +26,18 @@ test("גרשיים מנוטרלים כך שערך בתוך value=\"...\" לא י
   assert.equal(escapeHtml("<b>&"), "&lt;b&gt;&amp;");
   assert.equal(escapeHtml('<img src=x onerror="1">').includes("<"), false);
 });
+
+test("admin/employee error sinks escape friendlyErrorMessage before innerHTML", () => {
+  const fs = require("node:fs"), path = require("node:path");
+  const root = path.join(__dirname, "../../public");
+  const files = ["employee.html", "index.html", "js/admin/capacity.js", "js/admin/contacts.js", "js/admin/patient-record.js",
+    "js/admin/patients.js", "js/admin/services.js", "js/admin/staff.js", "js/admin/work-queue.js"];
+  for (const f of files) {
+    for (const line of fs.readFileSync(path.join(root, f), "utf8").split("\n")) {
+      if (/showError|flashError/.test(line)) continue;                       // those use textContent
+      if (/\$\{friendlyErrorMessage(Localized)?\(|innerHTML\s*=\s*friendlyErrorMessage/.test(line)) {
+        assert.fail(`${f}: unescaped error text in HTML: ${line.trim()}`);
+      }
+    }
+  }
+});

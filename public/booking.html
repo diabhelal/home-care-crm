@@ -535,7 +535,7 @@
 
       clearIdempotencyKey();
       const state = bookingDisplayState(booking);
-      successBox.textContent = t(state === "requested" ? "booking.requestedTitle" : "booking.approvedTitle");
+      successBox.textContent = t(state === "confirmed" ? "booking.approvedTitle" : "booking.requestedTitle");
       successBox.classList.add("show");
       document.getElementById("confirmed-note").textContent = state === "requested" ? t("booking.requestedNote") : "";
       const orderEl = document.getElementById("confirmed-order");

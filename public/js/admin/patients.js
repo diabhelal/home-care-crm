@@ -14,7 +14,7 @@ async function loadPatients() {
     error = err;
   }
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="5">${friendlyErrorMessage(error)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5">${escapeHtml(friendlyErrorMessage(error))}</td></tr>`;
     return;
   }
   tbody.innerHTML = "";
