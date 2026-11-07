@@ -26,6 +26,7 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     requests: [],          // { method, path, headers, body }
     down: false,           // true => ניתוק רשת (route.abort)
     failNext: 0,           // כמה בקשות POST /bookings/request הבאות ייכשלו ברשת (לפני שהשרת עיבד)
+    serverErrorNext: null, // {status, code, detail}: התשובה הבאה ל-POST /bookings/request היא שגיאת שרת עם קוד (500/502)
     dropResponseNext: 0,   // השרת מעבד ושומר, אבל התשובה אובדת (בדיוק התרחיש של idempotency)
     byKey: new Map(),      // Idempotency-Key -> booking
     created: 0,
@@ -94,6 +95,7 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
 
     if (req.method() === "POST" && path === "/bookings/request") {
       if (ctl.failNext > 0) { ctl.failNext--; return route.abort("connectionreset"); }
+      if (ctl.serverErrorNext) { const e = ctl.serverErrorNext; ctl.serverErrorNext = null; return json(e.status, { code: e.code, detail: e.detail }); }
       const key = headers["idempotency-key"];
       if (key && ctl.byKey.has(key)) {
         if (ctl.dropResponseNext > 0) { ctl.dropResponseNext--; return route.abort("connectionreset"); }

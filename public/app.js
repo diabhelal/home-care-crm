@@ -1189,8 +1189,14 @@ async function backendFetch(path, { method = "GET", body, idempotencyKey, timeou
   if (res.status === 400 || res.status === 404 || res.status === 422) {
     throw new BackendError("validation", detail || "הפרטים שנשלחו אינם תקינים.", extra);
   }
+  // 500/502 עם קוד מוכר: ההודעה בעברית נכתבה בשרת בשביל המשתמש (למשל idempotency_conflict מורה לבדוק "ההזמנות שלי" לפני ניסיון חוזר),
+  // ולכן לא מחליפים אותה בהודעה כללית. כל שאר שגיאות השרת נשארות עם ההודעה הכללית.
+  if (res.status >= 500 && detail && BACKEND_USER_MESSAGE_CODES.includes(code)) {
+    throw new BackendError("server", detail, extra);
+  }
   throw new BackendError("server", "אירעה שגיאה בשירות. לא נשמרה הזמנה — נא לנסות שוב.", extra);
 }
+const BACKEND_USER_MESSAGE_CODES = ["idempotency_conflict", "unexpected_unique_violation", "upstream_error", "upstream_unavailable"];
 
 // ===== באנר זמינות שירות התחזית =====
 // שירות predictive-service הוא תהליך Python מקומי שמופעל ידנית, לא שירות שרץ תמיד.
