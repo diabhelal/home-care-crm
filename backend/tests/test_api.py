@@ -69,8 +69,10 @@ def test_idempotency_scoped_per_patient(world):
 
 
 def test_double_booking_409_hebrew(world):
-    world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1), headers=H("patient"))
-    r = world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1), headers=H("patient2"))
+    # both eligible nurses are taken at 09:00 -> the next request for 09:00 has no free staff
+    world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("patient"))
+    world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("patient2"))
+    r = world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("admin"))
     assert r.status_code == 409
     assert r.json()["detail"] == "המטפל אינו פנוי בשעה זו, אנא בחר משבצת זמן אחרת"
 
@@ -84,12 +86,14 @@ def test_db_unique_violation_maps_to_409(world, monkeypatch):
 
 
 def test_buffer_enforced_in_request(world):
-    world.client.post("/bookings/request", json=req(local(18, 9), staff_id=1), headers=H("patient"))
+    # both nurses busy 9-10 at Herzl 1
+    world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("patient"))
+    world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("admin"))
     r = world.client.post("/bookings/request",
-                          json=req(local(18, 10), staff_id=1, address="Other 5, Haifa"),
+                          json=req(local(18, 10), address="Other 5, Haifa"),
                           headers=H("patient2"))
     assert r.status_code == 409  # 10:00 starts right at end of 9-10 visit, other address
-    r = world.client.post("/bookings/request", json=req(local(18, 10), staff_id=1),
+    r = world.client.post("/bookings/request", json=req(local(18, 10)),
                           headers=H("patient2"))
     assert r.status_code == 201  # same address -> no buffer
 
@@ -99,9 +103,25 @@ def test_non_working_day_rejected(world):
     assert r.status_code == 409
 
 
-def test_non_nurse_staff_not_eligible(world):
+def test_patient_cannot_choose_staff_server_assigns(world):
+    # a patient-supplied staff_id is ignored: neither an ineligible doctor (3) nor a specific nurse (2) is honoured;
+    # the server's deterministic auto-assignment (lowest eligible free nurse) decides.
     r = world.client.post("/bookings/request", json=req(local(18, 9), staff_id=3), headers=H("patient"))
-    assert r.status_code == 400
+    assert r.status_code == 201 and r.json()["staff_id"] == 1
+    # nurse 1 now has a visit that day, so the load-balanced choice is nurse 2 even though the patient asked for 1
+    r = world.client.post("/bookings/request", json=req(local(18, 11), staff_id=1), headers=H("patient2"))
+    assert r.status_code == 201 and r.json()["staff_id"] == 2
+    assert r.json()["approval_status"] == "requested"
+
+
+def test_only_admin_reassigns_staff(world):
+    b = world.client.post("/bookings/request", json=req(local(18, 9)), headers=H("patient")).json()
+    assert world.client.post(f"/admin/bookings/{b['id']}/reassign", json={"staff_id": 2},
+                             headers=H("patient")).status_code == 403
+    assert world.client.post(f"/admin/bookings/{b['id']}/reassign", json={"staff_id": 2},
+                             headers=H("staff1")).status_code == 403
+    r = world.client.post(f"/admin/bookings/{b['id']}/reassign", json={"staff_id": 2}, headers=H("admin"))
+    assert r.status_code == 200 and r.json()["staff_id"] == 2
 
 
 def test_auto_assignment_deterministic_lowest_id(world):

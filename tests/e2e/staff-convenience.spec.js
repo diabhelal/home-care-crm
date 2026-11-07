@@ -1,6 +1,6 @@
 // נוחות הזמנה למטופל, בלי DB חי: (1) שורת "הזמינות הקרובה" בכרטיסי staff.html,
 // (2) סינון לפי תפקיד ויום, (3) כפתור "הזמן שוב" ב-my-bookings.html שמעביר ל-booking.html
-// עם איש הצוות (selected_staff ב-sessionStorage, כמו staff.html) והמטרה מסומנת מראש.
+// עם המטרה מסומנת מראש (בלי איש צוות: המטופל אינו בוחר צוות, השרת והמנהל משבצים).
 // supabase-js מוחלף ב-fake מינימלי; אפס בקשות ל-Supabase.
 const { test, expect } = require("@playwright/test");
 
@@ -93,14 +93,15 @@ test("staff.html: שורת זמינות קרובה + סינון תפקיד וי�
   await context.close();
 });
 
-test("my-bookings.html: 'הזמן שוב' מעביר ל-booking.html עם אותו איש צוות ומטרה", async ({ browser }) => {
+test("my-bookings.html: 'הזמן שוב' מעביר ל-booking.html עם אותה מטרה, בלי לקבע איש צוות", async ({ browser }) => {
   const { page, errors, context } = await newPage(browser);
   await page.goto(BASE + "/my-bookings.html");
   const btn = page.getByRole("button", { name: "הזמן שוב" });
   await expect(btn).toBeVisible();
   await btn.click();
   await page.waitForURL(/booking\.html/);
-  await expect(page.locator("#staff-name")).toContainText("אחות תפוסה");
+  await expect(page.locator("#staff-name")).toContainText("ייקבע עם אישור"); // rebook does not pin the previous nurse
+  expect(await page.evaluate(() => sessionStorage.getItem("selected_staff"))).toBeNull();
   await expect(page.locator("#purpose-chips .chip.selected")).toHaveText("טיפול בפצע");
   expect(errors).toEqual([]);
   await context.close();

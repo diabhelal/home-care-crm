@@ -58,8 +58,8 @@ async function expectDemoBanner(page) {
 }
 
 // מזמין תור עד פאנל האישור, מתחיל מדף הבית (שירות קודם). slotIndex — איזו שעה פנויה לבחור (תור שונה
-// לכל הזמנה). viaChooser: בחירה מפורשת באיש צוות דרך staff.html (הבורר האופציונלי).
-async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix, viaChooser = false }) {
+// לכל הזמנה). המטופל אינו בוחר איש צוות: השרת משבץ והמנהל מאשר/משנה.
+async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
   await page.goto(BASE + "/index.html");
   await expectDemoBanner(page);
   const serviceCard = page.locator("#services-grid a").first();
@@ -68,18 +68,9 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix, via
   await serviceCard.click();
 
   await page.waitForURL(/booking\.html/);
-  if (viaChooser) {
-    await page.click("#choose-staff-link");
-    await page.waitForURL(/staff\.html/);
-    const staffCard = page.locator(".staff-card").first();
-    await expect(staffCard).toContainText("אחות הדגמה");
-    if (shotPrefix) await shot(page, `${shotPrefix}-02-staff`);
-    await staffCard.click();
-    await page.waitForURL(/booking\.html/);
-  }
-  await expect(page.locator("#staff-name")).toContainText(viaChooser ? "אחות הדגמה" : "הזמינים המתאימים");
-  if (!viaChooser) await expect(page.locator(".chip.selected")).toHaveCount(1); // ?purpose= מכרטיס השירות
-  else await page.locator(".chip").first().click();
+  await expect(page.locator("#choose-staff-link")).toHaveCount(0);
+  await expect(page.locator("#staff-name")).toContainText("ייקבע עם אישור");
+  await expect(page.locator(".chip.selected")).toHaveCount(1); // ?purpose= מכרטיס השירות
   await page.fill("#patient-address", "רחוב ההדגמה 1, עיר הדגמה");
   await page.locator(".date-pill").nth(1).click(); // מחר — תמיד בעתיד, בלי תלות בשעת ההרצה
   const slot = page.locator(".slot-btn:not([disabled])").nth(slotIndex);
@@ -97,7 +88,7 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix, via
   // בקשה, לא אישור: "התבקש וממתין לאישור"
   await expect(page.locator("#success-box")).toContainText("הביקור התבקש וממתין לאישור");
   await expect(page.locator("#success-box")).not.toContainText("נקבעה בהצלחה");
-  await expect(page.locator("#confirmed-staff")).toContainText(viaChooser ? "אחות הדגמה" : "ייקבע עם אישור");
+  await expect(page.locator("#confirmed-staff")).toContainText("ייקבע עם אישור");
   await expect(page.locator("#confirmed-address")).toHaveText("רחוב ההדגמה 1, עיר הדגמה");
   if (shotPrefix) await shot(page, `${shotPrefix}-04-confirmation`);
 }
@@ -108,7 +99,7 @@ test("מסע הדגמה מלא: מטופל מזמין -> צוות מתעד בי�
   const PATIENT_B = "מטופל הדגמה ב";
 
   // ===== 1. מטופל א: הזמנה + "ההזמנות שלי" =====
-  await patientBooks(page, { name: PATIENT_A, nationalId: "100000018", slotIndex: 0, shotPrefix: "01-patient", viaChooser: true });
+  await patientBooks(page, { name: PATIENT_A, nationalId: "100000018", slotIndex: 0, shotPrefix: "01-patient" });
   await page.click("#confirmation-panel a");
   await page.waitForURL(/my-bookings\.html/);
   await expectDemoBanner(page);

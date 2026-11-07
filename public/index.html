@@ -169,7 +169,7 @@
     const ROLE_ICONS_LOCAL = { nurse: "💉", doctor: "🩺", physiotherapist: "🏃", caregiver: "🤝" };
     rolesPresent.forEach((role) => {
       const card = document.createElement("a");
-      card.href = `staff.html?role=${encodeURIComponent(role)}`;
+      card.href = "booking.html";  // patients request a visit; staff are assigned by the server/admin
       card.className = "service-card";
       card.innerHTML = `
         <div class="service-icon">${ROLE_ICONS_LOCAL[role] || "🏠"}</div>

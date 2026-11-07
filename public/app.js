@@ -186,6 +186,21 @@ function getQueuedDraftCount() {
   return getOfflineQueue().length;
 }
 
+// Sign-out on a possibly shared device: unsent visit reports are clinical data stored unencrypted in localStorage.
+// Before signing out we try to send them; if any remain, the user must explicitly choose to leave them on this device
+// (they are never deleted silently — that would lose clinical documentation). Returns true when sign-out may proceed.
+async function confirmSignOutWithOfflineDrafts(confirmFn) {
+  const ask = confirmFn || ((msg) => (typeof window !== "undefined" && typeof window.confirm === "function" ? window.confirm(msg) : true));
+  if (!getQueuedDraftCount()) return true;
+  if (typeof navigator === "undefined" || navigator.onLine !== false) {
+    try { await flushOfflineQueue(); } catch (e) { /* the count below decides */ }
+  }
+  const left = getQueuedDraftCount();
+  if (!left) return true;
+  return ask(`${left} דוחות ביקור עדיין לא נשלחו ושמורים רק במכשיר הזה (לא מוצפנים). ` +
+    "אם תתנתקו, הם יישארו במכשיר עד שתתחברו שוב ותסנכרנו. במכשיר משותף מומלץ לבטל, להתחבר לרשת ולסנכרן קודם. להתנתק בכל זאת?");
+}
+
 // ===== סנכרון התור: מסלול כתיבה יחיד =====
 // השלמת ביקור (דוח + סימון "הושלם") נכתבת אך ורק דרך ה-backend:
 //   POST /staff/visits/{booking_id}/complete  — אטומית, הזהות מה-JWT, חותמת זמן בשרת.

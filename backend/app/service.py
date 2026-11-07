@@ -87,7 +87,9 @@ class BookingService:
             raise bad_request("in_past", "לא ניתן להזמין לזמן שעבר")
         self._require_service_available(body.purpose, at.astimezone(self.tz).date())
         coords = self.geo.geocode(body.address)
-        staff = self._pick_staff(body.staff_id, at, body.address, coords)
+        # Staff are assigned by the server (and changed only by an administrator via /admin/.../reassign).
+        # A staff_id sent by the patient is ignored: patients do not choose who visits them.
+        staff = self._pick_staff(None, at, body.address, coords)
         b = Booking(
             id=None, patient_id=who.user_id, staff_id=staff.id, visit_purpose=body.purpose,
             scheduled_at=at, status="scheduled", approval_status="requested",

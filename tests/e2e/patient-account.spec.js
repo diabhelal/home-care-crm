@@ -280,14 +280,7 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
   await serviceCard.click();
 
   await page.waitForURL(/booking\.html/);
-  await page.click("#choose-staff-link"); // בורר אופציונלי של איש צוות מסוים
-  await page.waitForURL(/staff\.html/);
-  const staffCard = page.locator(".staff-card").first();
-  await expect(staffCard).toContainText("אחות הדגמה");
-  if (shotPrefix) await shot(page, `${shotPrefix}-02-staff`);
-  await staffCard.click();
-
-  await page.waitForURL(/booking\.html/);
+  await expect(page.locator("#choose-staff-link")).toHaveCount(0); // המטופל אינו בוחר איש צוות
   await page.locator(".chip").first().click();
   await page.fill("#patient-address", "רחוב ההדגמה 1, עיר הדגמה");
   await page.locator(".date-pill").nth(1).click(); // מחר — תמיד בעתיד, בלי תלות בשעת ההרצה
@@ -304,7 +297,7 @@ async function patientBooks(page, { name, nationalId, slotIndex, shotPrefix }) {
   await page.click("#confirm-btn");
   await expect(page.locator("#confirmation-panel")).toBeVisible();
   await expect(page.locator("#success-box")).toHaveText("הביקור התבקש וממתין לאישור");
-  await expect(page.locator("#confirmed-staff")).toContainText("אחות הדגמה");
+  await expect(page.locator("#confirmed-staff")).toContainText("ייקבע עם אישור");
   await expect(page.locator("#confirmed-address")).toHaveText("רחוב ההדגמה 1, עיר הדגמה");
   if (shotPrefix) await shot(page, `${shotPrefix}-04-confirmation`);
 }

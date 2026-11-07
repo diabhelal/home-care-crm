@@ -58,7 +58,7 @@ class BookingRequestIn(BaseModel):
     purpose: str
     scheduled_at: datetime
     address: str = Field(min_length=3, max_length=300)
-    staff_id: Optional[int] = None
+    staff_id: Optional[int] = None  # accepted for old clients, IGNORED: the server assigns staff
     notes: Optional[str] = Field(default=None, max_length=1000)
 
 

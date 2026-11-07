@@ -134,3 +134,36 @@ test("התור של A נשאר כשהרשת נופלת; B לא מסנכרן ול
   assert.equal(b.calls.length, 0);
   assert.ok(storage.keys().some((k) => k.endsWith(":user-a")));
 });
+
+test("sign-out guard: no drafts -> proceed without asking", async () => {
+  const storage = sharedStorage();
+  const a = loadPage(storage, { userId: "user-a" });
+  await tick();
+  let asked = 0;
+  assert.equal(await a.ctx.confirmSignOutWithOfflineDrafts(() => { asked++; return false; }), true);
+  assert.equal(asked, 0);
+});
+
+test("sign-out guard: drafts are synced first; nothing left -> proceed, queue empty", async () => {
+  const storage = sharedStorage();
+  const a = loadPage(storage, { userId: "user-a" });
+  await tick();
+  a.ctx.queueVisitReportDraft({ booking_id: 1, staff_id: 10, treatment_summary: "A" });
+  let asked = 0;
+  assert.equal(await a.ctx.confirmSignOutWithOfflineDrafts(() => { asked++; return false; }), true);
+  assert.equal(asked, 0);
+  assert.equal(a.ctx.getQueuedDraftCount(), 0);
+  assert.ok(a.calls.some((c) => /\/staff\/visits\/1\/complete$/.test(c.url)));
+});
+
+test("sign-out guard: unsent drafts -> explicit choice; cancel keeps the user signed in, drafts never deleted", async () => {
+  const storage = sharedStorage();
+  const a = loadPage(storage, { userId: "user-a", networkDown: true });
+  await tick();
+  a.ctx.queueVisitReportDraft({ booking_id: 1, staff_id: 10, treatment_summary: "A" });
+  let msg = "";
+  assert.equal(await a.ctx.confirmSignOutWithOfflineDrafts((m) => { msg = m; return false; }), false);
+  assert.match(msg, /1 דוחות ביקור עדיין לא נשלחו/);
+  assert.equal(await a.ctx.confirmSignOutWithOfflineDrafts(() => true), true);
+  assert.equal(a.ctx.getQueuedDraftCount(), 1, "drafts stay on the device (no silent clinical data loss)");
+});

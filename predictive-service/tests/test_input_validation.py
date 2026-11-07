@@ -87,7 +87,9 @@ def test_future_event_features_non_finite_422(bad):
 def test_train_response_is_honest_about_validation(monkeypatch):
     import ml_targets
     monkeypatch.setattr(ml_targets, "train_model", lambda t, a, X, y: {"auc": 0.5})
-    r = client.post("/train/anything/logistic_regression", json={"X": [{"a": 1}], "y": [0]})
+    monkeypatch.setenv("PREDICTIVE_TRAINING_KEY", "k" * 40)
+    r = client.post("/train/anything/logistic_regression", json={"X": [{"a": 1}], "y": [0]},
+                    headers={"X-Service-Key": "k" * 40})
     assert r.status_code == 200
     assert r.json()["validated"] is False
     assert "אימות קליני" in r.json()["validation_note"]
@@ -100,3 +102,32 @@ def test_training_endpoint_can_be_disabled_for_public_hosting(monkeypatch):
     monkeypatch.setenv("DISABLE_TRAINING", "1")
     r = client.post("/train/anything/logistic_regression", json={"X": [{"a": 1}], "y": [0]})
     assert r.status_code == 403 and not called
+
+
+def test_training_is_denied_by_default_and_with_a_wrong_key(monkeypatch):
+    import ml_targets
+    called = []
+    monkeypatch.setattr(ml_targets, "train_model", lambda *a: called.append(1) or {"auc": 0.5})
+    monkeypatch.delenv("DISABLE_TRAINING", raising=False)
+    monkeypatch.delenv("PREDICTIVE_TRAINING_KEY", raising=False)
+    body = {"X": [{"a": 1}], "y": [0]}
+    assert client.post("/train/anything/logistic_regression", json=body).status_code == 403          # no key configured
+    monkeypatch.setenv("PREDICTIVE_TRAINING_KEY", "k" * 40)
+    assert client.post("/train/anything/logistic_regression", json=body).status_code == 403          # no header
+    assert client.post("/train/anything/logistic_regression", json=body,
+                       headers={"X-Service-Key": "wrong"}).status_code == 403                         # wrong key
+    assert not called
+
+
+def test_cors_is_limited_to_get_post_and_content_type():
+    pre = client.options("/predict/capacity", headers={
+        "Origin": "http://localhost:8080", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type"})
+    assert pre.status_code == 200
+    bad = client.options("/predict/capacity", headers={
+        "Origin": "http://localhost:8080", "Access-Control-Request-Method": "DELETE"})
+    assert bad.status_code == 400
+    bad_hdr = client.options("/predict/capacity", headers={
+        "Origin": "http://localhost:8080", "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "x-anything"})
+    assert bad_hdr.status_code == 400

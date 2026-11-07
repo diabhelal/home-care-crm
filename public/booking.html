@@ -34,10 +34,6 @@
 
     <div class="summary-box" id="staff-summary">
       <div><span data-i18n="booking.staffLabel">אחות או אח:</span> <span class="staff-name" id="staff-name"></span></div>
-      <span>
-        <a href="staff.html" id="choose-staff-link" class="link-tap" data-i18n="booking.chooseStaff">בחירת איש צוות מסוים</a>
-        <button type="button" class="btn btn-ghost btn-sm" id="clear-staff-btn" style="display:none;" data-i18n="booking.clearStaff">חזרה לשיבוץ אוטומטי</button>
-      </span>
     </div>
 
     <div class="error-msg" id="error-box" role="alert" aria-live="assertive"></div>
@@ -120,18 +116,14 @@
     if (!user) return;
     wireReset();
 
-    // איש צוות מסוים הוא אופציונלי: ברירת המחדל היא שיבוץ אוטומטי (בלי staff_id) והשרת בוחר.
-    // staff.html משמש כבורר אופציונלי וחוזר לכאן עם selected_staff.
-    let staff = null;
-    try { staff = JSON.parse(sessionStorage.getItem("selected_staff") || "null"); } catch (e) { staff = null; }
+    // המטופל אינו בוחר איש צוות: השרת משבץ, ורק מנהל משנה שיבוץ. staff נשאר null תמיד
+    // (שריד לבורר הישן ש-staff.html כתב ל-sessionStorage; השרת מתעלם מ-staff_id בכל מקרה).
+    const staff = null;
+    try { sessionStorage.removeItem("selected_staff"); } catch (e) {}
 
     const staffNameEl = document.getElementById("staff-name");
-    const clearStaffBtn = document.getElementById("clear-staff-btn");
-    const chooseStaffLink = document.getElementById("choose-staff-link");
     function renderStaffSummary() {
-      staffNameEl.textContent = staff ? `${staff.full_name} (${roleLabel(staff.role)})` : t("booking.staffAny");
-      clearStaffBtn.style.display = staff ? "" : "none";
-      chooseStaffLink.textContent = t(staff ? "booking.changeStaff" : "booking.chooseStaff");
+      staffNameEl.textContent = t("booking.staffAssignedLater");
     }
     renderStaffSummary();
 
@@ -255,7 +247,6 @@
         try {
           const ds = localDateStr(pill._date);
           const qs = new URLSearchParams({ start: ds, end: ds });
-          if (staff && staff.id != null) qs.set("staff_id", String(staff.id));
           const res = await backendFetch("/availability?" + qs.toString());
           return res && Array.isArray(res.slots) ? res.slots.length : null;
         } catch (e) { return null; }
@@ -313,19 +304,6 @@
       if (servicePauses.length) applyServicePauses();
     })();
 
-    clearStaffBtn.addEventListener("click", () => {
-      try { sessionStorage.removeItem("selected_staff"); } catch (e) {}
-      staff = null;
-      selectedDate = null;
-      selectedSlot = null;
-      document.getElementById("slots-section").style.display = "none";
-      document.getElementById("no-slots").style.display = "none";
-      renderStaffSummary();
-      renderDatePills();
-      probeDatePills();
-      updateConfirmState();
-    });
-
     function localDateStr(d) {
       const p = (n) => String(n).padStart(2, "0");
       return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
@@ -368,7 +346,6 @@
       // הכתובת (אם הוזנה) מאפשרת לשרת לדעת מתי אין צורך במרווח נסיעה (אותה כתובת).
       const ds = localDateStr(date);
       const qs = new URLSearchParams({ start: ds, end: ds });
-      if (staff && staff.id != null) qs.set("staff_id", String(staff.id));
       const addr = addressInput.value.trim();
       if (addr) qs.set("address", addr);
       let slots = [], error = null;
@@ -501,10 +478,8 @@
       submittingBooking = true;
       setButtonLoading(confirmBtn, true, t("booking.savingBooking"));
       const notes = document.getElementById("notes").value.trim() || null;
-      const staffId = staff && staff.id != null ? staff.id : null;
       const body = { purpose: selectedPurpose, scheduled_at: selectedSlot.toISOString(), address, notes };
-      if (staffId != null) body.staff_id = staffId;
-      const key = idempotencyKeyFor(JSON.stringify([body.purpose, body.scheduled_at, body.address, body.staff_id ?? null, body.notes]));
+      const key = idempotencyKeyFor(JSON.stringify([body.purpose, body.scheduled_at, body.address, null, body.notes]));
 
       let booking = null, error = null;
       try {
@@ -543,7 +518,7 @@
       else orderEl.parentElement.style.display = "none";
       const { data: { user: curUser } } = await supabaseClient.auth.getUser();
       renderAccountCard(document.getElementById("account-card-host"), curUser || user, { showUpgrade: true, allowSignIn: false });
-      document.getElementById("confirmed-staff").textContent = staff ? `${staff.full_name} (${roleLabel(staff.role)})` : t("booking.staffAssignedLater");
+      document.getElementById("confirmed-staff").textContent = t("booking.staffAssignedLater");
       document.getElementById("confirmed-purpose").textContent = purposeLabel(selectedPurpose);
       document.getElementById("confirmed-when").textContent = `${formatDateLocalized(selectedSlot)} ${formatTimeLocalized(selectedSlot)}`;
       document.getElementById("confirmed-address").textContent = address;
