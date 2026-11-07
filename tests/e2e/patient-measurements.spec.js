@@ -128,6 +128,20 @@ test("רענון אחרי שמירה: המדידה נשארת ברשימה", asy
   await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(1);
 });
 
+test("אין תקרה: 1,250 מדידות של מטופל נטענות כולן (ולא רק 200 האחרונות)", async ({ browser }) => {
+  const { page } = await setup(browser);
+  await page.evaluate(() => {
+    const db = JSON.parse(localStorage.getItem("__demo_db") || "{}");
+    const rows = [];
+    for (let i = 1; i <= 1250; i++) rows.push({ id: 1000 + i, patient_id: "p-1", booking_id: null, measured_at: new Date(Date.now() - i * 60000).toISOString(), recorded_at: new Date().toISOString(), recorded_by_role: "admin", pulse: 60 + (i % 40) });
+    db.patient_measurements = rows;
+    localStorage.setItem("__demo_db", JSON.stringify(db));
+    prInvalidate("measurements");
+  });
+  await page.getByRole("button", { name: "מדדים", exact: true }).click();
+  await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(1250);
+});
+
 test("מיגרציה 020 עדיין לא הוחלה: הסבר במקום טופס שבור", async ({ browser }) => {
   const { page, errors } = await setup(browser, { missing: ["patient_measurements"] });
   await expect(page.locator("#pr-measurements")).toContainText("מיגרציה 020");
