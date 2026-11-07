@@ -100,13 +100,15 @@ test("תוצאה: הצהרת הדגמה, ללא ✅/מצב תקין, יחידו�
 
 test("אין נתונים להערכה (no_data) לא מוצג כ'לא זוהתה חריגה' ולא כירוק", async ({ browser }) => {
   const noData = { ...WARNING, current_risk: { level: "no_data", level_label: "אין נתונים", flagged_vitals: [] },
-    status_message: "לא ניתן להעריך — אין נתונים", short_term_concern: "low", explanation: "אין מדדים בדוח האחרון" };
+    status_message: "לא ניתן להעריך — אין נתונים", short_term_concern: "insufficient_data", explanation: "אין מספיק נתונים להערכה: לא הוזנו מדדים." };
   const { page, errors } = await open(browser, noData);
   await page.evaluate(() => document.getElementById("vr-comprehensive-btn").click());
   const res = page.locator("#vr-comprehensive-result");
   await expect(res).toContainText("אין מספיק נתונים להערכה");
   await expect(res).not.toContainText("לא זוהתה חריגה");
   await expect(res).not.toContainText("✅");
+  await expect(res).not.toContainText("דאגה נמוכה");
+  await expect(res).not.toContainText("רמת דאגה לטווח קצר: נמוכה");
   expect(errors).toEqual([]);
 });
 

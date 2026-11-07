@@ -361,7 +361,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 | `FR-RK-08` | Isolation between patients: a late response for one patient is not shown in the record, risk or forecast of another; one patient does not affect another's calculation | Rapid switches A, B, A, B show only the last one | Tested (mocked) |
 | `FR-RK-09` | Personal baseline, outliers and trend forecast using classical statistical methods (linear regression; ARIMA from 8 measurements); with short history: "אין מספיק נתונים" ("not enough data") | — | Tested (UI). Parameters have not been clinically validated |
 | `FR-RK-10` | No display of a machine-learning probability as validated: the ML classifiers return "אין מודל" ("no model") when there is no trained artifact; LSTM is a placeholder | — | Implemented (as documented) |
-| `FR-RK-11` | UI wording of the status (for example "מצב תקין" ("normal state") for green, "אין נתונים" ("no data") as low concern) | A written clinical decision | Planned ([O-01](#11-open-decisions)) |
+| `FR-RK-11` | Missing data is never shown as low concern: with no vitals in the latest report and no active trigger, `short_term_concern` is `insufficient_data` and the text says "אין מספיק נתונים להערכה" ("insufficient data to assess"); alerts from available measurements are preserved. Remaining wording (for example "מצב תקין" for green) is a clinical decision | `predictive-service/tests/test_missing_data_concern.py`; the reassessment interval of the new state (2 hours) awaits approval | Tested for the insufficient-data presentation (owner-approved 2026-11-07); wording of green remains Planned ([O-01](#11-open-decisions)) |
 
 <details open>
 <summary><b>Traceability to implementation and tests</b> (`file::test` references are checked automatically)</summary>
@@ -378,7 +378,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 | `FR-RK-08` | `public/js/shared/patient-scope.js`<br>`public/js/admin/patient-record.js` | `tests/e2e/cross-patient-isolation.spec.js` (14), `tests/e2e/trend-forecast.spec.js`<br>`tests/unit/visit-report-shared.test.js` |
 | `FR-RK-09` | `predictive-service/clinical_baseline.py`<br>`predictive-service/timeseries.py` | `tests/e2e/trend-forecast.spec.js` |
 | `FR-RK-10` | `predictive-service/ml_targets.py` | — |
-| `FR-RK-11` | `public/app.js` | — |
+| `FR-RK-11` | `public/app.js`; `predictive-service/main.py` (`predict_medical_warning`) | `predictive-service/tests/test_missing_data_concern.py::test_no_vitals_at_all_is_insufficient_data_not_low`<br>`tests/e2e/comprehensive-wording.spec.js` |
 
 </details>
 
@@ -420,7 +420,7 @@ This document does not choose policy. Every item awaits a decision by the owner 
 
 | ID | Topic | What is needed | Owner |
 |---|---|---|---|
-| O-01 | Clinical wording in the UI and the forecast service: "מצב תקין" ("normal state") for green; "אין נתונים" ("no data") displayed as low concern; the statistical thresholds and parameters | Review by a qualified medical staff member | Owner + clinical |
+| O-01 | Clinical wording in the UI and the forecast service: "מצב תקין" ("normal state") for green; the systolic red boundary (documented `>= 180`, code `> 180`; behaviour pinned by a test at 179/180/181); the statistical thresholds and parameters | Review by a qualified medical staff member | Owner + clinical |
 | O-02 | Valid value ranges for measurement input. The current ranges (for example systolic blood pressure 50-250) are enforced in the UI, in the backend and in the DB and block recording genuinely extreme values | A clinical decision whether to allow and flag instead of blocking | Clinical |
 | O-03 | Privacy and consent, retention period and grounds for disclosure, Amendment 13 | Documents and legal advice | Owner + legal |
 | O-04 | Whether a patient sees the staff member's identity; price; service area | Product decision | Owner |

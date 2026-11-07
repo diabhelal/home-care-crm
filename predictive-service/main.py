@@ -679,7 +679,10 @@ class MedicalWarningResponse(BaseModel):
 
 
 _CONCERN_HE = {"low": "נמוכה", "moderate": "בינונית", "high": "גבוהה"}
-_REASSESS_HOURS_BY_CONCERN = {"high": 2.0, "moderate": 6.0, "low": 24.0}
+# "insufficient_data": אין מדדים בדוח האחרון ואין טריגר פעיל מהיסטוריה. זה אינו "דאגה נמוכה": לא נבדק דבר.
+# המרווח להערכה חוזרת (2 שעות, הקצר ביותר) הוא פרמטר חדש הממתין לאישור הבעלים/גורם רפואי.
+INSUFFICIENT_DATA_LABEL_HE = "אין מספיק נתונים להערכה"
+_REASSESS_HOURS_BY_CONCERN = {"high": 2.0, "moderate": 6.0, "low": 24.0, "insufficient_data": 2.0}
 
 
 @app.post("/predict/medical-warning", response_model=MedicalWarningResponse)
@@ -757,6 +760,9 @@ def predict_medical_warning(req: MedicalWarningRequest):
         concern = "high"
     elif current_risk.level == "yellow" or any(t.severity == "medium" for t in trigger_list):
         concern = "moderate"
+    elif current_risk.level == "no_data" and not trigger_list:
+        # בלי מדדים בדוח האחרון ובלי התראה תקפה ממדדים קודמים: לא "נמוכה", אלא לא הוערך.
+        concern = "insufficient_data"
     else:
         concern = "low"
 
@@ -782,7 +788,10 @@ def predict_medical_warning(req: MedicalWarningRequest):
     elif trend == "improving":
         explanation_parts.append("המגמה הכללית משתפרת לעומת המדידה הקודמת.")
     explanation_parts.append(f"רמת הסיכון הנוכחית: {current_risk.level_label}.")
-    explanation_parts.append(f"רמת דאגה לטווח קצר: {_CONCERN_HE[concern]}.")
+    if concern == "insufficient_data":
+        explanation_parts.append(f"{INSUFFICIENT_DATA_LABEL_HE}: לא הוזנו מדדים. יש למדוד ולתעד מדדים כדי לקבל הערכה.")
+    else:
+        explanation_parts.append(f"רמת דאגה לטווח קצר: {_CONCERN_HE[concern]}.")
     explanation = " ".join(explanation_parts)
 
     return MedicalWarningResponse(
