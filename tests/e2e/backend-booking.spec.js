@@ -156,7 +156,7 @@ test("ניסיון חוזר אחרי איבוד תשובה שולח אותו Ide
   await context.close();
 });
 
-test("שגיאת שרת עם קוד (idempotency_conflict): מוצגת ההודעה של השרת, והניסיון הבא מקבל מפתח חדש", async ({ browser }) => {
+test("שגיאת שרת עם קוד (idempotency_conflict): מוצגת ההודעה של השרת, והמפתח נשמר (מפתח חדש עלול ליצור הזמנה כפולה)", async ({ browser }) => {
   const IDEM = "לא ניתן היה לאמת את ההזמנה הקודמת. אנא רענן ובדוק ב'ההזמנות שלי' לפני ניסיון נוסף";
   const { context, page, ctl } = await setup(browser);
   await fillBooking(page);
@@ -169,7 +169,7 @@ test("שגיאת שרת עם קוד (idempotency_conflict): מוצגת ההוד�
   await expect(page.locator("#confirmation-panel")).toBeVisible();
   const posts = ctl.requests.filter((r) => r.method === "POST" && r.path === "/bookings/request");
   expect(posts).toHaveLength(2);
-  expect(posts[1].headers["idempotency-key"]).not.toBe(posts[0].headers["idempotency-key"]); // אותו מפתח היה חוזר על אותו קונפליקט
+  expect(posts[1].headers["idempotency-key"]).toBe(posts[0].headers["idempotency-key"]); // כשל 5xx: המפתח נשמר, אחרת ניסיון חוזר עלול ליצור הזמנה כפולה
   await context.close();
 });
 

@@ -520,8 +520,7 @@
         setButtonLoading(confirmBtn, false);
         if (error && error.name === "BackendError") {
           // רק כשל זמני (רשת/timeout/שרת) שומר את המפתח — כשל מוחלט מקבל מפתח חדש בניסיון הבא
-          // idempotency_conflict: אותו מפתח היה חוזר על אותו קונפליקט, לכן מפתח חדש (המשתמש מונחה לבדוק "ההזמנות שלי" קודם)
-          if (!["network", "timeout", "server"].includes(error.kind) || error.code === "idempotency_conflict") clearIdempotencyKey();
+          if (!["network", "timeout", "server"].includes(error.kind)) clearIdempotencyKey();
           showError(errorBox, (error.kind === "conflict" ? "" : t("booking.errSavingBooking")) + backendErrorMessage(error));
           if (error.kind === "conflict") {
             selectedSlot = null;
