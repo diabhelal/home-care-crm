@@ -41,7 +41,7 @@ cd predictive-service && source .venv/bin/activate && uvicorn main:app --reload 
 ```
 
 ## טסטים / CI
-CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות על כל ההיסטוריה, `node --test tests/unit/*.test.js`, `pytest` של `predictive-service/`, `pytest` של `backend/` (כולל `backend/tests_db` על Postgres חד-פעמי, ה-job `backend-tests`), ו-16 קבצי Playwright ממוקקים (בלי DB חי). `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא הורצו (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים) ואסור להריצם מול הפרויקט החי.
+CI (`.github/workflows/ci.yml`) מריץ על כל push: סריקת סודות על כל ההיסטוריה, `node --test tests/unit/*.test.js`, `pytest` של `predictive-service/`, `pytest` של `backend/` (כולל `backend/tests_db` על Postgres חד-פעמי, ה-job `backend-tests`), ו-23 קבצי Playwright ממוקקים (בלי DB חי). `booking.spec.js`/`visit-report.spec.js` נוגעים ב-DB חי, `workflow_dispatch` בלבד, לא הורצו (דורש פרויקט Supabase ייעודי לבדיקות שעדיין לא קיים) ואסור להריצם מול הפרויקט החי.
 
 ## הוראה קבועה: ענף ו-PR לכל פיצ'ר (הוראת הבעלים, 2026-10-30; מחליפה את ההוראה מ-2026-10-17 על push ישיר ל-main)
 כל פיצ'ר או תיקון מפותח **בענף נפרד** (`feature/<שם>`), גם בעבודה לבד. בסיום, אחרי בדיקות מתאימות (`node --test tests/unit/*.test.js`, Playwright הממוקק, `pytest` לפי מה שנגע): commit, `git push -u origin <branch>`, ופתיחת **Pull Request אל `main`** (`gh pr create`) עם תיאור: מה השתנה, בדיקות ותוצאותיהן, מיגרציות שלא הוחלו. אימות: `gh pr view` ו-CI ירוק על ה-PR.

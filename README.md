@@ -131,20 +131,21 @@ Without the backend, booking shows "service unavailable" by design. Without the 
 **Configuration (no secrets in Git):** the frontend reads `public/config.js` (`SUPABASE_URL`, publishable key, `BACKEND_URL`, `PREDICTIVE_SERVICE_URL`, `SMS_LOGIN_ENABLED`, `DEMO_MODE`). The backend reads `backend/.env` (template: `backend/.env.example`). Full variable table: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) and [`backend/README.md`](backend/README.md).
 
 ## Testing and quality
-Measured on `main` at `131dd85` on 2026-11-05:
+Measured on `main` at `cba669c` on 2026-11-07 (database tests: last measured at `78d93fa`, see [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md); not re-run on 2026-11-07):
 
 | Suite | Command | Result |
 |---|---|---|
-| JavaScript unit | `node --test tests/unit/*.test.js` | 57 pass |
-| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report)\.spec\.js$" \| xargs npx playwright test` | 82 pass (18 spec files) |
-| Backend | `cd backend && pytest -q --ignore=tests_db` | 139 pass |
-| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 95 pass (checked on Postgres 16 and 18) |
+| JavaScript unit | `node --test tests/unit/*.test.js` | 75 pass |
+| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report)\.spec\.js$" \| xargs npx playwright test` | 109 pass (24 spec files) |
+| Backend | `cd backend && pytest -q --ignore=tests_db` | 208 pass |
+| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 219 pass (Postgres 16 and 18) |
 | Migration proposals | `python backend/scripts/verify_proposed_sql.py` | applies, re-applies and rolls back every proposal |
-| Predictive service | `cd predictive-service && pytest -q` | 17 pass |
+| Predictive service | `cd predictive-service && pytest -q` | 46 pass |
 
-**CI** (`.github/workflows/ci.yml`) runs on every push: secret scan over the full history, unit tests, predictive-service tests, backend + isolated-database tests, and 16 of the mocked Playwright specs. **Known exclusions:**
+**CI** (`.github/workflows/ci.yml`) runs on every push: secret scan over the full history, unit tests, predictive-service tests, backend + isolated-database tests, and 23 of the 24 mocked Playwright specs. **Known exclusions:**
 - `booking.spec.js` and `visit-report.spec.js` write to a real database; they are manual-only and must never run against the live project (a dedicated test project does not exist yet).
-- The patient-isolation and trend-forecast specs pass locally but are not yet in the CI list.
+- `trend-forecast.spec.js` passes locally but is not in the CI list (the patient-isolation and comprehensive-wording specs are).
+- Intermittent failures: in full serial runs of the mocked suite one test occasionally fails at page start (the admin page stays on "loading"), different each run, on unmodified `main` as well; each passes when re-run alone. Not yet investigated.
 - Not tested: real-browser accessibility tooling, a screen reader, and the complete patient-request-to-completion path on a hosted deployment.
 
 ## Project structure
@@ -167,7 +168,7 @@ File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Fold
 |---|---|
 | **On `main`** | Everything in [Features](#features); isolation fixes for patient records and visit reports; trend-forecast button fix; rule-based risk engine; offline drafts; CI |
 | **On `main`, database part not applied** | Staff deactivation instead of deletion, measurement history, risk-status age, amendments to completed reports, patient archive and record export (UI and tests on `main`; SQL `009`, `011`-`013` not applied to the live database) |
-| **Open pull requests (not merged; CI state per PR in [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md))** | Offline-draft safety ([#27](https://github.com/diabhelal/home-care-crm/pull/27), [#33](https://github.com/diabhelal/home-care-crm/pull/33)); Service Worker ([#32](https://github.com/diabhelal/home-care-crm/pull/32)); backend reliability ([#25](https://github.com/diabhelal/home-care-crm/pull/25), [#28](https://github.com/diabhelal/home-care-crm/pull/28)); predictive input validation and wording ([#24](https://github.com/diabhelal/home-care-crm/pull/24)); no physical delete in the UI and author-only amendments ([#31](https://github.com/diabhelal/home-care-crm/pull/31)); admin can pause a service such as blood tests ([#35](https://github.com/diabhelal/home-care-crm/pull/35)); test harness ([#29](https://github.com/diabhelal/home-care-crm/pull/29)); opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18)) |
+| **Open pull requests (see [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md))** | Opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18)); archive of two historical plans ([#21](https://github.com/diabhelal/home-care-crm/pull/21), stacked on #19); an older session-handoff PR ([#34](https://github.com/diabhelal/home-care-crm/pull/34), outdated: merging it would roll back newer `CLAUDE.md`/`HANDOFF.md` text); Dependabot dependency updates |
 | **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`019` record integrity, archive/void and access rules ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35). The live database has 23 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) |
 | **Not built** | Hosting with HTTPS, MFA, privacy and consent documents, penetration test, validated ML model, real-time updates, external alerting (email/SMS/phone) |
 
