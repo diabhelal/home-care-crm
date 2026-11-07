@@ -836,7 +836,8 @@
   // עדכון דוח של איש צוות אחר ייכשל בשקט RLS-wise ויוצג כשגיאה ידידותית.
 
   async function prRenderVitalsTab(content) {
-    const [visits, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments)]);
+    const [visits0, amendments, measured] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments), prCached("measurements", prFetchMeasurements)]);
+    const visits = mergeMeasurementsIntoVisits(visits0, measured && measured.rows);   // תצוגה בלבד: מדידות הביקורים + מדידות שנוספו
     if (!visits.length) {
       content.innerHTML = `<div class="empty-state">אין עדיין מדידות מביקורים למטופל זה</div><div id="pr-measurements"></div>`;
       renderMeasurementsSection(document.getElementById("pr-measurements"), () => prRenderVitalsTab(content));

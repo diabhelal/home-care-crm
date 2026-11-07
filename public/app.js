@@ -604,7 +604,7 @@ function vitalsHistoryTableHtml(visits, amendments) {
       const fixed = c.corrected ? ` <span class="vh-corrected" title="תוקן בדיעבד; הערך המקורי שנרשם בביקור: ${c.original ?? "—"}">✎ מקור ${c.original ?? "—"}</span>` : "";
       return `<td>${c.value === null ? "—" : `<strong>${c.value}</strong>${vitalsDeltaHtml(c.delta)}${fixed}`}</td>`;
     }).join("");
-    return `<tr><th scope="row">${formatDateHe(d)} ${formatTimeHe(d)}</th>${tds}</tr>`;
+    return `<tr><th scope="row">${formatDateHe(d)} ${formatTimeHe(d)}${visit._measurement ? ` <span class="vh-unit">(מדידה נוספת${visit.booking_id ? ", ביקור #" + visit.booking_id : ""})</span>` : ""}</th>${tds}</tr>`;
   }).join("");
   return `<div style="overflow-x:auto;" tabindex="0" role="group" aria-label="טבלה (ניתנת לגלילה אופקית)"><table class="admin-table vh-table"><thead><tr><th scope="col">תאריך ושעה</th>${head}</tr></thead><tbody>${body}</tbody></table></div><p style="color:var(--text-muted); font-size:12px; margin:8px 0 0;">כל בדיקה נשמרת בתיק ואינה נמחקת. החץ מציג את השינוי מהמדידה הקודמת של אותו מדד.</p>`;
 }

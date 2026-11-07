@@ -389,3 +389,10 @@ function prVitalChartSvg(points) {
     </svg>
   `;
 }
+
+// מדידות שנוספו לתיק (כמה שרוצים, גם כמה באותו ביקור) מוצגות באותה היסטוריה, באותו גרף ובכרטיס "מדידה אחרונה" של מדידות הביקורים.
+// תצוגה בלבד: הנתונים לא משתנים, ו"ניתוח בסיס אישי" נשאר מחושב על מדידות הביקורים בלבד (המדידות הנוספות אינן קלט למנוע הסיכון).
+function mergeMeasurementsIntoVisits(visits, measurements) {
+  const extra = (measurements || []).map((m) => ({ ...m, id: "m" + m.id, visit_date: m.measured_at, _measurement: true }));
+  return (visits || []).concat(extra).sort((a, b) => new Date(b.visit_date) - new Date(a.visit_date));
+}
