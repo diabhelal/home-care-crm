@@ -135,16 +135,18 @@ Measured on `main` at `9222f3a` on 2026-11-07 (database tests re-run on the clea
 
 | Suite | Command | Result |
 |---|---|---|
-| JavaScript unit | `node --test tests/unit/*.test.js` | 76 pass |
-| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report)\.spec\.js$" \| xargs npx playwright test` | 113 pass (24 spec files) |
-| Backend | `cd backend && pytest -q --ignore=tests_db` | 210 pass |
-| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 221 pass (Postgres 16 and 18) |
+| JavaScript unit | `node --test tests/unit/*.test.js` | 83 pass |
+| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report\|trend-forecast)\.spec\.js$" \| xargs npx playwright test` | 100 pass (23 spec files, the CI set) |
+| Backend | `cd backend && pytest -q --ignore=tests_db` | 215 pass |
+| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 223 pass |
 | Migration proposals | `python backend/scripts/verify_proposed_sql.py` | applies, re-applies and rolls back every proposal |
-| Predictive service | `cd predictive-service && pytest -q` | 46 pass |
+| Predictive service | `cd predictive-service && pytest -q` | 48 pass |
 
-**CI** (`.github/workflows/ci.yml`) runs on every push: secret scan over the full history, unit tests, predictive-service tests, backend + isolated-database tests, and 23 of the 24 mocked Playwright specs. **Known exclusions:**
+Counts measured locally on 2026-11-07 (`main` `cd8c913` content; CI green on the same commit).
+
+**CI** (`.github/workflows/ci.yml`) runs on every push: secret scan over the full history, documentation links and the migration ledger (`scripts/migration_ledger.py --check`), unit tests, predictive-service tests, backend + isolated-database tests, a dependency vulnerability audit (pip-audit on the lock files + `npm audit`), and every mocked Playwright spec selected by glob (23 of 24; exclusions below are explicit). **Known exclusions:**
 - `booking.spec.js` and `visit-report.spec.js` write to a real database; they are manual-only and must never run against the live project (a dedicated test project does not exist yet).
-- `trend-forecast.spec.js` passes locally but is not in the CI list (the patient-isolation and comprehensive-wording specs are).
+- `trend-forecast.spec.js` is explicitly excluded in CI (flaky).
 - Intermittent failures: in full serial runs of the mocked suite one test occasionally fails at page start (the admin page stays on "loading"), different each run, on unmodified `main` as well; each passes when re-run alone. Not yet investigated.
 - Not tested: real-browser accessibility tooling, a screen reader, and the complete patient-request-to-completion path on a hosted deployment.
 
