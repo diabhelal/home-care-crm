@@ -5,7 +5,7 @@ import psycopg
 
 from tests_db.conftest import as_postgres, as_user, new_uuid
 from tests_db.test_db_guards import insert_booking, seed
-from tests_db.test_visit_report_integrity import attempt
+from tests_db.test_visit_report_integrity import assert_delete_restricts, attempt
 
 INS = ("insert into patient_measurements(patient_id, measured_at, systolic_bp, pulse, note) "
        "values (%s, %s, %s, %s, %s) returning id")
