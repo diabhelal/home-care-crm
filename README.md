@@ -92,7 +92,7 @@ An assessment is computed by the backend, attested with an HMAC, and only then s
 **Known gaps (not yet closed)**
 - Offline drafts live in `localStorage`, separated per user but **not encrypted**.
 - Anonymous booking has no CAPTCHA; MFA and leaked-password protection are not enabled.
-- Migrations `008`-`013` (and the later proposals) exist and are tested on a throwaway database but are **not applied to the live database**. Based on the migration files, administrators there can still physically delete clinical rows such as visit reports; the proposals block this. The live state was last read on 2026-10-31. See [Development status](#development-status).
+- Migrations `019` and `020` were applied to the live database on 2026-11-07 (adding measurements to a chart now works there). Migrations `008`-`013`, `015`-`018` and `021` exist and are tested on a throwaway database but are **not applied to the live database**. Based on the migration files, administrators there can still physically delete clinical rows such as visit reports; the proposals block this. The live state was last read on 2026-10-31. See [Development status](#development-status).
 - No privacy policy, consent flow, penetration test or legal review. Real use would also need hosting with HTTPS.
 
 Full text: [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/REVIEW.md`](docs/REVIEW.md), [`SECURITY.md`](SECURITY.md) (how to report an issue).
@@ -131,14 +131,14 @@ Without the backend, booking shows "service unavailable" by design. Without the 
 **Configuration (no secrets in Git):** the frontend reads `public/config.js` (`SUPABASE_URL`, publishable key, `BACKEND_URL`, `PREDICTIVE_SERVICE_URL`, `SMS_LOGIN_ENABLED`, `DEMO_MODE`). The backend reads `backend/.env` (template: `backend/.env.example`). Full variable table: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) and [`backend/README.md`](backend/README.md).
 
 ## Testing and quality
-Measured on `main` at `cba669c` on 2026-11-07 (database tests: last measured at `78d93fa`, see [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md); not re-run on 2026-11-07):
+Measured on `main` at `9222f3a` on 2026-11-07 (database tests re-run on the cleanup branch before merge):
 
 | Suite | Command | Result |
 |---|---|---|
-| JavaScript unit | `node --test tests/unit/*.test.js` | 75 pass |
-| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report)\.spec\.js$" \| xargs npx playwright test` | 109 pass (24 spec files) |
-| Backend | `cd backend && pytest -q --ignore=tests_db` | 208 pass |
-| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 219 pass (Postgres 16 and 18) |
+| JavaScript unit | `node --test tests/unit/*.test.js` | 76 pass |
+| Mocked browser (Playwright) | `ls tests/e2e/*.spec.js \| grep -vE "/(booking\|visit-report)\.spec\.js$" \| xargs npx playwright test` | 113 pass (24 spec files) |
+| Backend | `cd backend && pytest -q --ignore=tests_db` | 210 pass |
+| Database (throwaway Postgres, no Docker) | `cd backend && pytest tests_db -q` | 221 pass (Postgres 16 and 18) |
 | Migration proposals | `python backend/scripts/verify_proposed_sql.py` | applies, re-applies and rolls back every proposal |
 | Predictive service | `cd predictive-service && pytest -q` | 46 pass |
 
@@ -153,7 +153,7 @@ Measured on `main` at `cba669c` on 2026-11-07 (database tests: last measured at 
 public/               static frontend: pages, js/admin/, js/shared/, app.js, service-worker.js, manifest
 backend/              FastAPI service: app/, tests/, tests_db/ (isolated Postgres), scripts/
 predictive-service/   rule-based clinical engine + inactive ML scaffolding
-supabase/             migrations/ (23, match the live project), proposed/ (not applied), functions/
+supabase/             migrations/ (25, match the live project), proposed/ (not applied), functions/
 tests/                unit/ (node) and e2e/ (Playwright, mocked)
 docs/                 architecture, database, risk engine, security, status, demo
 .github/              CI workflow, Dependabot

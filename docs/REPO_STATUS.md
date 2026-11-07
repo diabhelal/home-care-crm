@@ -78,8 +78,9 @@ Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 | `001`–`007` | **Applied** to the live project on 2026-10-15 (also in `supabase/migrations/`) | `main` |
 | `008`–`013` | Written, tested on isolated Postgres, **not applied** | `main` (`supabase/proposed/`) |
 | `014` | AI-summary migration, reserved | #18 |
-| `015`–`019` | Written, tested on isolated Postgres 16 and 18, **not applied** | `main` (`supabase/proposed/`) |
-| `020` | Measurements outside a booking, **not applied** (tested on isolated Postgres and on the local stack) | `main` (`supabase/proposed/`) |
+| `015`–`018` | Written, tested on isolated Postgres 16 and 18, **not applied** | `main` (`supabase/proposed/`) |
+| `019` | Staff access by active care relationship, **applied to the live project 2026-11-07** (registered `20261107130647`) | `main` (`supabase/migrations/`) |
+| `020` | Measurements outside a booking, **applied to the live project 2026-11-07** (registered `20261107131226`, after 019) | `main` (`supabase/migrations/`) |
 | `021` | Service pause, **not applied** | `main` (`supabase/proposed/`) |
 A fresh project (the planned demo database) takes `supabase/migrations/*.sql` (23 files) and then `008`–`021` (except `014`) in order; `backend/scripts/verify_proposed_sql.py` does exactly this on a throwaway Postgres. Applying anything to a remote database needs a separate owner approval, a verified backup and one file at a time.
 
@@ -99,7 +100,7 @@ What these cover, in the requested order: patient request, admin approval/assign
 
 ## 7. Remaining work and open items
 - **Cloud deployment prerequisites (owner):** a separate demo Supabase project; Render account and a budget decision (backend Starter about $7/month, or Free with sleep); Cloudflare Pages on a `release` branch; then migrations to the demo project, deploy, a full browser run against the public URL. See `DEPLOY.md`.
-- **Not applied (owner approval):** migrations `008`–`019`/`021` anywhere; Auth hardening in the Supabase dashboard (MFA, password length, CAPTCHA for anonymous sign-in, leaked-password protection); a new attestation secret per environment.
+- **Not applied (owner approval):** migrations `008`–`018` and `021` on the live project; Auth hardening in the Supabase dashboard (MFA, password length, CAPTCHA for anonymous sign-in, leaked-password protection); a new attestation secret per environment.
 - **Clinical wording (needs a clinician):** the UI says "מצב תקין" for green; an audit reported one predictive endpoint maps "no data" to a low-concern message (not re-verified). No thresholds were changed.
 - **CI coverage gap:** `cross-patient-isolation.spec.js`, `trend-forecast.spec.js` and `comprehensive-wording.spec.js` are not in `ci.yml`.
 - **Models:** no trained ML model. `ml_targets.py`, `statsmodels`, `scikit-learn` are in active use and are not to be removed; `lstm_interface.py` is a placeholder; SMS login is dormant.
