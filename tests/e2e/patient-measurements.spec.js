@@ -142,6 +142,28 @@ test("אין תקרה: 1,250 מדידות של מטופל נטענות כולן 
   await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(1250);
 });
 
+test("כל המדידות בהיסטוריה: 3 מדידות באותו ביקור + עצמאית מופיעות בטבלת ההיסטוריה ובגרף, לצד מדידת הביקור", async ({ browser }) => {
+  const { page } = await setup(browser, { as: "admin" });
+  const base = Date.now() - 3 * 3600e3;
+  for (const [i, sys] of ["150", "140", "140"].entries()) {
+    await page.selectOption("#pr-m-booking", "7");
+    await page.fill("#pr-m-measured-at", local(new Date(base + i * 30 * 60e3)));
+    await page.fill("#pr-m-systolic_bp", sys);
+    await page.click("#pr-m-add");
+    await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(i + 1);
+  }
+  await page.selectOption("#pr-m-booking", "");
+  await page.fill("#pr-m-measured-at", local(new Date(base - 5 * 3600e3)));
+  await page.fill("#pr-m-systolic_bp", "128");
+  await page.click("#pr-m-add");
+  await expect(page.locator("#pr-measurements tbody tr")).toHaveCount(4);
+  const history = page.locator(".vh-table tbody tr");
+  await expect(history).toHaveCount(5);                                  // מדידת הביקור (1) + 4 שנוספו
+  await expect(page.locator(".vh-table")).toContainText("מדידה נוספת");
+  await expect(page.locator(".vh-table")).toContainText("ביקור #7");
+  await expect(page.locator("#pr-vitals-chart svg")).toBeVisible();      // הגרף כולל גם אותן
+});
+
 test("מיגרציה 020 עדיין לא הוחלה: הסבר במקום טופס שבור", async ({ browser }) => {
   const { page, errors } = await setup(browser, { missing: ["patient_measurements"] });
   await expect(page.locator("#pr-measurements")).toContainText("מיגרציה 020");

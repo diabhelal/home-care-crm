@@ -37,3 +37,21 @@ test("predictiveServiceUnavailableMessage: network errors vs other errors", () =
   assert.equal(ctx.predictiveServiceUnavailableMessage(new Error("boom")), "FRIENDLY");
   assert.equal(ctx.predictiveServiceUnavailableMessage(null), "FRIENDLY");
 });
+
+test("mergeMeasurementsIntoVisits: מדידות שנוספו מוצגות יחד עם הביקורים, החדש ראשון, בלי להתנגש במזהי הדוחות ובלי לשנות את המקור", () => {
+  const ctx = load();
+  const visits = [{ id: 1, visit_date: "2026-11-05T10:00:00Z", pulse: 80 }];
+  const ms = [
+    { id: 1, booking_id: 7, measured_at: "2026-11-05T09:00:00Z", pulse: 90 },
+    { id: 2, booking_id: null, measured_at: "2026-11-06T09:00:00Z", pulse: 70 },
+    { id: 3, booking_id: 7, measured_at: "2026-11-05T09:30:00Z", pulse: 90 },   // אותו ערך בדיוק פעמיים: לא נבלע
+  ];
+  const out = ctx.mergeMeasurementsIntoVisits(visits, ms);
+  assert.deepEqual(Array.from(out, (r) => r.id), ["m2", 1, "m3", "m1"]);
+  assert.equal(out.filter((r) => r._measurement).length, 3);
+  assert.equal(out.find((r) => r.id === 1)._measurement, undefined);
+  assert.equal(visits.length, 1);                       // הקלט לא שונה
+  assert.equal(ms[0].id, 1);
+  assert.deepEqual(Array.from(ctx.mergeMeasurementsIntoVisits(visits, null)), visits);
+  assert.deepEqual(Array.from(ctx.mergeMeasurementsIntoVisits(null, [])), []);
+});
