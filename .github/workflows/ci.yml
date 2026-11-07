@@ -35,6 +35,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python scripts/check_docs.py
+      - name: Migration ledger is current (repo only, no database)
+        run: python scripts/migration_ledger.py --check
 
   unit-tests-js:
     name: JS unit tests (slot calculation)

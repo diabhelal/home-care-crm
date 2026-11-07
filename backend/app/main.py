@@ -36,7 +36,8 @@ def create_app(settings: Settings | None = None,
                repo_factory: Callable[[str], Repository] | None = None,
                geocoder: Geocoder | None = None,
                clock: Callable[[], datetime] | None = None,
-               predictive_client: PredictiveClient | None = None) -> FastAPI:
+               predictive_client: PredictiveClient | None = None,
+               readiness_probe: Callable[[], bool] | None = None) -> FastAPI:
     cfg = settings or Settings.from_env()
     if verifier is None:
         jwks_url = f"{cfg.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json" if cfg.supabase_url else ""
@@ -132,7 +133,32 @@ def create_app(settings: Settings | None = None,
 
     @app.get("/healthz")
     def healthz():
+        """Liveness only: the process answers. Does not touch any dependency."""
         return {"ok": True}
+
+    def _supabase_reachable() -> bool:
+        if not cfg.supabase_url:
+            return False
+        try:
+            r = httpx.get(f"{cfg.supabase_url.rstrip('/')}/auth/v1/health",
+                          headers={"apikey": cfg.supabase_anon_key or ""}, timeout=3.0)
+            return r.status_code == 200
+        except httpx.HTTPError:
+            return False
+
+    probe = readiness_probe or _supabase_reachable
+
+    @app.get("/readyz")
+    def readyz():
+        """Readiness: Supabase (auth + database API) is reachable. 503 otherwise. No secrets or error details in the body.
+        The predictive service is optional (visit reports still save without it), so it does not affect readiness."""
+        ok = False
+        try:
+            ok = bool(probe())
+        except Exception:  # a probe failure is "not ready", never a 500
+            log.warning("readiness probe raised", exc_info=True)
+        body = {"ok": ok, "checks": {"supabase": "ok" if ok else "unavailable"}}
+        return JSONResponse(body, status_code=200 if ok else 503)
 
     @app.get("/availability")
     def availability(start: date, end: date, staff_id: Optional[int] = None,
