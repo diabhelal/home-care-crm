@@ -1,10 +1,9 @@
 """Staff deletion must not erase history (proposed/009). Isolated Postgres, synthetic data only."""
 import psycopg
-import pytest
 
 from tests_db.conftest import as_postgres, as_user
 from tests_db.test_db_guards import T0, insert_booking, seed
-from tests_db.test_visit_report_integrity import COMPLETE, RESTRICT_ERRORS, assert_delete_restricts, attempt, booking
+from tests_db.test_visit_report_integrity import COMPLETE, RESTRICT_ERRORS, attempt, booking
 
 AT2 = "2030-01-07 12:00:00+00"
 

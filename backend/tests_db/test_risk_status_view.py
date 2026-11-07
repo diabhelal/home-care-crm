@@ -1,7 +1,7 @@
 """current_patient_risk (proposed/011): the latest traffic-light status stays visible after the 8h forecast horizon,
 is flagged stale after 24h, and shows when a newer visit report has no assessment yet. Synthetic data only."""
 from tests_db.conftest import as_postgres, as_user
-from tests_db.test_db_guards import T0, insert_booking, seed
+from tests_db.test_db_guards import T0, seed
 from tests_db.test_visit_report_integrity import COMPLETE, booking
 
 

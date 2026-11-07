@@ -3,7 +3,6 @@
 Rules: only an administrator changes the list; nothing is deleted; a pause blocks NEW bookings (and a change of purpose
 or time by a non-admin) for the paused dates, but never cancelling, never existing bookings, and never an administrator."""
 import psycopg
-import pytest
 
 from tests_db.conftest import as_postgres, as_user
 from tests_db.test_db_guards import seed

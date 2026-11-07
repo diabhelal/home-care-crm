@@ -2,7 +2,6 @@
 migrations + the PROPOSED SQL applied. Never connects to the live Supabase project."""
 import json
 import pathlib
-import re
 import tempfile
 import uuid
 

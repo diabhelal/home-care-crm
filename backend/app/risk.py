@@ -30,7 +30,6 @@ from .models import Identity, Staff
 VITAL_KEYS = ("systolic_bp", "diastolic_bp", "blood_sugar", "pulse", "temperature",
               "oxygen_saturation")
 RISK_HORIZON_HOURS = 8           # same value the browser sent
-ATTESTATION_TTL_SECONDS = 300    # keep in sync with the SQL function
 
 UNAVAILABLE_MSG = ("שירות התחזית אינו זמין כרגע. הדוח נשמר כראוי; "
                    "הערכת הסיכון לא בוצעה ולא נשמרה — ניתן לנסות שוב מאוחר יותר.")

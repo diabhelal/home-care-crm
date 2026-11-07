@@ -2,7 +2,6 @@
 completes a visit is the author with role admin); a completed report is locked by locked_at, not by the booking status.
 Isolated Postgres, synthetic data only."""
 import json
-import pathlib
 import threading
 import time
 

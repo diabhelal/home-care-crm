@@ -1,5 +1,4 @@
 """Other patients' addresses/coordinates must never leave the repository layer."""
-from datetime import timedelta
 
 from app.fake_repo import FakeRepo
 from app.models import Booking, Staff

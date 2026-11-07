@@ -141,7 +141,7 @@ def create_app(settings: Settings | None = None,
                 "travel_buffer_minutes": cfg.travel_buffer_minutes}
 
     @app.post("/bookings/request", status_code=201)
-    def request_booking(body: BookingRequestIn, request: Request,
+    def request_booking(body: BookingRequestIn,
                         idempotency_key: Optional[str] = Header(default=None, max_length=128),
                         c: Ctx = Depends(ctx)):
         b, created = c.svc.request_booking(c.identity, body, idempotency_key)
