@@ -673,16 +673,17 @@ class MedicalWarningResponse(BaseModel):
     future_event_models: list[FutureEventResponse]
     short_term_concern: str
     risk_window_hours: float
-    reassessment_recommended_in_hours: float
+    reassessment_recommended_in_hours: Optional[float] = None   # None = no recommendation (insufficient data)
     contributing_factors: list[str]
     explanation: str
 
 
 _CONCERN_HE = {"low": "נמוכה", "moderate": "בינונית", "high": "גבוהה"}
 # "insufficient_data": אין מדדים בדוח האחרון ואין טריגר פעיל מהיסטוריה. זה אינו "דאגה נמוכה": לא נבדק דבר.
-# המרווח להערכה חוזרת (2 שעות, הקצר ביותר) הוא פרמטר חדש הממתין לאישור הבעלים/גורם רפואי.
+# בהחלטת הבעלים אין לו המלצת זמן להערכה חוזרת (לא 2 ולא 24 שעות): reassessment_recommended_in_hours = None.
 INSUFFICIENT_DATA_LABEL_HE = "אין מספיק נתונים להערכה"
-_REASSESS_HOURS_BY_CONCERN = {"high": 2.0, "moderate": 6.0, "low": 24.0, "insufficient_data": 2.0}
+# המרווחים 2/6/24 הקיימים לא עברו בדיקה קלינית (פריט נדחה לבדיקה קלינית, ר' docs/REPO_STATUS.md)
+_REASSESS_HOURS_BY_CONCERN = {"high": 2.0, "moderate": 6.0, "low": 24.0}
 
 
 @app.post("/predict/medical-warning", response_model=MedicalWarningResponse)
@@ -767,7 +768,7 @@ def predict_medical_warning(req: MedicalWarningRequest):
         concern = "low"
 
     risk_window_hours = max([t.decay_window_hours for t in trigger_list], default=24.0)
-    reassessment_hours = _REASSESS_HOURS_BY_CONCERN[concern]
+    reassessment_hours = _REASSESS_HOURS_BY_CONCERN.get(concern)   # None for insufficient_data: no recommendation
 
     contributing_factors = [
         f"{fv.label}: {fv.value} ({LEVEL_LABELS[fv.level]})" for fv in current_risk.flagged_vitals

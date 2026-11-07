@@ -33,7 +33,14 @@ def test_no_vitals_at_all_is_insufficient_data_not_low():
     assert d["short_term_concern"] == "insufficient_data"
     assert INSUFFICIENT_DATA_LABEL_HE in d["explanation"]
     assert "דאגה לטווח קצר: נמוכה" not in d["explanation"]
-    assert d["reassessment_recommended_in_hours"] == 2.0
+    assert d["reassessment_recommended_in_hours"] is None      # owner decision: no recommended interval (not 2h, not 24h)
+    assert "שעות" not in d["explanation"]
+
+
+def test_other_levels_keep_their_existing_reassessment_intervals():
+    assert warn([(1, {"systolic_bp": 120})])["reassessment_recommended_in_hours"] == 24.0
+    assert warn([(1, {"systolic_bp": 150})])["reassessment_recommended_in_hours"] == 6.0
+    assert warn([(1, {"systolic_bp": 200})])["reassessment_recommended_in_hours"] == 2.0
 
 
 def test_green_measurements_remain_low_concern():
