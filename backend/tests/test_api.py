@@ -124,7 +124,6 @@ def test_auto_assignment_skips_busy_staff(world):
 
 def test_auto_assignment_proximity_when_coords(world):
     from dataclasses import replace
-    from app.geo import NoopGeocoder
     from app.main import create_app
     from app.config import Settings
     from fastapi.testclient import TestClient

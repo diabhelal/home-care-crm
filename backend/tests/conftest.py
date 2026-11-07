@@ -1,10 +1,9 @@
-from datetime import datetime, time, timezone
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.auth import TokenVerifier
 from app.config import Settings
 from app.errors import unauthorized
 from app.fake_repo import FakeRepo

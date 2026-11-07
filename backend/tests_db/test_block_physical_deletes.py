@@ -2,7 +2,6 @@
 
 Owner rule 1: no application workflow (admin included) can delete a medical record; deactivating a staff member never
 orphans records; nobody inherits a login. The DB owner / service_role (no auth.uid()) is NOT restricted - tested explicitly."""
-import json
 
 import psycopg
 import pytest

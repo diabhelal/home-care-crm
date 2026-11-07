@@ -4,7 +4,6 @@ import threading
 import time
 
 import psycopg
-import pytest
 
 from tests_db.conftest import as_postgres, as_user, new_uuid
 from tests_db.test_block_physical_deletes import no_jwt

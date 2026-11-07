@@ -2,7 +2,6 @@
 import json
 
 import psycopg
-import pytest
 
 from tests_db.conftest import as_postgres, as_user, new_uuid
 from tests_db.test_db_guards import seed
