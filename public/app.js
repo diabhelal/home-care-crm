@@ -953,14 +953,23 @@ async function prFetchVisitReports() {
 // מדידות שנוספו מחוץ לביקור (proposed/020). אם הטבלה עדיין לא קיימת במסד (המיגרציה לא הוחלה) — available:false
 // והטופס מוסתר עם הסבר, במקום שגיאה שבורה. כשל אחר (רשת/הרשאה) מוצג כשגיאה, לא כ"אין מדידות".
 async function prFetchMeasurements() {
-  const { data, error } = await supabaseClient.from("patient_measurements").select("*")
-    .eq("patient_id", window.currentPatientState.patientId).order("measured_at", { ascending: false }).limit(200);
-  if (error) {
-    const missing = error.code === "PGRST205" || error.code === "42P01" || /patient_measurements/.test(error.message || "") && /not find|does not exist/i.test(error.message || "");
-    console.error("patient_measurements", error);
-    return { rows: [], available: false, missing, error: missing ? null : error };
+  // בלי תקרה: כל המדידות של המטופל נטענות, בדפים של 1000 (תקרת השורות של ה-API) לפי מפתח יציב, ואז ממוינות לפי זמן המדידה.
+  const PAGE = 1000;
+  const patientId = window.currentPatientState.patientId;
+  const rows = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseClient.from("patient_measurements").select("*")
+      .eq("patient_id", patientId).order("id", { ascending: false }).range(from, from + PAGE - 1);
+    if (error) {
+      const missing = error.code === "PGRST205" || error.code === "42P01" || /patient_measurements/.test(error.message || "") && /not find|does not exist/i.test(error.message || "");
+      console.error("patient_measurements", error);
+      return { rows: [], available: false, missing, error: missing ? null : error };
+    }
+    rows.push(...(data || []));
+    if (!data || data.length < PAGE) break;
   }
-  return { rows: data || [], available: true, missing: false, error: null };
+  rows.sort((a, b) => (new Date(b.measured_at) - new Date(a.measured_at)) || (b.id - a.id));
+  return { rows, available: true, missing: false, error: null };
 }
 async function prFetchRiskHistory() {
   const { data, error } = await supabaseClient.from("risk_predictions").select("id, risk_level, trend, predicted_at, visit_report_id").eq("patient_id", window.currentPatientState.patientId).order("predicted_at", { ascending: false }).limit(200);
