@@ -866,6 +866,8 @@ function backendErrorMessage(err) {
   const he = getLang() === "he";
   if (kind === "conflict") return (!he && err.code === "slot_taken") ? t("booking.slotTaken") : (err.message || t("booking.slotTaken"));
   if (kind === "validation") return he ? err.message : t("booking.errServer");
+  // הודעות השרת הללו כתובות בעברית בלבד; בשפות אחרות נשארת ההודעה הכללית המתורגמת
+  if (kind === "server" && he && BACKEND_USER_MESSAGE_CODES.includes(err.code)) return err.message;
   const map = { unconfigured: "errUnconfigured", network: "errNetwork", timeout: "errTimeout", auth: "errAuth", forbidden: "errAuth", server: "errServer" };
   if (map[kind]) return t("booking." + map[kind]);
   return friendlyErrorMessageLocalized(err);

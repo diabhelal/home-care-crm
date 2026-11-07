@@ -156,6 +156,37 @@ test("ניסיון חוזר אחרי איבוד תשובה שולח אותו Ide
   await context.close();
 });
 
+test("שגיאת שרת עם קוד (idempotency_conflict): מוצגת ההודעה של השרת, והמפתח נשמר (מפתח חדש עלול ליצור הזמנה כפולה)", async ({ browser }) => {
+  const IDEM = "לא ניתן היה לאמת את ההזמנה הקודמת. אנא רענן ובדוק ב'ההזמנות שלי' לפני ניסיון נוסף";
+  const { context, page, ctl } = await setup(browser);
+  await fillBooking(page);
+  ctl.serverErrorNext = { status: 500, code: "idempotency_conflict", detail: IDEM };
+  await page.click("#confirm-btn");
+  await expect(page.locator("#error-box")).toContainText("ההזמנות שלי"); // ההודעה של השרת, לא "נא לנסות שוב"
+  await expect(page.locator("#confirmation-panel")).toBeHidden();
+  await expect(page.locator("#confirm-btn")).toBeEnabled();
+  await page.click("#confirm-btn");
+  await expect(page.locator("#confirmation-panel")).toBeVisible();
+  const posts = ctl.requests.filter((r) => r.method === "POST" && r.path === "/bookings/request");
+  expect(posts).toHaveLength(2);
+  expect(posts[1].headers["idempotency-key"]).toBe(posts[0].headers["idempotency-key"]); // כשל 5xx: המפתח נשמר, אחרת ניסיון חוזר עלול ליצור הזמנה כפולה
+  await context.close();
+});
+
+test("שגיאת שרת עם קוד (upstream_unavailable 502): מוצגת ההודעה של השרת, והמפתח נשמר לניסיון חוזר", async ({ browser }) => {
+  const MSG = "שירות הנתונים אינו זמין כרגע, אנא נסה שוב";
+  const { context, page, ctl } = await setup(browser);
+  await fillBooking(page);
+  ctl.serverErrorNext = { status: 502, code: "upstream_unavailable", detail: MSG };
+  await page.click("#confirm-btn");
+  await expect(page.locator("#error-box")).toContainText(MSG);
+  await page.click("#confirm-btn");
+  await expect(page.locator("#confirmation-panel")).toBeVisible();
+  const posts = ctl.requests.filter((r) => r.method === "POST" && r.path === "/bookings/request");
+  expect(posts[1].headers["idempotency-key"]).toBe(posts[0].headers["idempotency-key"]); // כשל זמני: אותו מפתח, בלי כפילות
+  await context.close();
+});
+
 test("מנהל: בקשות מוצגות ראשונות ומסומנות, אישור הופך ל'אושר' אצל המטופל, ודחייה מציגה 'לא אושרה' עם הזמנה מחדש", async ({ browser }) => {
   const { context, page, ctl } = await setup(browser);
   // שתי בקשות מאורחים שונים
