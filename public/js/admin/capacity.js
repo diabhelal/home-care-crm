@@ -44,7 +44,7 @@ document.getElementById("capacity-forecast-btn").addEventListener("click", async
     `;
   } catch (err) {
     const isConnRefused = /failed to fetch|network|load failed/i.test(err?.message || "");
-    resultEl.innerHTML = `<p style="color:var(--danger);">${isConnRefused ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000." : friendlyErrorMessage(err)}</p>`;
+    resultEl.innerHTML = `<p style="color:var(--danger);">${isConnRefused ? "שירות התחזית לא זמין. יש להריץ אותו מקומית (predictive-service) על פורט 8000." : escapeHtml(friendlyErrorMessage(err))}</p>`;
   } finally {
     setButtonLoading(btn, false);
   }

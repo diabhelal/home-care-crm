@@ -843,11 +843,10 @@ function renderAccountCard(host, user, opts) {
 }
 
 // קוד מצב ידידותי למטופל: requested | confirmed | in_progress | completed | cancelled | rejected.
-// משקף את display_state של ה-backend (backend/app/state.py); כשאין approval_status (שורה ישנה / עמודה
-// שטרם הוחלה) מתייחסים להזמנה כמאושרת, כמו לפני מחזור הבקשה->אישור.
+// משקף את display_state של ה-backend (backend/app/state.py); כשאין approval_status (שורה ישנה / עמודה שטרם הוחלה) מתייחסים להזמנה כבקשה ממתינה — לא מציגים אישור שלא ניתן.
 function bookingDisplayState(b) {
   if (b.display_state) return b.display_state;
-  const approval = b.approval_status || "confirmed";
+  const approval = b.approval_status || "requested";
   if (approval === "rejected") return "rejected";
   if (b.status === "cancelled") return "cancelled";
   if (b.status === "completed") return "completed";

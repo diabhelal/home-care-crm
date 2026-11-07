@@ -68,7 +68,7 @@ async function fillBooking(page, { slotIndex = 0, name = NAME, nationalId = "100
   await page.goto(BASE + "/index.html");
   await page.locator("#services-grid a").first().click();
   await page.waitForURL(/booking\.html\?purpose=/);
-  await expect(page.locator("#staff-name")).toContainText("הזמינים המתאימים");
+  await expect(page.locator("#staff-name")).toContainText("ייקבע עם אישור");
   await page.fill("#patient-address", ADDRESS);
   await page.locator(".date-pill").nth(1).click(); // מחר
   const slot = page.locator(".slot-btn:not([disabled])").nth(slotIndex);

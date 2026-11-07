@@ -35,7 +35,7 @@ async function fillBooking(page, { slotIndex = 0, name = "מטופל בדיקה"
   await page.goto(BASE + "/index.html");
   await page.locator("#services-grid a").first().click();
   await page.waitForURL(/booking\.html\?purpose=/);
-  await expect(page.locator("#staff-name")).toContainText("הזמינים המתאימים");
+  await expect(page.locator("#staff-name")).toContainText("ייקבע עם אישור");
   await page.fill("#patient-address", "רחוב הבדיקה 5, עיר");
   await page.locator(".date-pill").nth(1).click();
   const slot = page.locator(".slot-btn").nth(slotIndex);
@@ -244,7 +244,7 @@ test("מנהל: בקשות מוצגות ראשונות ומסומנות, איש�
   await expect(rejected).toContainText("הבקשה לא אושרה");
   await rejected.getByRole("button", { name: "הזמנה חוזרת" }).or(rejected.locator("button.btn-secondary").first()).first().click();
   await page.waitForURL(/booking\.html/);
-  await expect(page.locator("#staff-name")).toContainText("הזמינים המתאימים"); // בלי איש צוות מסוים
+  await expect(page.locator("#staff-name")).toContainText("ייקבע עם אישור"); // בלי איש צוות מסוים
   await context.close();
 });
 

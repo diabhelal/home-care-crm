@@ -21,7 +21,7 @@ async function loadStaff() {
     error = err;
   }
   if (error) {
-    tbody.innerHTML = `<tr><td colspan="10">${friendlyErrorMessage(error)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10">${escapeHtml(friendlyErrorMessage(error))}</td></tr>`;
     return;
   }
   staffListCache = data || []; // לשימוש חוזר בתפריט שיוך-מחדש בתור העבודה, בלי לשלוף שוב

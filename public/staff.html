@@ -199,7 +199,8 @@
           ${nextLine}
         `;
         card.addEventListener("click", () => {
-          sessionStorage.setItem("selected_staff", JSON.stringify(s));
+          // המטופל אינו בוחר איש צוות: מעבר לבקשת ביקור, השיבוץ נעשה בשרת ובידי המנהל.
+          sessionStorage.removeItem("selected_staff");
           window.location.href = "booking.html";
         });
         grid.appendChild(card);

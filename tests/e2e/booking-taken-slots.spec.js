@@ -1,11 +1,11 @@
 // בדיקת רגרסיה: booking.html מקבל זמינות מה-backend (GET /availability) — לא מחשב בדפדפן ולא
-// קורא ל-RPC taken_slots. הבדיקה מוודאת את חוזה ה-JS: הפרמטרים (start/end/staff_id), שמשבצת
+// קורא ל-RPC taken_slots. הבדיקה מוודאת את חוזה ה-JS: הפרמטרים (start/end, בלי staff_id — המטופל לא בוחר צוות), שמשבצת
 // שהשרת לא החזיר (תפוסה / בתוך מרווח נסיעה) לא מוצגת, ושהמשבצות שחזרו ניתנות לבחירה.
 // הלוגיקה בפועל (התנגשות, מרווח נסיעה) נבדקת ב-backend/tests (pytest).
 const { test, expect } = require("@playwright/test");
 const { fakeSupabaseSource } = require("./helpers/fake-supabase");
 
-test("booking.html: זמינות מה-backend עם staff_id/start/end נכונים; משבצת שלא הוחזרה לא מוצגת", async ({ page }) => {
+test("booking.html: זמינות מה-backend עם start/end נכונים ובלי staff_id (גם כשיש selected_staff ישן); משבצת שלא הוחזרה לא מוצגת", async ({ page }) => {
   let availabilityUrl = null;
   // Supabase ממוקק: בלי יצירת משתמשי אורח בפרויקט החי
   await page.route("**/@supabase/supabase-js@*", (route) =>
@@ -41,7 +41,9 @@ test("booking.html: זמינות מה-backend עם staff_id/start/end נכוני
   await expect(page.locator(".slot-btn")).toHaveCount(2);
 
   expect(availabilityUrl.pathname).toBe("/availability");
-  expect(availabilityUrl.searchParams.get("staff_id")).toBe("1");
+  expect(availabilityUrl.searchParams.get("staff_id")).toBeNull();   // a stale selected_staff is ignored
+  expect(await page.evaluate(() => sessionStorage.getItem("selected_staff"))).toBeNull();
+  await expect(page.locator("#choose-staff-link")).toHaveCount(0);
   expect(availabilityUrl.searchParams.get("start")).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   expect(availabilityUrl.searchParams.get("end")).toBe(availabilityUrl.searchParams.get("start"));
 

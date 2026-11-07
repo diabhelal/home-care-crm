@@ -3,11 +3,12 @@
 הפרונט (admin.html) קורא ל-endpoints האלה דרך fetch, ומציג את התוצאה בדשבורד הניהול.
 """
 
+import hmac
 import os
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Annotated, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,15 +20,16 @@ from timeseries import MIN_POINTS_FOR_ARIMA, avg_gap_hours, forecast_arima
 
 app = FastAPI(title="home-care-crm predictive service")
 
-# מקומי: כל origin (כולל file:// ו-http://localhost:*). באירוח ציבורי מגדירים ALLOWED_ORIGINS
-# (מופרד בפסיקים) למקור המדויק של האתר, ו-DISABLE_TRAINING=1 לסגירת /train/*.
+# מקומי: localhost:8080 בלבד. באירוח ציבורי מגדירים ALLOWED_ORIGINS (מופרד בפסיקים) למקור המדויק של האתר.
+# /train/* סגור כברירת מחדל: נדרש PREDICTIVE_TRAINING_KEY בסביבה ואותו ערך בכותרת X-Service-Key
+# (DISABLE_TRAINING=1 עדיין סוגר בכל מקרה). הדפדפן שולח רק Content-Type, ולכן CORS מצומצם ל-GET/POST + Content-Type.
 _origins = [o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()]
 _LOCAL_DEV_ORIGINS = ["http://localhost:8080", "http://127.0.0.1:8080"]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_origins or _LOCAL_DEV_ORIGINS,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 
@@ -625,11 +627,16 @@ class TrainModelRequest(BaseModel):
 
 
 @app.post("/train/{target}/{algorithm}")
-def train_model_endpoint(target: str, algorithm: str, req: TrainModelRequest):
+def train_model_endpoint(target: str, algorithm: str, req: TrainModelRequest,
+                         x_service_key: Optional[str] = Header(default=None, max_length=256)):
     """אימון אמיתי — קיים כארכיטקטורה. שום דבר בפרויקט הזה לא קורא לאנדפוינט הזה
     כרגע כי אין דאטה מתויג עם תוצאה קלינית אמיתית לאימון (ר' ml_targets.py)."""
     if os.environ.get("DISABLE_TRAINING") == "1":
         raise HTTPException(status_code=403, detail="אימון מודלים מושבת בסביבה זו.")
+    # default-deny: training writes model files (joblib) that are later loaded, so only an operator holding the key may train.
+    expected = os.environ.get("PREDICTIVE_TRAINING_KEY") or ""
+    if not expected or not x_service_key or not hmac.compare_digest(x_service_key.encode(), expected.encode()):
+        raise HTTPException(status_code=403, detail="אימון מודלים דורש מפתח שירות.")
     try:
         metrics = ml_targets.train_model(target, algorithm, req.X, req.y)
     except ValueError as e:

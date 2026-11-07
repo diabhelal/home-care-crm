@@ -39,7 +39,7 @@ async function prRunSearch() {
     .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
     .limit(10);
   if (requestToken !== prSearchRequestToken) return; // תוצאה מיושנת — חיפוש חדש יותר כבר בדרך
-  if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
+  if (error) { resultsEl.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(error))}</p>`; return; }
   if (!data || data.length === 0) { resultsEl.innerHTML = `<p class="empty-state">לא נמצאו מטופלים.</p>`; return; }
   resultsEl.innerHTML = "";
   data.forEach((p) => {
@@ -67,7 +67,7 @@ async function openPatientRecord(patientId) {
     await prRenderHeader();
   } catch (err) {
     if (prIsStale(err)) return;
-    document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+    document.getElementById("pr-header").innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(err))}</p>`;
     return;
   }
   if (window.currentPatientState !== recordState) return;
@@ -270,7 +270,7 @@ async function prSwitchTab(key) {
     await tab.render(content);
   } catch (err) {
     if (prIsStale(err) || window.currentPatientState !== state || content._prRenderToken !== token) return;
-    content.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(err)}</p>`;
+    content.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(err))}</p>`;
   }
 }
 
@@ -668,7 +668,7 @@ async function prRenderPlanVisits(planId) {
   const planState = window.currentPatientState;
   const { data, error } = await supabaseClient.from("service_plan_visits").select("*").eq("service_plan_id", planId).order("planned_date");
   prAssertCurrent(planState);
-  if (error) { el.innerHTML = friendlyErrorMessage(error); return; }
+  if (error) { el.innerHTML = escapeHtml(friendlyErrorMessage(error)); return; }
   el.innerHTML = (data && data.length)
     ? `<ul style="margin:8px 0 0; padding-inline-start:18px; font-size:13px;">${data.map((v) => `<li>${formatDateHe(new Date(v.planned_date))} ${formatTimeHe(new Date(v.planned_date))} — ${v.status}</li>`).join("")}</ul>`
     : `<p style="color:var(--text-muted); font-size:13px;">טרם נוצרו ביקורים מתוכננים.</p>`;

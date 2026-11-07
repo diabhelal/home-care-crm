@@ -259,7 +259,7 @@ async function loadBookings() {
   }
   if (error) {
     if (requestToken !== workQueueRequestToken) return;
-    container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`;
+    container.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(error))}</p>`;
     return;
   }
   const { riskByPatient, patientsWithOpenTask } = await fetchRiskAndTasks();
@@ -282,7 +282,7 @@ async function searchWorkQueue(raw) {
     .or(`full_name.ilike.%${q}%,phone.ilike.%${q}%,national_id.ilike.%${q}%`)
     .limit(20);
   if (requestToken !== workQueueRequestToken) return;
-  if (patientsError) { container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(patientsError)}</p>`; return; }
+  if (patientsError) { container.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(patientsError))}</p>`; return; }
   if (!patients || !patients.length) { container.innerHTML = `<p class="empty-state">לא נמצא מטופל מתאים</p>`; return; }
   const { data, error } = await supabaseClient
     .from("bookings")
@@ -291,7 +291,7 @@ async function searchWorkQueue(raw) {
     .order("scheduled_at", { ascending: false })
     .limit(200);
   if (requestToken !== workQueueRequestToken) return;
-  if (error) { container.innerHTML = `<p style="color:var(--danger);">${friendlyErrorMessage(error)}</p>`; return; }
+  if (error) { container.innerHTML = `<p style="color:var(--danger);">${escapeHtml(friendlyErrorMessage(error))}</p>`; return; }
   const { riskByPatient, patientsWithOpenTask } = await fetchRiskAndTasks();
   if (requestToken !== workQueueRequestToken) return;
   renderWorkQueueBuckets(container, data, riskByPatient, patientsWithOpenTask);

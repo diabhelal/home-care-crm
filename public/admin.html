@@ -497,7 +497,9 @@
   });
 
   document.getElementById("admin-logout-btn").addEventListener("click", async () => {
+    if (!(await confirmSignOutWithOfflineDrafts())) return;   // unsent clinical drafts: sync first or explicit choice
     await supabaseClient.auth.signOut();
+    try { sessionStorage.clear(); } catch (e) {}
     window.location.reload();
   });
 

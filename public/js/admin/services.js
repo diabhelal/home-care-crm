@@ -34,7 +34,7 @@ async function loadServiceAvailability() {
   } catch (err) { error = err; }
   if (error) {
     // טבלה שעדיין לא הוחלה במסד: אומרים זאת במפורש במקום להציג "הכול זמין"
-    tbody.innerHTML = `<tr><td colspan="4">לא ניתן לטעון את זמינות השירותים. ${friendlyErrorMessage(error)}</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4">לא ניתן לטעון את זמינות השירותים. ${escapeHtml(friendlyErrorMessage(error))}</td></tr>`;
     return;
   }
   serviceRowsCache = {};
