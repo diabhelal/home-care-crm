@@ -40,11 +40,7 @@ const PROCEDURE_ORDER = [
 const I18N_STRINGS = {
   he: {
     roleLabels: { nurse: "אח/ות", doctor: "רופא/ה", physiotherapist: "פיזיותרפיסט/ית", caregiver: "מטפל/ת סיעודי/ת" },
-    roleDescriptions: {
-      nurse: "טיפול בפצעים, מתן תרופות ובדיקות דם — בבית שלך",
-    },
     purposeLabels: { checkup: "בדיקה כללית", wound_care: "טיפול בפצע", blood_test: "בדיקת דם", medication: "מתן תרופות", physiotherapy: "פיזיותרפיה", other: "אחר" },
-    statusLabels: { scheduled: "מתוכנן", completed: "הושלם", cancelled: "בוטל" },
     servicePlanStatusLabels: { requested: "התבקש", pending_approval: "ממתין לאישור", active: "פעיל", paused: "מושהה", completed: "הושלם", cancelled: "בוטל" },
     weekdayShort: ["א׳", "ב׳", "ג׳", "ד׳", "ה׳", "ו׳", "ש׳"],
     vitalsLabels: { systolic_bp: 'ל"ד סיסטולי', diastolic_bp: 'ל"ד דיאסטולי', blood_sugar: "סוכר", pulse: "דופק", temperature: "חום גוף", oxygen_saturation: "סטורציה" },
@@ -207,11 +203,7 @@ const I18N_STRINGS = {
 
   en: {
     roleLabels: { nurse: "Nurse", doctor: "Doctor", physiotherapist: "Physiotherapist", caregiver: "Caregiver" },
-    roleDescriptions: {
-      nurse: "Wound care, medication administration and blood tests — at home",
-    },
     purposeLabels: { checkup: "General checkup", wound_care: "Wound care", blood_test: "Blood test", medication: "Medication administration", physiotherapy: "Physiotherapy", other: "Other" },
-    statusLabels: { scheduled: "Scheduled", completed: "Completed", cancelled: "Cancelled" },
     servicePlanStatusLabels: { requested: "Requested", pending_approval: "Pending approval", active: "Active", paused: "Paused", completed: "Completed", cancelled: "Cancelled" },
     weekdayShort: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"],
     vitalsLabels: { systolic_bp: "Systolic BP", diastolic_bp: "Diastolic BP", blood_sugar: "Blood sugar", pulse: "Pulse", temperature: "Body temp.", oxygen_saturation: "O2 saturation" },
@@ -374,11 +366,7 @@ const I18N_STRINGS = {
 
   ar: {
     roleLabels: { nurse: "ممرض/ة", doctor: "طبيب/ة", physiotherapist: "أخصائي/ة علاج طبيعي", caregiver: "مقدم/ة رعاية" },
-    roleDescriptions: {
-      nurse: "العناية بالجروح وإعطاء الأدوية وفحوصات الدم — في منزلك",
-    },
     purposeLabels: { checkup: "فحص عام", wound_care: "العناية بالجروح", blood_test: "فحص دم", medication: "إعطاء أدوية", physiotherapy: "علاج طبيعي", other: "أخرى" },
-    statusLabels: { scheduled: "مجدول", completed: "مكتمل", cancelled: "ملغى" },
     servicePlanStatusLabels: { requested: "تم الطلب", pending_approval: "بانتظار الموافقة", active: "نشط", paused: "متوقف مؤقتًا", completed: "مكتمل", cancelled: "ملغى" },
     weekdayShort: ["أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت"],
     vitalsLabels: { systolic_bp: "ضغط الدم الانقباضي", diastolic_bp: "ضغط الدم الانبساطي", blood_sugar: "سكر الدم", pulse: "النبض", temperature: "حرارة الجسم", oxygen_saturation: "تشبع الأكسجين" },

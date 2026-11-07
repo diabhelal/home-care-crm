@@ -259,20 +259,6 @@ const PR_TABS = [
   { key: "timeline", label: "ציר זמן", render: prRenderTimelineTab },
 ];
 
-function prRenderTabsNav() {
-  const nav = document.getElementById("pr-tabs");
-  nav.innerHTML = "";
-  PR_TABS.forEach((t) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "pr-tab-btn";
-    btn.textContent = t.label;
-    btn.dataset.tab = t.key;
-    btn.addEventListener("click", () => prSwitchTab(t.key));
-    nav.appendChild(btn);
-  });
-}
-
 async function prSwitchTab(key) {
   document.querySelectorAll(".pr-tab-btn").forEach((b) => b.classList.toggle("active", b.dataset.tab === key));
   const content = document.getElementById("pr-tab-content");
@@ -413,79 +399,6 @@ async function prRenderVisitsTab(content) {
 
 // ===== תיעוד תוצאה קלינית בדיעבד — הדאטה המתויג היחיד שחסר כדי שמודל 6
 // (predictive-service/ml_targets.py) יוכל בכלל להתחיל להתאמן פעם בעתיד. =====
-const CLINICAL_OUTCOME_OPTIONS = [
-  { value: "", label: "טרם תועד" },
-  { value: "none", label: "תקין — לא קרה כלום חריג" },
-  { value: "hypoglycemia", label: "היפוגליקמיה" },
-  { value: "severe_hyperglycemia", label: "היפרגליקמיה חמורה" },
-  { value: "respiratory_deterioration", label: "החמרה נשימתית" },
-  { value: "hemodynamic_deterioration", label: "החמרה המודינמית (כולל הלם)" },
-];
-
-function clinicalOutcomeSelectHtml(v) {
-  const options = CLINICAL_OUTCOME_OPTIONS.map(
-    (o) => `<option value="${o.value}" ${(v.clinical_outcome_8h || "") === o.value ? "selected" : ""}>${o.label}</option>`
-  ).join("");
-  return `
-    <div class="field" style="margin-top:10px;">
-      <label for="pr-outcome-select-${v.id}" style="font-size:12px; color:var(--text-muted);">תוצאה קלינית בתוך כ-8 שעות מהביקור (לתיעוד בדיעבד)</label>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <select id="pr-outcome-select-${v.id}" class="pr-outcome-select" data-visit-id="${v.id}" style="max-width:320px;">${options}</select>
-        <span class="pr-outcome-saved" data-visit-id="${v.id}" style="font-size:12px; color:var(--success); display:none;">✓ נשמר</span>
-      </div>
-      <div class="error-msg pr-outcome-error" data-visit-id="${v.id}" role="alert" aria-live="assertive"></div>
-    </div>
-  `;
-}
-
-function bindClinicalOutcomeSelects(content, visits) {
-  content.querySelectorAll(".pr-outcome-select").forEach((sel) => {
-    sel.addEventListener("change", async () => {
-      const visitId = Number(sel.dataset.visitId);
-      const errEl = content.querySelector(`.pr-outcome-error[data-visit-id="${visitId}"]`);
-      const savedEl = content.querySelector(`.pr-outcome-saved[data-visit-id="${visitId}"]`);
-      hideError(errEl);
-      const newVal = sel.value || null;
-      let error = null;
-      try {
-        await backendFetch(`/visits/${encodeURIComponent(visitId)}/clinical-outcome`, { method: "PATCH", body: { clinical_outcome_8h: newVal } });
-      } catch (err) { error = err; }
-      if (error) {
-        const kind = error.kind;
-        showError(errEl, (kind === "forbidden" || kind === "validation" || kind === "conflict" || kind === "auth") && error.message
-          ? error.message : "לא ניתן לשמור את התוצאה הקלינית כרגע. בדוק את החיבור ונסה שוב.");
-        sel.value = visits.find((r) => r.id === visitId)?.clinical_outcome_8h || "";
-        return;
-      }
-      const v = visits.find((r) => r.id === visitId);
-      if (v) v.clinical_outcome_8h = newVal;
-      prInvalidate("visitReports");
-      savedEl.style.display = "inline";
-      setTimeout(() => { savedEl.style.display = "none"; }, 2000);
-    });
-  });
-}
-
-// ----- מדדים -----
-function prVitalChartSvg(points) {
-  if (points.length < 2) return `<p style="color:var(--text-muted);">אין מספיק נתונים לגרף.</p>`;
-  const width = 560, height = 160, pad = 24;
-  const values = points.map((p) => p.value);
-  const min = Math.min(...values), max = Math.max(...values);
-  const range = max - min || 1;
-  const stepX = (width - pad * 2) / (points.length - 1);
-  const xy = (p, i) => [pad + i * stepX, height - pad - ((p.value - min) / range) * (height - pad * 2)];
-  const coords = points.map((p, i) => xy(p, i).map((n) => n.toFixed(1)).join(",")).join(" ");
-  const circles = points.map((p, i) => { const [x, y] = xy(p, i); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#2f7d6e" />`; }).join("");
-  return `
-    <svg viewBox="0 0 ${width} ${height}" style="width:100%; max-width:${width}px; height:${height}px;">
-      <polyline points="${coords}" fill="none" stroke="#2f7d6e" stroke-width="2" />
-      ${circles}
-      <text x="2" y="14" font-size="11" fill="#5b6a67">${max}</text>
-      <text x="2" y="${height - 6}" font-size="11" fill="#5b6a67">${min}</text>
-    </svg>
-  `;
-}
 
 async function prRenderVitalsTab(content) {
   const [visits, amendments] = await Promise.all([prCached("visitReports", prFetchVisitReports), prCached("amendments", prFetchAmendments)]);
