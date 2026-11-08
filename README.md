@@ -131,7 +131,6 @@ Without the backend, booking shows "service unavailable" by design. Without the 
 **Configuration (no secrets in Git):** the frontend reads `public/config.js` (`SUPABASE_URL`, publishable key, `BACKEND_URL`, `PREDICTIVE_SERVICE_URL`, `SMS_LOGIN_ENABLED`, `DEMO_MODE`). The backend reads `backend/.env` (template: `backend/.env.example`). Full variable table: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md) and [`backend/README.md`](backend/README.md).
 
 ## Testing and quality
-Measured on `main` at `9222f3a` on 2026-11-07 (database tests re-run on the cleanup branch before merge):
 
 | Suite | Command | Result |
 |---|---|---|
@@ -170,15 +169,15 @@ File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Fold
 |---|---|
 | **On `main`** | Everything in [Features](#features); isolation fixes for patient records and visit reports; trend-forecast button fix; rule-based risk engine; offline drafts; CI |
 | **On `main`, database part not applied** | Staff deactivation instead of deletion, measurement history, risk-status age, amendments to completed reports, patient archive and record export (UI and tests on `main`; SQL `009`, `011`-`013` not applied to the live database) |
-| **Open pull requests (see [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md))** | Opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18)); archive of two historical plans ([#21](https://github.com/diabhelal/home-care-crm/pull/21), stacked on #19); an older session-handoff PR ([#34](https://github.com/diabhelal/home-care-crm/pull/34), outdated: merging it would roll back newer `CLAUDE.md`/`HANDOFF.md` text); Dependabot dependency updates |
-| **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`019` record integrity, archive/void and access rules ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35). The live database has 23 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) |
+| **Not in `main` (closed without merging on 2026-11-08)** | Opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18), deferred), archive of two historical plans ([#21](https://github.com/diabhelal/home-care-crm/pull/21)), an outdated session-handoff PR ([#34](https://github.com/diabhelal/home-care-crm/pull/34)) and Dependabot dependency bumps. There are no open pull requests; the unmerged code is kept in the owner's private backup |
+| **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`018` record integrity and archive/void ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35). `019` and `020` were applied on 2026-11-07; the live database has 25 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) and [`docs/MIGRATION_LEDGER.md`](docs/MIGRATION_LEDGER.md) |
 | **Not built** | Hosting with HTTPS, MFA, privacy and consent documents, penetration test, validated ML model, real-time updates, external alerting (email/SMS/phone) |
 
-The complete branch/PR map, merge order, version-cache coordination and test evidence: [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md). The stabilisation plan: [`docs/STABILIZATION_PLAN.md`](docs/STABILIZATION_PLAN.md).
+The submitted version is tagged [`v1.0`](https://github.com/diabhelal/home-care-crm/releases/tag/v1.0). Repository state, merge history and test evidence: [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md). The stabilisation plan (historical, 2026-11-04): [`docs/STABILIZATION_PLAN.md`](docs/STABILIZATION_PLAN.md).
 
 ## Roadmap
 Items marked *(owner)* need a decision or approval.
-1. Review and merge the open PRs in the order given in [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md) *(owner)*.
+1. Decide whether to revive any of the closed, unmerged work (LLM summary #18, offline-draft hardening, visible-safety WIP); it is preserved in the owner's backup *(owner)*.
 2. Apply the proposed migrations to the live database one at a time, after a verified backup *(owner approval for each)*.
 3. Close the visible-safety gaps found in review: show data-load failures in the staff screen, show the risk result after saving a report, confirm before discarding a visit report.
 4. Encrypt offline drafts without any risk of losing unsent clinical text (design and key-recovery options first *(owner)*).

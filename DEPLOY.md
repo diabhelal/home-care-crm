@@ -44,7 +44,7 @@
 - [ ] משתמש מנהל: ליצור בדאשבורד דרך Auth ← Add user, ואז להגדיר `app_metadata.is_admin = true` (רק דרך Admin API/SQL). סיסמה נמסרת בצ'אט בלבד, לא בקובץ.
 
 ### 3. אירוח האתר הסטטי
-- [ ] Cloudflare Pages מחובר לריפו `diabhelal/home-care-crm`. **Production branch: `release`** (לא `main`), כך שמיזוג ל-`main` לא מפרסם דבר אוטומטית; לפרסום מקדמים את `release` ל-commit המאושר.
+- [ ] Cloudflare Pages מחובר לריפו `diabhelal/home-care-crm`. **Production branch: `release`** (לא `main`), כך שמיזוג ל-`main` לא מפרסם דבר אוטומטית; לפרסום מקדמים את `release` ל-commit המאושר. (הענף `release` נמחק ב-2026-11-08 כי היה זהה ל-`main` ישן; לפני חיבור Cloudflare יוצרים אותו מחדש מה-commit המאושר, למשל `v1.0`.)
 - [ ] Build command: `python3 scripts/make_release.py`. Output directory: `dist`.
 - [ ] משתני סביבה (ציבוריים, לא סודות): `SUPABASE_URL`, `SUPABASE_ANON_KEY` (publishable בלבד; הסקריפט דוחה מפתח סודי), `BACKEND_URL`, `PREDICTIVE_SERVICE_URL`. הסקריפט כותב אותם ל-`config.js` ול-`connect-src` ב-`_headers` של `dist/` בלבד; הקבצים בריפו לא משתנים.
 

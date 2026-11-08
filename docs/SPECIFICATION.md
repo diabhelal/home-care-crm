@@ -383,7 +383,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 </details>
 
 ### 9.4 The AI component — `FR-AI`
-**The risk indicator is not AI.** It is rules and statistics (FR-RK-01, FR-RK-09). The only component based on a language model (LLM) is the visit-summary draft in PR #18, which is not in `main`.
+**The risk indicator is not AI.** It is rules and statistics (FR-RK-01, FR-RK-09). The only component based on a language model (LLM) is the visit-summary draft from PR #18, which is not in `main` (the PR was closed without merging on 2026-11-08; the code is kept in the owner's backup).
 
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Requirement | Acceptance criterion | Status |
 |---|---|---|---|
@@ -398,8 +398,8 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Implementation | Tests |
 |---|---|---|
 | `FR-AI-01` | `public/app.js` | — |
-| `FR-AI-02` | PR #18 (not merged) | Tests in PR #18 |
-| `FR-AI-03` | The evaluation folder (backend/eval/summary) in PR #18 | — |
+| `FR-AI-02` | PR #18 (closed, not merged; code in the owner's backup) | Tests in PR #18 |
+| `FR-AI-03` | The evaluation folder (backend/eval/summary) in PR #18 (closed, not merged) | — |
 | `FR-AI-04` | — | — |
 
 </details>
@@ -413,7 +413,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 3. A migration or SQL proposal: tested on a disposable Postgres (16 and 18), with a rollback block, and not described as applied.
 4. A full run of the mocked browser tests meets no failure (flaky tests are reported, not silenced).
 
-**Status summary:** `main` contains the whole flow of booking, approval, scheduling, execution and documentation and the generic risk engine, all "tested" with mocked data or on a disposable database. Only the database components applied on 2026-10-15 are "activated". What requires application (`008`-`013`) or merging (open PRs) is marked "planned". The PR and CI map: [`docs/REPO_STATUS.md`](REPO_STATUS.md).
+**Status summary:** `main` contains the whole flow of booking, approval, scheduling, execution and documentation and the generic risk engine, all "tested" with mocked data or on a disposable database. Only the database components applied to the live project (`001`-`007` on 2026-10-15, `019` and `020` on 2026-11-07) are "activated". What requires application (`008`-`013`, `015`-`018`, `021`) or code that is not in `main` (closed PR #18) is marked "planned". Repository state: [`docs/REPO_STATUS.md`](REPO_STATUS.md).
 
 ## 11. Open decisions
 This document does not choose policy. Every item awaits a decision by the owner or by a competent party.
@@ -450,7 +450,7 @@ This document does not choose policy. Every item awaits a decision by the owner 
 | C-07 | Proposal `008` locks a completed report, and the owner asked that the author be able to amend | `docs/DATABASE.md` | The decision: an amendment as a new record (FR-MR-05, FR-MR-07); proposals `012`, `017` |
 | C-08 | The UI blocks measurement values outside the range, and so may prevent recording a genuinely severe case | `public/employee.html`, `backend/app/models.py` | O-02 |
 | C-09 | The `WORKFLOW_TRANSITIONS` table is defined in `state.py` and there is no evidence that the backend calls it | `backend/app/state.py` | Check before relying on it; no change here |
-| C-10 | Proposal `014` (AI) and `015`-`021` are not in `main` and so are not checked by `main`'s `verify_proposed_sql.py` | `backend/scripts/verify_proposed_sql.py` | Will be updated when each PR is merged |
+| C-10 | Proposal `014` (AI) is not in `main` (PR #18 closed) and so is not checked by `main`'s `verify_proposed_sql.py`; `015`-`021` are in `main` and are checked | `backend/scripts/verify_proposed_sql.py` | Revisit only if #18 is revived |
 
 ## 13. Limitations
 - This document describes `main` on 2026-11-05. Open PRs, SQL proposals and owner decisions are marked "planned" and are not part of the existing system.

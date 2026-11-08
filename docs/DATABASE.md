@@ -1,6 +1,6 @@
 # Database (Supabase / Postgres)
 
-> **Current state, verified 2026-10-31 (read-only):** the live project `qqeupktyadjxqoxkstnl` had **23 migrations registered** (last `20261015155238`); on 2026-11-07 proposals `019` and `020` were applied (now **25 registered**, last `20261107131226`). Proposals `008`–`013` (and `014`, in PR #18) are written and tested on an isolated local Postgres but are **not applied**; see [Migration status](#migration-status). Overview and how to run: [README](../README.md).
+> **Current state, verified 2026-10-31 (read-only):** the live project `qqeupktyadjxqoxkstnl` had **23 migrations registered** (last `20261015155238`); on 2026-11-07 proposals `019` and `020` were applied (now **25 registered**, last `20261107131226`). Proposals `008`–`013` (`014` belonged to PR #18, closed without merging) are written and tested on an isolated local Postgres but are **not applied**; see [Migration status](#migration-status). Overview and how to run: [README](../README.md).
 
 All tables live in the `public` schema, have RLS enabled, and follow a consistent access pattern: patients can read/write only their own rows (`auth.uid()` ownership check), and a separate `admin_full_access_*` policy grants an admin account (flagged via `app_metadata.is_admin`, settable only through the Auth Admin API) full access across all tables. The `anon` Postgres role has **no** grants on any application table — every request must carry a valid Supabase session (anonymous or authenticated).
 
