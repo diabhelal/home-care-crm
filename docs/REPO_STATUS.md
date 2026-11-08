@@ -1,8 +1,8 @@
 # Repository status, branch and PR map
 
-> Snapshot **2026-11-06**, `main` @ `78d93fa` (after #39, #40, #42, the three bug-fix PRs #43/#45/#44 and #35). Describes the repository as a whole so a reviewer does not have to reconstruct it from 40 branches.
+> Updated **2026-11-08**, `main` = submission tag [`v1.0`](https://github.com/diabhelal/home-care-crm/releases/tag/v1.0). On GitHub only `main` remains and there are **no open pull requests**. Sections 2, 6 and 7a keep the earlier merge history and evidence for reference.
 
-**תקציר בעברית:** `main` כולל את הבסיס היציב, חבילת האיחוד (#39), קונפיג הפריסה (#40), מדידה מחוץ לביקור (#42) עם שיוך אופציונלי לביקור (#47), שלושה תיקוני באגים (#43, #45, #44), השהיית שירות (#35), תיקון XSS שמור ב-`escapeHtml` ועוד (#48), עדכון `certifi` הקריטי (#17), הסוכנים והאפיון באנגלית (#49) ו-#23 (מסגרת סוכנים, מוזג על ידי הבעלים). **אף מיגרציה לא הוחלה על מסד חי (008-021 הן הצעות; 019 חייבת לבוא לפני 020), ולא בוצעה פריסה ציבורית.** נשארו פתוחים: #34, #21, #18, ו-Dependabot (ללא התראת אבטחה פתוחה).
+**תקציר בעברית:** `main` (תג `v1.0`) כולל את כל העבודה שמוזגה, כולל ייצוב ובטיחות (#68), מטריצת הרשאות, ledger מיגרציות ו-`/readyz` (#69) וסנכרון מסמכים (#70). **על המסד החי הוחלו רק 001-007, 019 ו-020 (25 מיגרציות רשומות); 008-013, 015-018 ו-021 הן הצעות. לא בוצעה פריסה ציבורית.** ב-2026-11-08, באישור הבעלים, נמחקו ב-GitHub כל הענפים שמוזגו, ונסגרו בלי מיזוג #34, #21, #18 ו-Dependabot. העבודה שלא מוזגה שמורה בגיבוי הפרטי של הבעלים.
 
 ## 1. Where to start (reviewer path)
 | What | Where |
@@ -12,8 +12,8 @@
 | Stabilisation plan, findings and Go/No-Go checklist (Hebrew) | [`docs/STABILIZATION_PLAN.md`](STABILIZATION_PLAN.md) |
 | Demo walkthrough | [`docs/DEMO.md`](DEMO.md) |
 | Database model, risk engine, security | [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RISK_ENGINE.md), [`docs/SECURITY_ARCHITECTURE.md`](SECURITY_ARCHITECTURE.md) |
-| Medical-record integrity rules and owner decisions | `docs/RECORD_INTEGRITY.md` (on PR #30) |
-| Handoff for the next working session | `HANDOFF.md`, `docs/SESSION_HANDOFF.md` (branch `docs/session-handoff`) |
+| Medical-record integrity rules and owner decisions | [`docs/RECORD_INTEGRITY.md`](RECORD_INTEGRITY.md) |
+| Handoff for the next working session | [`HANDOFF.md`](../HANDOFF.md) |
 
 Run the tests (none of them touches a live database):
 ```
@@ -57,29 +57,33 @@ After #39, #40 (`72134f6`), approved batch of 2026-11-06 (each PR merged only af
 
 Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 
-## 3. Open pull requests (each merge needs explicit owner approval)
-| PR | Branch | Content | Disposition |
-|---|---|---|---|
-| #34 | `docs/session-handoff` | Handoff docs, agents, settings | Batch B: conflicts in `CLAUDE.md`/`HANDOFF.md`; overlaps #23 |
-| #21 | `docs/archive-historical-plans` | Archives two old plans | Retarget base to `main` (its base #19 is merged) |
-| #18 | `feature/llm-clinical-summary` | Opt-in AI visit summary (synthetic only), migration `014` | **Deferred** (lecturer: no new AI component); branch kept |
-| 13× | `dependabot/...` | Routine dependency bumps (#15 is superseded by #17) | No open security alert; review `fastapi` (#13) and `pandas>=3` (#7) individually after the demo |
+Then, on 2026-11-07 (each after green CI and owner approval): **#68** stabilisation (unknown approval shown as "requested", patients no longer choose staff, error text escaped, predictive `/train` default-deny, sign-out keeps unsent drafts, dependency-audit CI job); **#69** role × table access matrix test, migration ledger, backend `/readyz`; **#70** docs sync and cache bump. Current version: `CACHE_VERSION` **v72**, `APP_BUILD` **2026-11-07.72**, tagged **`v1.0`**.
 
-## 4. Branches
-**Merged into `main` (0 unique commits; deletion needs separate owner approval, none has been deleted):** `feature/patient-measurements`, `feature/service-availability`, `fix/completed-report-guidance`, `fix/session-resilience`, `fix/reset-protect-drafts`, `chore/playwright-fail-on-busy-port`, `codex/predictive-response-contract-main`, `docs/project-specification`, `docs/readme-overhaul`, `docs/revert-spec-driven-extras`, `docs/spec-driven-workflow`, `feature/backend-booking-reliability`, `feature/cross-patient-isolation`, `feature/predictive-input-and-wording`, `feature/record-integrity-sql`, `feature/trend-forecast-button-fix`, `fix/ci-postgres-restrict-violation`, `fix/draft-409-same-risk-assessment`, `fix/offline-drafts-5xx-visibility`, `fix/service-worker-shell-and-api-cache`, `fix/ui-no-physical-delete`, `integration/release-1`, `chore/deploy-config` (18).
+## 3. Pull requests
+**None open (2026-11-08).** Closed without merging, by owner decision:
 
-**Keep (unique work):** `feature/offline-draft-safety` (3 commits, no PR: owner capture, server-ack-only removal, export controls; needs a PR and version coordination), `fix/ui-clinical-safety-visibility` (1 WIP commit: visible load failures and risk result), `feature/llm-clinical-summary` (#18), `feature/service-availability` (#35), `docs/session-handoff` (#34), `feature/agents-framework` (#23), `docs/archive-historical-plans` (#21) (#40).
+| PR | Content | Where the code is kept |
+|---|---|---|
+| #18 | Opt-in AI visit summary (synthetic only), migration `014`; deferred (lecturer: no new AI component) | branch `feature/llm-clinical-summary` in the owner's backup |
+| #21 | Archive of two historical plans | branch `docs/archive-historical-plans` in the backup |
+| #34 | Outdated session-handoff docs (merging would roll back newer `CLAUDE.md`/`HANDOFF.md`) | branch `docs/session-handoff` in the backup |
+| 14× | Dependabot dependency bumps (several major versions, e.g. `pandas` 3, `actions/checkout` 7) | not kept; Dependabot reopens newer versions. CI `dependency-audit` reports 0 known vulnerabilities |
 
-**Decide:** `codex/predictive-response-contract` is the original of #28 (same 87-line change, stacked on older branches). Superseded; keep until the owner decides.
+## 4. Branches and backup
+**On GitHub:** only `main`. All branches already merged into `main` were deleted on 2026-11-08 with owner approval (their commits are in `main`; each can be restored from its PR page). This includes `release`; it is recreated from the approved commit when deployment starts (see `DEPLOY.md`).
 
-**Worktrees (inventory 2026-11-07 on `main` `0b3d10b`, read-only):** 54 registered, 50 with HEAD already in `main`. The 4 others are on GitHub branches (`docs/session-handoff` #34, `docs/archive-historical-plans` #21, `fix/ui-clinical-safety-visibility` WIP) or are a local merge of two `main` ancestors with no conflict-resolution content (`7a109d3`). Uncommitted changes exist only as regenerated `docs/demo-proof` screenshots (written by `demo-journey.spec.js`), one local `public/config.js` demo override and `node_modules`. No unique work would be lost; none was removed.
+**Unmerged work, deleted from GitHub and kept in the owner's backup:** `feature/offline-draft-safety` (owner capture, server-ack-only removal, export controls), `fix/ui-clinical-safety-visibility` (WIP: visible load failures and risk result), `feature/llm-clinical-summary` (#18), `docs/session-handoff` (#34), `docs/archive-historical-plans` (#21), `codex/predictive-response-contract` (superseded original of #28).
+
+**Backup (2026-11-08):** a private repository `diabhelal/home-care-crm-backup` and the same folder on the owner's machine: a bundle of the whole repository, a bundle of the six unmerged branches, uncommitted changes from every working copy, and restore instructions. `keys.txt` is deliberately not included.
+
+**Local worktrees (owner's machine, not on GitHub):** clean worktrees were removed on 2026-11-08; 21 remain because they hold uncommitted changes or a commit that is on no branch (all of it copied into the backup).
 
 ## 5. Database migrations (none is applied by this work)
 | Files | State | Where |
 |---|---|---|
 | `001`–`007` | **Applied** to the live project on 2026-10-15 (also in `supabase/migrations/`) | `main` |
 | `008`–`013` | Written, tested on isolated Postgres, **not applied** | `main` (`supabase/proposed/`) |
-| `014` | AI-summary migration, reserved | #18 |
+| `014` | AI-summary migration, reserved | closed PR #18 (in the owner's backup) |
 | `015`–`018` | Written, tested on isolated Postgres 16 and 18, **not applied** | `main` (`supabase/proposed/`) |
 | `019` | Staff access by active care relationship, **applied to the live project 2026-11-07** (registered `20261107130647`) | `main` (`supabase/migrations/`) |
 | `020` | Measurements outside a booking, **applied to the live project 2026-11-07** (registered `20261107131226`, after 019) | `main` (`supabase/migrations/`) |
@@ -88,7 +92,9 @@ Version: `CACHE_VERSION` **v63**, `APP_BUILD` **2026-11-06.63**.
 
 **Demo project (separate from the live project):** `home-care-crm-demo` has migrations 001-007 + 008-013, 015-021 applied (2026-11-07), synthetic data only. The live project `qqeupktyadjxqoxkstnl` is unchanged. Not yet hosted: the Render services and the static site are waiting for the owner's Render and Cloudflare accounts.
 
-## 6. Test evidence (2026-11-06)
+## 6. Test evidence
+**Current (2026-11-07, `main` `cd8c913` content, the code of `v1.0`):** JS unit 83 · backend 215 · `tests_db` 223 · mocked Playwright 100 (23 spec files, the CI set) · predictive 48; CI green on `main`. Earlier evidence:
+
 | Checkout | Unit | Backend `pytest` | `tests_db` | Mocked Playwright (Chromium, serial) | Predictive |
 |---|---|---|---|---|---|
 | integration branch (= `main` @ `777191e` content) | 74/74 | 182 passed | 197/197 (+ `verify_proposed_sql.py`: 23 migrations + 18 proposed files, all post-flight checks OK) | 87 passed | 38 passed |
@@ -104,9 +110,9 @@ What these cover, in the requested order: patient request, admin approval/assign
 - **Cloud deployment prerequisites (owner):** a separate demo Supabase project; Render account and a budget decision (backend Starter about $7/month, or Free with sleep); Cloudflare Pages on a `release` branch; then migrations to the demo project, deploy, a full browser run against the public URL. See `DEPLOY.md`.
 - **Not applied (owner approval):** migrations `008`–`018` and `021` on the live project; Auth hardening in the Supabase dashboard (MFA, password length, CAPTCHA for anonymous sign-in, leaked-password protection); a new attestation secret per environment.
 - **Clinical wording (needs a clinician):** the UI says "מצב תקין" for green; an audit reported one predictive endpoint maps "no data" to a low-concern message (not re-verified). No thresholds were changed.
-- **CI coverage gap:** `cross-patient-isolation.spec.js`, `trend-forecast.spec.js` and `comprehensive-wording.spec.js` are not in `ci.yml`.
+- **CI coverage:** every mocked spec runs by glob except `booking`/`visit-report` (live database) and `trend-forecast` (flaky, excluded on purpose).
 - **Models:** no trained ML model. `ml_targets.py`, `statsmodels`, `scikit-learn` are in active use and are not to be removed; `lstm_interface.py` is a placeholder; SMS login is dormant.
-- **Open product findings:** the risk result after saving a visit report is written to an already closed modal (`fix/ui-clinical-safety-visibility` holds unfinished work); known gaps are listed in `HANDOFF.md`.
+- **Open product findings:** the risk result after saving a visit report is written to an already closed modal (unfinished work on `fix/ui-clinical-safety-visibility`, kept in the owner's backup); known gaps are listed in `HANDOFF.md`.
 
 ### 7a. Release review register (2026-11-07, read-only reviews of `main` `2d788f7`; evidence in the reviewers' file:line notes)
 **Fixed on branch `fix/release-blockers`:** `escapeHtml` did not escape quotes although values are placed in `value="..."`/`data-path="..."` attributes (stored XSS from staff-entered text, `public/app.js`); two unescaped fallback labels (`work-queue.js`, `staff.js`); `cross-patient-isolation` and `comprehensive-wording` specs were in no CI job; `DEPLOY.md` contradictions (auto-deploy vs `release` branch, manual `connect-src`, stale status).
@@ -116,4 +122,4 @@ What these cover, in the requested order: patient request, admin approval/assign
 **Deferred (P2/P3):** the predictive service's prediction routes are still unauthenticated because the browser calls them directly (no patient identifiers are sent; backend verifies HMAC attestations before saving any risk result); `/train/*` is now default-deny (needs `PREDICTIVE_TRAINING_KEY` + `X-Service-Key`, and `DISABLE_TRAINING=1` still closes it) and CORS is limited to GET/POST + Content-Type; retried `complete` returns 409 (the client already verifies and recovers); approve/reject is last-write-wins; `/healthz` is liveness only; mocked e2e specs are not integration tests; `trend-forecast.spec.js` is flaky and explicitly excluded in CI (every other mocked spec now runs by glob; `dependency-audit` job runs pip-audit + npm audit); 1-5 mocked e2e specs fail intermittently on clean `main` under load or around midnight.
 
 ## 8. What is deliberately not on GitHub
-`.env` files, `keys.txt`, `supabase/.temp`, local Claude settings, database backups and git bundles in the owner's home directory, Python virtual environments and `node_modules`, regenerated screenshots in temporary worktrees. A scan of the working tree and of the whole history on 2026-11-06 found no keys, tokens or passwords (the only matches are the secret scanner's own patterns).
+`.env` files, `keys.txt`, `supabase/.temp`, local Claude settings, database backups and git bundles in the owner's home directory (the 2026-11-08 code backup is in a separate private repository), Python virtual environments and `node_modules`, regenerated screenshots in temporary worktrees. A scan of the working tree and of the whole history on 2026-11-06 found no keys, tokens or passwords (the only matches are the secret scanner's own patterns).
