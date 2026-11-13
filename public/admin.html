@@ -644,7 +644,7 @@
     let assessment;
     try {
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/risk-assessment`, {
-        method: "POST",
+        method: "POST", patientId,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ current: vitals, prediction_horizon_hours: 8, patient_context: vrPatientContext }),
       });
@@ -792,7 +792,7 @@
         : null;
 
       const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/medical-warning`, {
-        method: "POST",
+        method: "POST", patientId,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patient_context: {
@@ -874,7 +874,7 @@
         if (points.length === 1) tooFew.push(v.label);
         if (points.length < 2) continue;
         const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/vitals-forecast`, {
-          method: "POST",
+          method: "POST", patientId,
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ points, horizon: "8h", vital: v.key }),
           signal: controller.signal,

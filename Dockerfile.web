@@ -1,0 +1,21 @@
+# Railway "frontend" service: the static PWA built by scripts/make_release.py, served by Caddy with the
+# security headers generated from public/_headers. Build context: repository root.
+# Railway service variables (public values only, used at build time): SUPABASE_URL, SUPABASE_ANON_KEY
+# (publishable), BACKEND_URL, APP_ENV (development | production). RAILWAY_DOCKERFILE_PATH=Dockerfile.web
+FROM python:3.13.9-slim-bookworm AS build
+ARG SUPABASE_URL
+ARG SUPABASE_ANON_KEY
+ARG BACKEND_URL
+ARG APP_ENV
+WORKDIR /src
+COPY public /src/public
+COPY scripts/make_release.py /src/scripts/make_release.py
+RUN python3 scripts/make_release.py --out /dist
+
+FROM caddy:2.10.2-alpine
+COPY --from=build /dist /srv
+COPY --from=build /dist/Caddyfile /etc/caddy/Caddyfile
+USER 1000:1000
+ENV XDG_DATA_HOME=/tmp/caddy-data XDG_CONFIG_HOME=/tmp/caddy-config
+EXPOSE 8080
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]

@@ -11,6 +11,10 @@ window.PREDICTIVE_SERVICE_URL = "http://localhost:8000";
 // מדיניות פרטיות, תנאי שימוש והסכמה מדעת — ר' DEPLOY.md, "מה נשאר לשירות אמיתי".
 window.DEMO_MODE = true;
 
+// סביבת הפריסה: "local" בריפו; scripts/make_release.py כותב "development" או "production" ב-dist/.
+// ב-development מוצג באנר "סביבת בדיקות" בראש כל עמוד.
+window.APP_ENV = "local";
+
 // כניסה/שמירת היסטוריה בטלפון עם קוד SMS (בנוסף לאימייל). כבוי עד שמוגדר ספק SMS ב-Supabase
 // (Authentication ← Providers ← Phone) — ר' HANDOFF.md. כשהוא false הממשק מוסתר לגמרי.
 window.SMS_LOGIN_ENABLED = false;
@@ -25,4 +29,4 @@ window.SERVICE_CONFIG = { roles: ["nurse"], purposes: ["checkup", "wound_care", 
 window.BACKEND_URL = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname) ? "http://localhost:8001" : "";
 
 // מזהה גרסה שמוצג בתחתית העמודים (קטן): מאפשר לראות מיד אם הדפדפן מגיש קבצים ישנים מהמטמון.
-window.APP_BUILD = "2026-11-07.72";
+window.APP_BUILD = "2026-11-13.73";

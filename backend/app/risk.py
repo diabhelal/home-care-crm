@@ -43,6 +43,8 @@ class PredictiveClient(Protocol):
     def risk_assessment(self, body: dict) -> dict: ...
     def evaluate_alert(self, body: dict) -> dict: ...
     def medical_warning(self, body: dict) -> dict: ...
+    def forward(self, path: str, body: object, timeout: float = 15.0) -> tuple[int, object]: ...
+    def health(self) -> bool: ...
 
 
 class _RiskAssessmentContract(BaseModel):
@@ -96,6 +98,26 @@ class HttpPredictiveClient:
     def evaluate_alert(self, body): return self._post("/alerts/evaluate", body)
     def medical_warning(self, body): return self._post("/predict/medical-warning", body)
 
+    def forward(self, path: str, body: object, timeout: float = 15.0) -> tuple[int, object]:
+        """Pass a browser request through unchanged (see predict_proxy.py). Returns (status, json).
+        Raises PredictiveUnavailable on network errors, 5xx or a non-JSON answer."""
+        try:
+            r = self._client.post(path, json=body, timeout=timeout)
+        except httpx.HTTPError as e:
+            raise PredictiveUnavailable(type(e).__name__) from e
+        if r.status_code >= 500:
+            raise PredictiveUnavailable(f"predictive service answered {r.status_code}")
+        try:
+            return r.status_code, r.json()
+        except ValueError as e:
+            raise PredictiveUnavailable("non-JSON response") from e
+
+    def health(self) -> bool:
+        try:
+            return self._client.get("/health", timeout=2.0).status_code == 200
+        except httpx.HTTPError:
+            return False
+
 
 class FakePredictiveClient:
     """Scripted responses for tests; records every request body."""
@@ -114,6 +136,8 @@ class FakePredictiveClient:
         self.risk_calls: list[dict] = []
         self.alert_calls: list[dict] = []
         self.warning_calls: list[dict] = []
+        self.forward_response: tuple = (200, {"echo": True})
+        self.forward_calls: list[tuple] = []
 
     def risk_assessment(self, body):
         self.risk_calls.append(body)
@@ -132,6 +156,15 @@ class FakePredictiveClient:
         if self.down:
             raise PredictiveUnavailable("down")
         return self.warning_response
+
+    def forward(self, path, body, timeout=15.0):
+        self.forward_calls.append((path, body))
+        if self.down:
+            raise PredictiveUnavailable("down")
+        return self.forward_response
+
+    def health(self):
+        return not self.down
 
 
 # ---- attestation ---------------------------------------------------------------

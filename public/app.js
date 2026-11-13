@@ -1230,6 +1230,14 @@ const BACKEND_USER_MESSAGE_CODES = ["idempotency_conflict", "unexpected_unique_v
 // שמירה מרכזית: באתר מאורח שירות התחזית (localhost) לא קיים, ולכן קריאות אליו
 // מקבלות מיד 503 סינתטי במקום ERR_CONNECTION_REFUSED בקונסולה. קוד הקורא כבר
 // מטפל ב-!res.ok ומציג "השירות אינו זמין".
+// בפריסה מאורחת שירות התחזית פנימי בתוך ה-backend, ו-PREDICTIVE_SERVICE_URL שווה ל-BACKEND_URL:
+// אז כל קריאה אליו עוברת דרך ה-backend עם טוקן המשתמש (Authorization) ומזהה המטופל (X-Patient-Id,
+// מ-init.patientId שהקורא מעביר). מקומית (localhost:8000) הקריאה נשלחת כמו קודם, בלי כותרות נוספות.
+function predictiveViaBackend() {
+  const norm = (u) => String(u || "").trim().replace(/\/+$/, "");
+  const base = norm(window.PREDICTIVE_SERVICE_URL);
+  return !!base && base === norm(window.BACKEND_URL);
+}
 (function guardPredictiveServiceFetch() {
   if (typeof window === "undefined" || typeof window.fetch !== "function" || typeof Response === "undefined") return;
   const nativeFetch = window.fetch.bind(window);
@@ -1241,7 +1249,18 @@ const BACKEND_USER_MESSAGE_CODES = ["idempotency_conflict", "unexpected_unique_v
       if (base && hostedOrigin && /localhost|127\.0\.0\.1/.test(base) && url.startsWith(base)) {
         return Promise.resolve(new Response(JSON.stringify({ detail: "predictive service unavailable in hosted demo" }), { status: 503, headers: { "Content-Type": "application/json" } }));
       }
+      if (base && predictiveViaBackend() && /^\/(predict|plan)\//.test(url.slice(base.replace(/\/+$/, "").length)) && typeof supabaseClient !== "undefined") {
+        const { patientId, ...rest } = init || {};
+        return supabaseClient.auth.getSession().then(({ data }) => {
+          const headers = new Headers(rest.headers || {});
+          const token = data && data.session && data.session.access_token;
+          if (token) headers.set("Authorization", "Bearer " + token);
+          if (patientId) headers.set("X-Patient-Id", String(patientId));
+          return nativeFetch(input, { ...rest, headers });
+        });
+      }
     } catch (e) { /* נופלים ל-fetch המקורי */ }
+    if (init && "patientId" in init) { const { patientId, ...rest } = init; return nativeFetch(input, rest); }
     return nativeFetch(input, init);
   };
 })();
@@ -1305,7 +1324,8 @@ async function checkPredictiveServiceHealth() {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2500);
-    const res = await fetch(`${window.PREDICTIVE_SERVICE_URL}/health`, { signal: controller.signal });
+    const healthPath = predictiveViaBackend() ? "/predict/health" : "/health";
+    const res = await fetch(`${window.PREDICTIVE_SERVICE_URL}${healthPath}`, { signal: controller.signal });
     clearTimeout(timer);
     banner.style.display = res.ok ? "none" : "block";
   } catch (err) {
@@ -1315,12 +1335,18 @@ async function checkPredictiveServiceHealth() {
 
 // באנר הדגמה: מוצג כשהאתר רץ במצב DEMO_MODE (config.js), אחרת לא.
 function showDemoBanner() {
-  if (!window.DEMO_MODE || document.getElementById("demo-banner")) return;
+  const isDev = window.APP_ENV === "development";   // נקבע ב-scripts/make_release.py לפי סביבת הפריסה
+  if ((!window.DEMO_MODE && !isDev) || document.getElementById("demo-banner")) return;
   const banner = document.createElement("div");
   banner.id = "demo-banner";
   banner.setAttribute("role", "region");
   banner.setAttribute("aria-label", "הודעת הדגמה");
   banner.style.cssText = "background:var(--primary-light);color:var(--primary-dark);text-align:center;padding:10px 16px;font-size:14px;font-weight:600;border-bottom:1px solid var(--border);";
+  if (isDev) {
+    banner.style.background = "#fff3cd";
+    banner.style.color = "#664d03";
+    banner.append("סביבת בדיקות (DEVELOPMENT) — לא המערכת הרשמית. ");
+  }
   banner.append("מערכת הדגמה — נתונים סינתטיים בלבד. אל תזינו מידע אישי או רפואי אמיתי. ");
   const link = document.createElement("a");
   link.href = "demo-notice.html";
