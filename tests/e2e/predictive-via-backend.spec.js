@@ -6,7 +6,7 @@ const { fakeSupabaseSource } = require("./helpers/fake-supabase");
 const { installBackendMock } = require("./helpers/backend-mock");
 
 const BASE = "http://demo.localhost:8080";
-const BACKEND = "http://localhost:8001";
+const BACKEND = "http://backend.test";   // לא localhost: באתר מאורח כתובת localhost מדולגת בכוונה
 const P1 = { id: "p-1", full_name: "דנה כהן", phone: "050-123 4567", address: "הרצל 5, חיפה" };
 const ADMIN = { user: { id: "admin-user-1", is_anonymous: false, app_metadata: { is_admin: true } } };
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "Authorization, Content-Type, X-Patient-Id" };
@@ -16,7 +16,7 @@ async function setup(browser, predictiveUrl) {
   await context.route("**/@supabase/supabase-js@*", (route) =>
     route.fulfill({ contentType: "application/javascript", body: fakeSupabaseSource() }));
   await context.route(/fonts\.(googleapis|gstatic)\.com/, (route) => route.fulfill({ contentType: "text/css", body: "" }));
-  await installBackendMock(context, { extraConfig: `window.PREDICTIVE_SERVICE_URL = ${JSON.stringify(predictiveUrl)};` });
+  await installBackendMock(context, { backendUrl: BACKEND, extraConfig: `window.PREDICTIVE_SERVICE_URL = ${JSON.stringify(predictiveUrl)};` });
   const seen = [];
   const capture = (route) => {
     const r = route.request();
