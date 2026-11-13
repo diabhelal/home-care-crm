@@ -1,4 +1,4 @@
-# כותרות אבטחה לאירוח סטטי (Cloudflare Pages / Netlify קוראים את הקובץ הזה).
+# כותרות אבטחה: מקור יחיד. Cloudflare Pages / Netlify קוראים את הקובץ ישירות; ב-Railway scripts/make_release.py מייצר ממנו את dist/Caddyfile.
 # CSP אוכף. נבדק בדפדפן על כל העמודים: ההפרה היחידה היא localhost:8000 (שירות תחזית מקומי)
 # שמדולג בפרודקשן (ר' isLocalHost ב-app.js). לשינוי: DEPLOY.md, שלב 5.
 /*

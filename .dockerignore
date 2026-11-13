@@ -1,0 +1,27 @@
+# Both Railway images build from the repository root; only what they COPY is needed.
+.git
+.github
+.claude
+.agents
+.codex
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+node_modules
+test-results
+playwright-report
+dist
+docs
+supabase
+tests
+backend/tests
+backend/tests_db
+backend/scripts
+predictive-service/tests
+predictive-service/models/*.joblib
+keys.txt
+.env
+.env.*
+*.pem
+*.key

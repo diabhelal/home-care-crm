@@ -57,7 +57,7 @@ flowchart LR
 Key design decisions:
 - **Browser reads, backend writes.** Reads go to Supabase through RLS. Writes to bookings, visit reports, risk predictions and alerts go through the backend with the caller's own JWT; a service-role key is never used by the app (only the Edge Function holds one, server-side).
 - **The database is the last line of defence.** A unique index and triggers refuse double bookings, buffer violations and self-approval even if the API is bypassed.
-- **Neither Python service is hosted.** Both run locally; hosting with HTTPS is on the [roadmap](#roadmap).
+- **Neither Python service is hosted yet.** Both run locally. A Railway deployment (development + production, the predictive service private inside the backend container) is prepared and checked in CI but not deployed; see [`DEPLOY.md`](DEPLOY.md).
 
 ## Technology
 | Layer | Used | Not used |
@@ -193,7 +193,7 @@ Items marked *(owner)* need a decision or approval.
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Tables, RLS, migration status |
 | [`docs/RISK_ENGINE.md`](docs/RISK_ENGINE.md) | What is rules, statistics and ML, and the limits |
 | [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/REVIEW.md`](docs/REVIEW.md), [`SECURITY.md`](SECURITY.md) | Security model, review findings, reporting a vulnerability |
-| [`docs/STAGING_PLAN.md`](docs/STAGING_PLAN.md), [`DEPLOY.md`](DEPLOY.md) | Applying migrations with rollback; deployment plan (not done) |
+| [`docs/STAGING_PLAN.md`](docs/STAGING_PLAN.md), [`DEPLOY.md`](DEPLOY.md) | Applying migrations with rollback; Railway deployment (prepared, not deployed): services, variables, migrations per environment, cost, rollback |
 | [`backend/README.md`](backend/README.md), [`tests/e2e/README.md`](tests/e2e/README.md) | Backend run and configuration; which browser specs are safe to run |
 | [`docs/DEMO.md`](docs/DEMO.md), [`HANDOFF.md`](HANDOFF.md) | Demo script (Hebrew); where the project stands and how to continue (Hebrew) |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for contributors and the AI assistant, including the documentation policy |
