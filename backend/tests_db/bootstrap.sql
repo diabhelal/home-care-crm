@@ -20,3 +20,13 @@ create table storage.objects (id uuid default gen_random_uuid() primary key, buc
 alter table storage.objects enable row level security;
 grant usage on schema storage to authenticated;
 grant usage on schema public to anon, authenticated;
+
+-- Supabase's default privileges in `public` (read from a real Supabase project's pg_default_acl, 2026-11-16):
+-- every NEW table/view, sequence and function created by postgres is granted to anon, authenticated and
+-- service_role (tables: ALL incl. DELETE/TRUNCATE). A migration that only GRANTs what it wants, without first
+-- REVOKE-ing, therefore leaves extra privileges on real Supabase. Reproduced here so the local DB tests and
+-- verify_proposed_sql.py see the same grants as the hosted database.
+alter default privileges for role postgres in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges for role postgres in schema public revoke execute on functions from public;
+alter default privileges for role postgres in schema public grant execute on functions to anon, authenticated, service_role;

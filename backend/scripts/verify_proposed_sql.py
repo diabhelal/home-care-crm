@@ -18,7 +18,7 @@ import psycopg
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BOOTSTRAP = ROOT / "backend" / "tests_db" / "bootstrap.sql"
 PLAN = ROOT / "docs" / "STAGING_PLAN.md"
-PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017", "018", "019", "020", "021"]   # 014 is reserved by another open PR
+PROPOSED_ORDER = ["001", "002", "003", "004", "005", "006", "007", "008", "009", "010", "011", "012", "013", "015", "016", "017", "018", "019", "020", "021", "022"]   # 014 is reserved by another open PR
 
 # (description, sql returning a single boolean that must be TRUE)
 POSTFLIGHT = [
@@ -97,6 +97,20 @@ POSTFLIGHT = [
      "and not has_table_privilege('anon','public.service_availability','select') "
      "and (select count(*) from pg_trigger where not tgisinternal and tgname in "
      "('bookings_service_pause_guard_ins','bookings_service_pause_guard_upd')) = 2"),
+    ("022 risk_predictions: authenticated SELECT only, anon nothing (incl. the id sequence)",
+     "select has_table_privilege('authenticated','public.risk_predictions','select') "
+     "and not has_table_privilege('authenticated','public.risk_predictions','insert,update,delete,truncate,references,trigger') "
+     "and not has_table_privilege('anon','public.risk_predictions','select,insert,update,delete,truncate,references,trigger') "
+     "and not has_sequence_privilege('anon','public.risk_predictions_id_seq','usage,select,update')"),
+    ("022 service_availability: authenticated exactly SELECT/INSERT/UPDATE; trigger functions not executable by anon/authenticated",
+     "select has_table_privilege('authenticated','public.service_availability','select') "
+     "and has_table_privilege('authenticated','public.service_availability','insert') "
+     "and has_table_privilege('authenticated','public.service_availability','update') "
+     "and not has_table_privilege('authenticated','public.service_availability','delete,truncate,references,trigger') "
+     "and not exists (select 1 from pg_proc p where p.pronamespace='public'::regnamespace "
+     "and p.proname in ('service_availability_stamp','service_availability_audit','bookings_service_pause_guard') "
+     "and (has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute'))) "
+     "and has_function_privilege('anon','public.list_service_pauses()','execute')"),
     ("015 no DELETE/TRUNCATE for authenticated/anon on medical tables; delete-block triggers; RESTRICT FKs; immutable logs",
      "select not exists (select 1 from unnest(array['visit_reports','visit_report_amendments','patient_allergies','patient_medical_history',"
      "'clinical_notes','medication_events','patient_documents','service_plans','service_plan_visits','risk_predictions','alerts','tasks',"
@@ -126,6 +140,9 @@ POSTFLIGHT = [
 
 # (description, sql that must be TRUE after running the rollback blocks of the given file)
 ROLLBACK_EXPECT = {
+    "022": [("022 rollback is a documented no-op: legitimate access unchanged",
+             "select has_table_privilege('authenticated','public.risk_predictions','select') "
+             "and has_table_privilege('authenticated','public.service_availability','update')")],
     "021": [("021 objects gone", "select to_regclass('public.service_availability') is null "
                                  "and to_regprocedure('public.service_is_paused(text,date)') is null and to_regprocedure('public.list_service_pauses()') is null "
                                  "and (select count(*) from pg_trigger where tgname like 'bookings_service_pause_guard%') = 0")],

@@ -36,7 +36,7 @@ comparing against the live `supabase_migrations.schema_migrations` table is a se
 | `20261107130647_staff_access_active_relationship.sql` | `74c87efb4348` | `f4007d30fa2e` |
 | `20261107131226_patient_measurements.sql` | `3253851eb474` | `f9ecbb3b23d0` |
 
-## Proposed SQL (20)
+## Proposed SQL (21)
 
 | file | sql hash | status |
 |---|---|---|
@@ -60,3 +60,4 @@ comparing against the live `supabase_migrations.schema_migrations` table is a se
 | `019_staff_access_active_relationship.sql` | `f4007d30fa2e` | registered as `20261107130647_staff_access_active_relationship.sql` |
 | `020_patient_measurements.sql` | `f9ecbb3b23d0` | registered as `20261107131226_patient_measurements.sql` |
 | `021_service_availability.sql` | `ffc2e2beace4` | **not applied** to the live project (proposed only) |
+| `022_tighten_default_grants.sql` | `b8e60b177f30` | **not applied** to the live project (proposed only) |
