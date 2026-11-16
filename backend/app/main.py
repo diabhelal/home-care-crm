@@ -17,6 +17,7 @@ from .errors import (DomainError, IdempotencyConflictError, SlotTakenError, forb
                      idempotency_conflict, redact_details, slot_taken)
 
 log = logging.getLogger("app.main")
+from . import predict_proxy
 from .geo import Geocoder, NoopGeocoder
 from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, MeasurementIn, ReassignIn,
                      Staff, VisitReportIn, booking_to_dict)
@@ -54,11 +55,12 @@ def create_app(settings: Settings | None = None,
     predictive = predictive_client or HttpPredictiveClient(
         cfg.predictive_service_url, cfg.predictive_timeout_seconds)
 
-    app = FastAPI(title="home-care-crm backend")
+    app = FastAPI(title="home-care-crm backend", docs_url=None, redoc_url=None, openapi_url=None)
+    predict_proxy.install_body_limit(app)   # added before CORS so CORS stays outermost (413 keeps CORS headers)
     if cfg.allowed_origins:
         app.add_middleware(CORSMiddleware, allow_origins=list(cfg.allowed_origins),
                            allow_methods=["GET", "POST", "PATCH"],
-                           allow_headers=["Authorization", "Content-Type", "Idempotency-Key"])
+                           allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Patient-Id"])
 
     @app.exception_handler(DomainError)
     async def _domain(_: Request, e: DomainError):
@@ -232,6 +234,7 @@ def create_app(settings: Settings | None = None,
             c.staff()   # staff only (RLS further limits to assigned patients)
         return c.risk.auto_alert(c.identity, patient_id)
 
+    predict_proxy.register(app, ctx, predictive)
     return app
 
 

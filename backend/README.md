@@ -65,7 +65,7 @@ Browser inserts into `risk_predictions`/`alerts` are revoked by that migration. 
 - Set `ALLOWED_ORIGINS` to the exact production frontend origin(s); no wildcards.
 - Secrets come from the host's secret store, never from the repo (`.env` is git-ignored).
 - The production frontend must use a configured backend URL, not localhost.
-- Hosting: Render (`render.yaml` at the repo root); start command `uvicorn app.main:app --host 0.0.0.0 --port $PORT`, health check `/healthz`; manual deploys only. See DEPLOY.md, step 3a.
+- Hosting: Railway, image `backend/Dockerfile.railway` (build context = repo root). `deploy/start-backend.sh` runs the predictive service on 127.0.0.1:8000 (restart loop) and this app on `$PORT`; health check `/healthz`. The browser reaches the predictive service only through the authenticated `/predict/*` and `/plan/generate-visits` routes (`app/predict_proxy.py`). See DEPLOY.md.
 
 ## Database
 The SQL in `supabase/proposed/001–007` was applied to the live project on 2026-10-15 (see `supabase/proposed/APPLIED.md`); a fresh Supabase project needs all `supabase/migrations/*.sql` applied in order.

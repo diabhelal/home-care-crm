@@ -82,6 +82,15 @@ jobs:
       - name: Database tests (throwaway local Postgres)
         run: python -m pytest tests_db -q
 
+  # The two Railway images (DEPLOY.md): build them and check startup, health, private predictive service,
+  # crash isolation/restart, clean shutdown and the frontend security headers. No cloud, no credentials.
+  containers:
+    name: Railway images (build + startup/health smoke)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash deploy/container-smoke.sh
+
   # Known-vulnerability check of the pinned runtime/dev dependencies (Python lock files + npm lockfile).
   # Fails on any known vulnerability; Dependabot opens the upgrade PRs.
   dependency-audit:
