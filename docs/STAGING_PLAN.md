@@ -58,6 +58,14 @@ on conflict (name) do update set value = excluded.value;
 > **אזהרה:** `-- ROLLBACK 006` מוחק את הטבלה `server_secrets` (הסוד), ו-`-- ROLLBACK 001` מוחק עמודות (נתוני כתובת/idempotency/check-in שנאספו). שניהם **לא הפיכים** בלי גיבוי מ-pre-flight. 006 גם **מחזיר** הרשאת INSERT ישירה ל-`risk_predictions`/`alerts` (מצב לפני 006).
 
 ```sql
+-- ROLLBACK 022
+-- בכוונה בלי פעולה: 022 רק מצמצמת הרשאות (שלילת anon על risk_predictions, DELETE/TRUNCATE על service_availability,
+-- והרצה של פונקציות טריגר). המצב "שלפני" שונה בין סביבות (בפרויקט החי מעולם לא היו ל-anon הרשאות על risk_predictions),
+-- והחזרה תפתח מחדש את הפער. האפליקציה לא תלויה באף אחת מההרשאות שנשללו. ROLLBACK 021 שאחריה מוחק את הטבלה ממילא.
+select 1;
+```
+
+```sql
 -- ROLLBACK 021
 -- אזהרה: מוחק את רשימת ההשהיות (ואת יומן השינויים שלהן נשאר ב-audit_log). הזמנות קיימות לא מושפעות.
 drop trigger if exists bookings_service_pause_guard_upd on public.bookings;
