@@ -6,7 +6,7 @@ was applied to the live project (see `supabase/proposed/APPLIED.md`). It is **no
 comparing against the live `supabase_migrations.schema_migrations` table is a separate, owner-approved read.
 `sql hash` ignores comments and whitespace, so a proposed file and its registered copy match when the SQL is identical.
 
-## Registered migrations (25)
+## Registered migrations (37)
 
 | file | file hash | sql hash |
 |---|---|---|
@@ -35,6 +35,18 @@ comparing against the live `supabase_migrations.schema_migrations` table is a se
 | `20261015155238_server_derived_authorship.sql` | `7b7f0f68528e` | `afdca921b1c2` |
 | `20261107130647_staff_access_active_relationship.sql` | `74c87efb4348` | `f4007d30fa2e` |
 | `20261107131226_patient_measurements.sql` | `3253851eb474` | `f9ecbb3b23d0` |
+| `20261117200001_visit_report_integrity.sql` | `57c9e85bd0e1` | `92fe2a7069c7` |
+| `20261117200002_staff_deactivate_not_delete.sql` | `0115bbfb669e` | `eee6e42f0c27` |
+| `20261117200003_booking_update_conflict_guard.sql` | `e4574ba6cc35` | `256658148896` |
+| `20261117200004_risk_status_always_visible.sql` | `4bb64ebc1b92` | `d19bcb7ed123` |
+| `20261117200005_visit_report_amendments.sql` | `b82bc3160b4c` | `26f38044a4db` |
+| `20261117200006_patient_archive_and_record_export.sql` | `ebb4c03536f6` | `ec3e23931153` |
+| `20261117200007_block_physical_deletes.sql` | `0a7475563707` | `26aa386f77d7` |
+| `20261117200008_visit_report_authorship_and_lock.sql` | `e3027c361fc0` | `0a64225e91b8` |
+| `20261117200009_amendments_author_only.sql` | `0b6f0818ef7d` | `e03a579404a3` |
+| `20261117200010_record_archive_and_void.sql` | `3e7c5b079167` | `04610d11c8f0` |
+| `20261117200011_service_availability.sql` | `101a89e535f6` | `ffc2e2beace4` |
+| `20261117200012_tighten_default_grants.sql` | `901b1cf14c51` | `b8e60b177f30` |
 
 ## Proposed SQL (21)
 
@@ -47,17 +59,17 @@ comparing against the live `supabase_migrations.schema_migrations` table is a se
 | `005_booking_write_guards.sql` | `c8f35f3de445` | registered as `20261015154829_booking_write_guards.sql` |
 | `006_server_side_risk_and_alerts.sql` | `65486e947761` | registered as `20261015155034_server_side_risk_and_alerts.sql` |
 | `007_server_derived_authorship.sql` | `afdca921b1c2` | registered as `20261015155238_server_derived_authorship.sql` |
-| `008_visit_report_integrity.sql` | `92fe2a7069c7` | **not applied** to the live project (proposed only) |
-| `009_staff_deactivate_not_delete.sql` | `eee6e42f0c27` | **not applied** to the live project (proposed only) |
-| `010_booking_update_conflict_guard.sql` | `256658148896` | **not applied** to the live project (proposed only) |
-| `011_risk_status_always_visible.sql` | `d19bcb7ed123` | **not applied** to the live project (proposed only) |
-| `012_visit_report_amendments.sql` | `26f38044a4db` | **not applied** to the live project (proposed only) |
-| `013_patient_archive_and_record_export.sql` | `ec3e23931153` | **not applied** to the live project (proposed only) |
-| `015_block_physical_deletes.sql` | `26aa386f77d7` | **not applied** to the live project (proposed only) |
-| `016_visit_report_authorship_and_lock.sql` | `0a64225e91b8` | **not applied** to the live project (proposed only) |
-| `017_amendments_author_only.sql` | `e03a579404a3` | **not applied** to the live project (proposed only) |
-| `018_record_archive_and_void.sql` | `04610d11c8f0` | **not applied** to the live project (proposed only) |
+| `008_visit_report_integrity.sql` | `92fe2a7069c7` | registered as `20261117200001_visit_report_integrity.sql` |
+| `009_staff_deactivate_not_delete.sql` | `eee6e42f0c27` | registered as `20261117200002_staff_deactivate_not_delete.sql` |
+| `010_booking_update_conflict_guard.sql` | `256658148896` | registered as `20261117200003_booking_update_conflict_guard.sql` |
+| `011_risk_status_always_visible.sql` | `d19bcb7ed123` | registered as `20261117200004_risk_status_always_visible.sql` |
+| `012_visit_report_amendments.sql` | `26f38044a4db` | registered as `20261117200005_visit_report_amendments.sql` |
+| `013_patient_archive_and_record_export.sql` | `ec3e23931153` | registered as `20261117200006_patient_archive_and_record_export.sql` |
+| `015_block_physical_deletes.sql` | `26aa386f77d7` | registered as `20261117200007_block_physical_deletes.sql` |
+| `016_visit_report_authorship_and_lock.sql` | `0a64225e91b8` | registered as `20261117200008_visit_report_authorship_and_lock.sql` |
+| `017_amendments_author_only.sql` | `e03a579404a3` | registered as `20261117200009_amendments_author_only.sql` |
+| `018_record_archive_and_void.sql` | `04610d11c8f0` | registered as `20261117200010_record_archive_and_void.sql` |
 | `019_staff_access_active_relationship.sql` | `f4007d30fa2e` | registered as `20261107130647_staff_access_active_relationship.sql` |
 | `020_patient_measurements.sql` | `f9ecbb3b23d0` | registered as `20261107131226_patient_measurements.sql` |
-| `021_service_availability.sql` | `ffc2e2beace4` | **not applied** to the live project (proposed only) |
-| `022_tighten_default_grants.sql` | `b8e60b177f30` | **not applied** to the live project (proposed only) |
+| `021_service_availability.sql` | `ffc2e2beace4` | registered as `20261117200011_service_availability.sql` |
+| `022_tighten_default_grants.sql` | `b8e60b177f30` | registered as `20261117200012_tighten_default_grants.sql` |
