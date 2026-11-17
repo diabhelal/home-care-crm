@@ -19,13 +19,15 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-// אין עדיין דומיין ייצור קבוע (ר' AGENTS.md/README) — הממשק היחיד שקיים היום רץ
-// מקומית (http://localhost:<port> / http://127.0.0.1:<port>, לפי README). כשיהיה
-// דומיין ייצור אמיתי, יש להוסיף אותו כאן במפורש. לא allow-origin:"*" בכוונה — זו
-// פונקציה עם service_role שיוצרת משתמשי Auth אמיתיים ושולחת הזמנות אימייל.
+// מקורות מותרים: פיתוח מקומי (http://localhost:<port> / http://127.0.0.1:<port>) ובנוסף
+// המקורות המדויקים שבסוד הפונקציה ALLOWED_ORIGINS (מופרדים בפסיקים, למשל כתובת האתר
+// ב-Railway; מוגדר לכל פרויקט Supabase בנפרד: `supabase secrets set ALLOWED_ORIGINS=...`).
+// לא allow-origin:"*" בכוונה — זו פונקציה עם service_role שיוצרת משתמשי Auth אמיתיים.
+const EXTRA_ORIGINS = (Deno.env.get("ALLOWED_ORIGINS") ?? "")
+  .split(",").map((o) => o.trim()).filter((o) => /^https:\/\/[a-z0-9.-]+(:\d+)?$/.test(o));
 function isAllowedOrigin(origin: string | null): boolean {
   if (!origin) return false;
-  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin) || EXTRA_ORIGINS.includes(origin);
 }
 
 function corsHeaders(origin: string | null): Record<string, string> {

@@ -57,7 +57,7 @@ flowchart LR
 Key design decisions:
 - **Browser reads, backend writes.** Reads go to Supabase through RLS. Writes to bookings, visit reports, risk predictions and alerts go through the backend with the caller's own JWT; a service-role key is never used by the app (only the Edge Function holds one, server-side).
 - **The database is the last line of defence.** A unique index and triggers refuse double bookings, buffer violations and self-approval even if the API is bypassed.
-- **Neither Python service is hosted.** Both run locally; hosting with HTTPS is on the [roadmap](#roadmap).
+- **Neither Python service is hosted yet.** Both run locally. A Railway deployment (development + production, the predictive service private inside the backend container) is prepared and checked in CI but not deployed; see [`DEPLOY.md`](DEPLOY.md).
 
 ## Technology
 | Layer | Used | Not used |
@@ -92,7 +92,7 @@ An assessment is computed by the backend, attested with an HMAC, and only then s
 **Known gaps (not yet closed)**
 - Offline drafts live in `localStorage`, separated per user but **not encrypted**.
 - Anonymous booking has no CAPTCHA; MFA and leaked-password protection are not enabled.
-- Migrations `019` and `020` were applied to the live database on 2026-11-07 (adding measurements to a chart now works there). Migrations `008`-`013`, `015`-`018` and `021` exist and are tested on a throwaway database but are **not applied to the live database**. Based on the migration files, administrators there can still physically delete clinical rows such as visit reports; the proposals block this. The live state was last read on 2026-10-31. See [Development status](#development-status).
+- Migrations `019` and `020` were applied to the live database on 2026-11-07 (adding measurements to a chart now works there). Migrations `008`-`013`, `015`-`018`, `021` and `022` exist and are tested on a throwaway database but are **not applied to the live database**. Based on the migration files, administrators there can still physically delete clinical rows such as visit reports; the proposals block this. The live state was last read on 2026-10-31. See [Development status](#development-status).
 - No privacy policy, consent flow, penetration test or legal review. Real use would also need hosting with HTTPS.
 
 Full text: [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/REVIEW.md`](docs/REVIEW.md), [`SECURITY.md`](SECURITY.md) (how to report an issue).
@@ -170,7 +170,7 @@ File-by-file frontend tree: [`docs/HOW_IT_WORKS.md`](docs/HOW_IT_WORKS.md). Fold
 | **On `main`** | Everything in [Features](#features); isolation fixes for patient records and visit reports; trend-forecast button fix; rule-based risk engine; offline drafts; CI |
 | **On `main`, database part not applied** | Staff deactivation instead of deletion, measurement history, risk-status age, amendments to completed reports, patient archive and record export (UI and tests on `main`; SQL `009`, `011`-`013` not applied to the live database) |
 | **Not in `main` (closed without merging on 2026-11-08)** | Opt-in LLM visit-summary draft ([#18](https://github.com/diabhelal/home-care-crm/pull/18), deferred), archive of two historical plans ([#21](https://github.com/diabhelal/home-care-crm/pull/21)), an outdated session-handoff PR ([#34](https://github.com/diabhelal/home-care-crm/pull/34)) and Dependabot dependency bumps. There are no open pull requests; the unmerged code is kept in the owner's private backup |
-| **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`018` record integrity and archive/void ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35). `019` and `020` were applied on 2026-11-07; the live database has 25 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) and [`docs/MIGRATION_LEDGER.md`](docs/MIGRATION_LEDGER.md) |
+| **Proposed SQL, tested on a throwaway database, not applied** | `008`-`013`; `015`-`018` record integrity and archive/void ([#30](https://github.com/diabhelal/home-care-crm/pull/30)); `021` service availability (#35); `022` removes privileges left by Supabase's default grants. `019` and `020` were applied on 2026-11-07; the live database has 25 migrations. Apply status per file: [`supabase/proposed/APPLIED.md`](supabase/proposed/APPLIED.md) and [`docs/MIGRATION_LEDGER.md`](docs/MIGRATION_LEDGER.md) |
 | **Not built** | Hosting with HTTPS, MFA, privacy and consent documents, penetration test, validated ML model, real-time updates, external alerting (email/SMS/phone) |
 
 The submitted version is tagged [`v1.0`](https://github.com/diabhelal/home-care-crm/releases/tag/v1.0). Repository state, merge history and test evidence: [`docs/REPO_STATUS.md`](docs/REPO_STATUS.md). The stabilisation plan (historical, 2026-11-04): [`docs/STABILIZATION_PLAN.md`](docs/STABILIZATION_PLAN.md).
@@ -193,7 +193,7 @@ Items marked *(owner)* need a decision or approval.
 | [`docs/DATABASE.md`](docs/DATABASE.md) | Tables, RLS, migration status |
 | [`docs/RISK_ENGINE.md`](docs/RISK_ENGINE.md) | What is rules, statistics and ML, and the limits |
 | [`docs/SECURITY_ARCHITECTURE.md`](docs/SECURITY_ARCHITECTURE.md), [`docs/REVIEW.md`](docs/REVIEW.md), [`SECURITY.md`](SECURITY.md) | Security model, review findings, reporting a vulnerability |
-| [`docs/STAGING_PLAN.md`](docs/STAGING_PLAN.md), [`DEPLOY.md`](DEPLOY.md) | Applying migrations with rollback; deployment plan (not done) |
+| [`docs/STAGING_PLAN.md`](docs/STAGING_PLAN.md), [`DEPLOY.md`](DEPLOY.md) | Applying migrations with rollback; Railway deployment (prepared, not deployed): services, variables, migrations per environment, cost, rollback |
 | [`backend/README.md`](backend/README.md), [`tests/e2e/README.md`](tests/e2e/README.md) | Backend run and configuration; which browser specs are safe to run |
 | [`docs/DEMO.md`](docs/DEMO.md), [`HANDOFF.md`](HANDOFF.md) | Demo script (Hebrew); where the project stands and how to continue (Hebrew) |
 | [`CLAUDE.md`](CLAUDE.md) | Working rules for contributors and the AI assistant, including the documentation policy |

@@ -1,0 +1,33 @@
+# Railway "backend" service: the FastAPI backend (public, $PORT) + the predictive service (private, 127.0.0.1:8000).
+# Build context: repository root. Railway service variable: RAILWAY_DOCKERFILE_PATH=backend/Dockerfile.railway
+# Runtime variables (Railway, never in the image): SUPABASE_URL, SUPABASE_ANON_KEY, ALLOWED_ORIGINS,
+# RISK_ATTESTATION_SECRET. See DEPLOY.md.
+FROM python:3.13.9-slim-bookworm
+
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DISABLE_TRAINING=1 PREDICTIVE_SERVICE_URL=http://127.0.0.1:8000
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends tini \
+ && rm -rf /var/lib/apt/lists/*
+
+# Separate virtual environments: the two apps keep their own pinned dependency sets.
+COPY backend/requirements.runtime.lock.txt /tmp/backend.lock.txt
+COPY predictive-service/requirements.lock.txt /tmp/predictive.lock.txt
+RUN python -m venv /opt/backend && /opt/backend/bin/pip install -r /tmp/backend.lock.txt \
+ && python -m venv /opt/predictive && /opt/predictive/bin/pip install -r /tmp/predictive.lock.txt \
+ && rm /tmp/*.lock.txt
+
+WORKDIR /app
+COPY backend/app /app/backend/app
+COPY predictive-service/*.py /app/predictive-service/
+COPY deploy/start-backend.sh /app/start-backend.sh
+
+RUN useradd --system --uid 10001 --no-create-home app \
+ && mkdir -p /app/predictive-service/models \
+ && chmod 0555 /app/start-backend.sh
+USER app
+
+EXPOSE 8001
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["/app/start-backend.sh"]

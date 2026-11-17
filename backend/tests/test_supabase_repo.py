@@ -107,6 +107,26 @@ def test_db_errors_map_to_domain_errors():
         assert e.value.status == status
 
 
+@pytest.mark.parametrize("db_message, code", [
+    ("a completed visit report is locked; correct it with an amendment by its author", "report_locked"),
+    ("a completed visit report is locked; only the clinical outcome may be recorded", "report_locked"),
+    ("the 8h clinical outcome was already recorded and cannot be rewritten", "outcome_already_recorded"),
+    ("a voided record cannot be changed again", "record_voided"),
+    ("a report may only be created for a confirmed, scheduled visit", "illegal_transition"),
+])
+def test_refused_edit_of_a_signed_record_is_a_clear_409_not_a_server_error(db_message, code):
+    """PostgREST returns 500 for SQLSTATE 55000. A refused edit of a signed/voided record is a permanent, expected
+    refusal: 409 with its own code and a Hebrew message that says what to do - never a generic 5xx (which clients retry)."""
+    from app.errors import DomainError
+    def h(req):
+        return httpx.Response(500, json={"code": "55000", "message": db_message, "details": None, "hint": None})
+    with pytest.raises(DomainError) as e:
+        make(h).complete_visit_atomic(1, {})
+    assert (e.value.status, e.value.code) == (409, code)
+    if code == "report_locked":
+        assert "תיקון לדוח" in e.value.message
+
+
 def test_pause_guard_error_and_pause_list_query():
     import pytest
     from app.errors import DomainError

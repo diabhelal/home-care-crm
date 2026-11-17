@@ -444,7 +444,7 @@ async function prRenderVitalsTab(content) {
     const points = visits.filter((r) => r[v.key] != null).map((r) => ({ measured_at: r.visit_date, value: r[v.key] }));
     if (points.length < 2) continue;
     try {
-      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/baseline`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vital: v.key, points }) });
+      const res = await fetch(`${PREDICTIVE_SERVICE_URL}/predict/baseline`, { method: "POST", patientId: vitalsState && vitalsState.patientId, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vital: v.key, points }) });
       if (!res.ok) continue;
       const b = await res.json();
       prAssertCurrent(vitalsState);
