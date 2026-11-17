@@ -1101,6 +1101,9 @@ function isConnectivityError(err) {
   if (!err) return false;
   const status = Number(err.status || err.statusCode || 0);
   if (status === 401 || status === 403) return false;
+  // סירוב קבוע של המסד (דוח חתום / רשומה מבוטלת = 55000, אין הרשאה = 42501). PostgREST מחזיר עליהם 500,
+  // אבל זו לא תקלת חיבור ואסור להציע "נסו שוב" — הבדיקה חייבת לבוא לפני כלל ה-5xx.
+  if (err.code === "55000" || err.code === "42501") return false;
   if (status >= 500 || status === 0 && /fetch|network|load failed|retryable|timeout|abort/i.test(String(err.name || "") + " " + String(err.message || ""))) return true;
   if (String(err.name || "") === "AuthRetryableFetchError") return true;
   if (err.code === "PGRST301" || err.code === "PGRST303" || err.code === "42501") return false;   // JWT לא תקף / אין הרשאה
@@ -1140,8 +1143,20 @@ function hideConnectivityNotice() {
   if (box) box.style.display = "none";
 }
 
+// הודעות לסירובים קבועים של המסד (SQLSTATE 55000), לפי הטקסט שהטריגר מחזיר. ההגנה עצמה במסד לא משתנה.
+const LOCKED_RECORD_MESSAGES = [
+  [/report is locked/i, "דוח ביקור חתום נעול לעריכה. תיקון נעשה דרך 'תיקון לדוח' על ידי כותב/ת הדוח."],
+  [/clinical outcome was already recorded/i, "תוצאת 8 השעות כבר נרשמה לדוח זה ואינה ניתנת לשינוי."],
+  [/voided record/i, "רשומה שבוטלה אינה ניתנת לשינוי."],
+];
+
 function friendlyErrorMessage(err) {
   let msg;
+  if (err && typeof err === "object" && err.code === "55000") {
+    const text = String(err.message || "");
+    const hit = LOCKED_RECORD_MESSAGES.find(([re]) => re.test(text));
+    return hit ? hit[1] : "הפעולה אינה אפשרית במצב הנוכחי של הרשומה.";
+  }
   if (typeof err === "string" && err.trim()) {
     msg = err;
   } else if (err && typeof err.message === "string" && err.message.trim()) {

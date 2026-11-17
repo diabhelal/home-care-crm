@@ -103,6 +103,21 @@ class SupabaseRepo:
             return SlotTakenError()
         return unexpected_unique_violation()
 
+    @staticmethod
+    def _classify_object_state(body: dict) -> Exception:
+        """55000 (object_not_in_prerequisite_state) is raised by several DB guards. A refused edit of a signed / voided
+        record is a permanent, expected refusal (409, never retried) with a message that says what to do instead -
+        not a booking-state message. The guards themselves are unchanged; only the wording returned to the user."""
+        text = " ".join(str(body.get(k) or "") for k in ("message", "details", "hint")).lower()
+        if "report is locked" in text:
+            return conflict("report_locked",
+                            "דוח ביקור חתום נעול לעריכה. תיקון נעשה דרך 'תיקון לדוח' על ידי כותב/ת הדוח.")
+        if "clinical outcome was already recorded" in text:
+            return conflict("outcome_already_recorded", "תוצאת 8 השעות כבר נרשמה לדוח זה ואינה ניתנת לשינוי.")
+        if "voided record" in text:
+            return conflict("record_voided", "רשומה שבוטלה אינה ניתנת לשינוי.")
+        return conflict("illegal_transition", "מצב ההזמנה אינו מאפשר פעולה זו")
+
     def _raise_for(self, resp: httpx.Response):
         if resp.status_code < 400:
             return
@@ -127,7 +142,7 @@ class SupabaseRepo:
         if code == "42501" or resp.status_code in (401, 403):
             raise forbidden()
         if code == "55000":
-            raise conflict("illegal_transition", "מצב ההזמנה אינו מאפשר פעולה זו")
+            raise self._classify_object_state(body)
         if code in ("22023", "23514"):   # invalid parameter / check violation from RPCs
             raise bad_request("invalid_value", "ערך לא תקין")
         if code == "P0002":
