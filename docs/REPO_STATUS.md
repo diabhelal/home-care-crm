@@ -2,7 +2,7 @@
 
 > Updated **2026-11-08**, `main` = submission tag [`v1.0`](https://github.com/diabhelal/home-care-crm/releases/tag/v1.0). On GitHub only `main` remains and there are **no open pull requests**. Sections 2, 6 and 7a keep the earlier merge history and evidence for reference.
 
-**תקציר בעברית:** `main` (תג `v1.0`) כולל את כל העבודה שמוזגה, כולל ייצוב ובטיחות (#68), מטריצת הרשאות, ledger מיגרציות ו-`/readyz` (#69) וסנכרון מסמכים (#70). **על המסד החי הוחלו כל המיגרציות (37 רשומות; 008-013, 015-018, 021, 022 ב-2026-11-17). פרוס ב-Railway: production https://frontend-production-0440d7b9.up.railway.app, development https://frontend-development-673a40e7.up.railway.app.** ב-2026-11-08, באישור הבעלים, נמחקו ב-GitHub כל הענפים שמוזגו, ונסגרו בלי מיזוג #34, #21, #18 ו-Dependabot. העבודה שלא מוזגה שמורה בגיבוי הפרטי של הבעלים.
+**תקציר בעברית:** `main` (תג `v1.0`) כולל את כל העבודה שמוזגה, כולל ייצוב ובטיחות (#68), מטריצת הרשאות, ledger מיגרציות ו-`/readyz` (#69) וסנכרון מסמכים (#70). **על המסד החי הוחלו כל המיגרציות (37 רשומות; 008-013, 015-018, 021, 022 ב-2026-11-17). פרוס ב-Railway: production https://frontend-production-0440d7b9.up.railway.app, development https://frontend-development-673a40e7.up.railway.app.** ב-2026-11-18 שולבו Dependabot ‏#72, ‏#74, ‏#75, ‏#76 (‏#85 ← `dev`, ‏#86 ← `main`). ב-GitHub נשארו `main`, `dev` ושני ענפי Dependabot פתוחים (#73, ‏#77: `predictive-service/requirements*.txt`, רשומים ב-baseline השימור, ממתינים להחלטת בעלים). ב-2026-11-08, באישור הבעלים, נמחקו ב-GitHub כל הענפים שמוזגו, ונסגרו בלי מיזוג #34, #21, #18 ו-Dependabot. העבודה שלא מוזגה שמורה בגיבוי הפרטי של הבעלים.
 
 ## 1. Where to start (reviewer path)
 | What | Where |
