@@ -47,6 +47,7 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     autoAlertFail: null,   // סטטוס HTTP לכישלון POST /patients/{id}/auto-alert
     autoAlertResponse: null, // { alert_type, severity, message } או null (אין התראה)
     autoAlerts: [],        // patient_id שעובדו בהצלחה
+    aiSummary: false,      // מה GET /features מחזיר עבור ai_summary (כמו בשרת: כבוי כברירת מחדל)
   };
 
   await context.route(backendUrl + "/**", async (route) => {
@@ -54,6 +55,12 @@ async function installBackendMock(context, { backendUrl = BACKEND, configure = t
     const url = new URL(req.url());
     const path = url.pathname;
     if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: CORS });
+    // GET /features: כמו השרת האמיתי — בלי הרשאה, ולא נספר ב-ctl.requests (קריאת אתחול של העמוד)
+    if (req.method() === "GET" && path === "/features") {
+      if (ctl.down) return route.abort("connectionrefused");
+      return route.fulfill({ status: 200, headers: CORS, contentType: "application/json",
+                             body: JSON.stringify({ ai_summary: !!ctl.aiSummary }) });
+    }
     const headers = req.headers();
     let body = null;
     try { body = req.postDataJSON(); } catch (e) {}
