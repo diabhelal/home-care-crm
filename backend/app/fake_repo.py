@@ -123,6 +123,9 @@ class FakeRepo:
         return row
 
     # ---- clinical risk orchestration
+    def get_report_for_summary(self, report_id):
+        return self.get_visit_report(report_id)
+
     def get_report_for_risk(self, report_id):
         return self.get_visit_report(report_id)
 

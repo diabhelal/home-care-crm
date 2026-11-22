@@ -388,7 +388,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Requirement | Acceptance criterion | Status |
 |---|---|---|---|
 | `FR-AI-01` | The risk indicator is presented as decision support and not as a diagnosis or as AI; labeled "הדגמה" ("demo") | The text appears in the UI | Implemented |
-| `FR-AI-02` | An LLM visit-summary draft: **off by default**; allowed only for the assignee or an administrator; extracts only the current visit's data without name, national ID, address or phone; every number in the draft must appear in the source; **nothing is saved without explicit human approval**; the draft's origin is recorded | According to the AI_SUMMARY document on the PR #18 branch | Planned. Depends on migration `014` (not applied); fails closed without it |
+| `FR-AI-02` | An LLM visit-summary draft: **off by default**; allowed only for the assignee or an administrator; extracts only the current visit's data without name, national ID, address or phone; every number in the draft must appear in the source; **nothing is saved without explicit human approval**; the draft's origin is recorded | `POST /visits/{id}/ai-summary`: 404 when off; 403 for others; only whitelisted visit fields sent (no identifiers, phone/ID/e-mail removed from the note, `store: false`); a draft with a number not in the source is rejected (422); the draft is shown for review and **never saved** (no DB change, so no origin record is needed) | Implemented (2026-11-22), **Development only** (OpenAI). Not enabled in production ([O-12](#11-open-decisions)) |
 | `FR-AI-03` | Evaluation before use: 32 fabricated cases in Hebrew, a measurement of a non-LLM baseline, and then a real run and human review by a qualified staff member | A real run and a written review | Planned. Only the baseline was measured; the run and the review are pending. No claim of clinical validity |
 | `FR-AI-04` | Activation (provider, key, cost, privacy, clinical review) | Owner decision | Planned ([O-12](#11-open-decisions)) |
 
@@ -398,7 +398,7 @@ Technical detail: [`docs/DATABASE.md`](DATABASE.md), [`docs/RISK_ENGINE.md`](RIS
 | ID&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; | Implementation | Tests |
 |---|---|---|
 | `FR-AI-01` | `public/app.js` | — |
-| `FR-AI-02` | PR #18 (closed, not merged; code in the owner's backup) | Tests in PR #18 |
+| `FR-AI-02` | `backend/app/ai_summary.py`, `backend/app/main.py`, `public/js/shared/visit-report-shared.js` | `backend/tests/test_ai_summary.py::test_payload_has_no_identifiers_and_redacts_free_text` |
 | `FR-AI-03` | The evaluation folder (backend/eval/summary) in PR #18 (closed, not merged) | — |
 | `FR-AI-04` | — | — |
 
@@ -431,7 +431,7 @@ This document does not choose policy. Every item awaits a decision by the owner 
 | O-09 | CAPTCHA, MFA, leaked-password protection, SMS provider | Decision and project configuration | Owner |
 | O-10 | Hosting (HTTPS, monitoring, backup), availability and performance targets | Decision and budget | Owner |
 | O-11 | Adapting to additional businesses: structure (an instance per business or multi-tenancy), branding, languages, a dynamic service list | Product decision | Owner |
-| O-12 | Activating the LLM summary: provider, key, cost, privacy, clinical review | Decision and review | Owner + clinical |
+| O-12 | Activating the LLM summary in production: provider (OpenAI chosen for development), cost, privacy, clinical review | Decision and review | Owner + clinical |
 | O-13 | Behavior of a service pause when it is partial in dates (marking in advance versus a message when choosing a date) | Product decision | Owner |
 | O-14 | A booking marked "completed" through a direct administrator write without a report (there is no such path in the UI) | A decision whether to block in the DB | Owner |
 | O-15 | How far back the measurement time of a measurement added outside a visit may be, and whether an old measurement requires a reason (currently: no limit and no reason; not in the future) | A decision on the window and a reason requirement | Owner |

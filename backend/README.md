@@ -51,6 +51,9 @@ Errors: 401 no/invalid token, 403 wrong role/not owner, 409 illegal transition o
 | `PREDICTIVE_SERVICE_URL` | base URL of `predictive-service/` (called over HTTP only; unchanged service) | `http://localhost:8000` |
 | `PREDICTIVE_TIMEOUT_SECONDS` | per-call timeout to the predictive service | 5 |
 | `RISK_ATTESTATION_SECRET` | HMAC key (>=32 random bytes) shared with the DB row `server_secrets.risk_attestation_secret`; required for risk/alert writes | none (fail closed, 503) |
+| `AI_SUMMARY_ENABLED` | Turns on the LLM visit-summary draft (`POST /visits/{id}/ai-summary`, FR-AI-02). Active only together with `OPENAI_API_KEY` | `false` (endpoint 404, button hidden) |
+| `OPENAI_API_KEY` | OpenAI key for the summary draft. Backend only, never in the browser or git | none (feature off) |
+| `OPENAI_MODEL` | Model for the summary draft | `gpt-4o-mini` |
 
 ## Clinical risk orchestration (`app/risk.py`)
 Separate from booking logic. The backend never re-implements thresholds/alert rules: it calls the

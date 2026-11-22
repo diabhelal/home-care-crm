@@ -265,6 +265,15 @@ class SupabaseRepo:
     # -- clinical risk orchestration (all with the caller's JWT)
     _VITALS = "systolic_bp,diastolic_bp,blood_sugar,pulse,temperature,oxygen_saturation"
 
+    _PERFORMED = ("performed_blood_draw,performed_injection,performed_infusion,"
+                  "performed_dressing_change,performed_catheter_change")
+
+    def get_report_for_summary(self, report_id):
+        rows = self._get("/visit_reports", {
+            "id": f"eq.{report_id}",
+            "select": f"id,booking_id,visit_date,{self._VITALS},{self._PERFORMED},treatment_summary"})
+        return rows[0] if rows else None
+
     def get_report_for_risk(self, report_id):
         rows = self._get("/visit_reports", {
             "id": f"eq.{report_id}",

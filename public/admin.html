@@ -282,6 +282,10 @@
     <div id="vr-trend-result"></div>
     <div id="vr-comprehensive-result"></div>
 
+    <div class="actions-row" style="justify-content:flex-start;">
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-ai-summary-btn" style="display:none;">טיוטת סיכום (AI)</button>
+    </div>
+    <div id="vr-ai-summary-result"></div>
     <h3>פרוצדורות שבוצעו</h3>
     <div id="vr-procedures" class="field"></div>
 
@@ -395,6 +399,7 @@
 <script src="js/admin/contacts.js"></script>
 <script>
   initPredictiveServiceHealthCheck();
+  aiSummaryInit();
   const loginScreen = document.getElementById("login-screen");
   const adminApp = document.getElementById("admin-app");
   const resetPasswordScreen = document.getElementById("reset-password-screen");
@@ -589,6 +594,7 @@
       cb.checked = report ? !!report[cb.dataset.proc] : false;
     });
     vrLoadSignature(report?.patient_signature_data || null);
+    aiSummaryReset(report?.id); // טיוטת AI: רק לדוח שכבר נשמר
     // דוח נשמר רק יחד עם השלמת הביקור (אטומי בשרת); ביקור שהושלם — נעול לעריכה כאן.
     hideError(document.getElementById("visit-report-modal-error"));
     document.getElementById("visit-report-modal-save").disabled = booking.status === "completed";
