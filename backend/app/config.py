@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 def _csv(value: str) -> tuple[str, ...]:
@@ -25,6 +25,15 @@ class Settings:
     predictive_service_url: str = "http://localhost:8000"
     predictive_timeout_seconds: float = 5.0
     risk_attestation_secret: str = ""
+    # LLM visit-summary draft (FR-AI-02): off unless the flag is on AND a key is set. repr=False: never printed.
+    ai_summary_enabled: bool = False
+    openai_api_key: str = field(default="", repr=False)
+    openai_model: str = "gpt-4o-mini"
+    openai_timeout_seconds: float = 20.0
+
+    @property
+    def ai_summary_active(self) -> bool:
+        return self.ai_summary_enabled and bool(self.openai_api_key)
 
     @classmethod
     def from_env(cls, env: dict | None = None) -> "Settings":
@@ -42,4 +51,8 @@ class Settings:
             predictive_service_url=e.get("PREDICTIVE_SERVICE_URL", d.predictive_service_url),
             predictive_timeout_seconds=float(e.get("PREDICTIVE_TIMEOUT_SECONDS", d.predictive_timeout_seconds)),
             risk_attestation_secret=e.get("RISK_ATTESTATION_SECRET", ""),
+            ai_summary_enabled=e.get("AI_SUMMARY_ENABLED", "").strip().lower() in ("1", "true", "yes"),
+            openai_api_key=e.get("OPENAI_API_KEY", "").strip(),
+            openai_model=e.get("OPENAI_MODEL", "").strip() or d.openai_model,
+            openai_timeout_seconds=float(e.get("OPENAI_TIMEOUT_SECONDS", d.openai_timeout_seconds)),
         )

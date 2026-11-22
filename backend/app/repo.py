@@ -38,6 +38,8 @@ class Repository(Protocol):
         """Append-only vital-sign reading outside a booking (proposed/020). The DB sets recorded_at/recorded_by and
         enforces admin-or-assigned-staff; `author_*`/`staff_id` are for in-memory implementations only."""
     # ---- clinical risk orchestration (see app/risk.py)
+    def get_report_for_summary(self, report_id: int) -> Optional[dict]:
+        """booking_id, visit_date, the six vitals, performed_* and treatment_summary (RLS-scoped; no identifiers)."""
     def get_report_for_risk(self, report_id: int) -> Optional[dict]:
         """id, booking_id, patient_id, staff_id, visit_date + the six vitals (RLS-scoped)."""
     def get_patient_risk_context(self, patient_id: str) -> Optional[dict]:

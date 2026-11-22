@@ -1235,7 +1235,7 @@ async function backendFetch(path, { method = "GET", body, idempotencyKey, timeou
   }
   throw new BackendError("server", "אירעה שגיאה בשירות. לא נשמרה הזמנה — נא לנסות שוב.", extra);
 }
-const BACKEND_USER_MESSAGE_CODES = ["idempotency_conflict", "unexpected_unique_violation", "upstream_error", "upstream_unavailable"];
+const BACKEND_USER_MESSAGE_CODES = ["idempotency_conflict", "unexpected_unique_violation", "upstream_error", "upstream_unavailable", "ai_unavailable"];
 
 // ===== באנר זמינות שירות התחזית =====
 // שירות predictive-service הוא תהליך Python מקומי שמופעל ידנית, לא שירות שרץ תמיד.
