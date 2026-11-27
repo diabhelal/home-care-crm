@@ -101,6 +101,7 @@ The static frontend has no build step, so its configuration lives in `public/con
 | `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` (`SUPABASE_ANON_KEY` in the backend) | `public/config.js`; `backend/.env` | Project URL and the **publishable** key - safe for the browser |
 | `ALLOWED_ORIGINS` | `backend/.env` | CORS origins allowed to call the backend (no wildcards) |
 | `RISK_ATTESTATION_SECRET` | `backend/.env` and the DB row `server_secrets.risk_attestation_secret` | HMAC key for risk predictions and alerts (>= 32 random bytes). Required for risk writes; never in git |
+| `AI_SUMMARY_ENABLED`, `OPENAI_API_KEY`, `OPENAI_MODEL` | `backend/.env`; Railway **development** backend only | LLM visit-summary draft (FR-AI-02). Off unless the flag and the key are both set; the key stays in the backend and is never in git |
 | `SUPABASE_JWT_SECRET` | `backend/.env` | Only for legacy HS256 tokens; ES256/RS256 tokens are verified with the project's JWKS |
 | `PREDICTIVE_SERVICE_URL` | `backend/.env` | Where the backend reaches `predictive-service/` (default `http://localhost:8000`) |
 | `TRAVEL_BUFFER_MINUTES`, `OFFERED_PURPOSES`, `ELIGIBLE_ROLES`, `BUSINESS_TIMEZONE` | `backend/.env` | Business rules (defaults: 30, five purposes, `nurse`, `Asia/Jerusalem`) |

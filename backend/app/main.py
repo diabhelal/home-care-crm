@@ -18,6 +18,7 @@ from .errors import (DomainError, IdempotencyConflictError, SlotTakenError, forb
 
 log = logging.getLogger("app.main")
 from . import predict_proxy
+from .ai_summary import OpenAISummaryClient, SummaryClient, generate_draft
 from .geo import Geocoder, NoopGeocoder
 from .models import (Booking, BookingRequestIn, ClinicalOutcomeIn, Identity, MeasurementIn, ReassignIn,
                      Staff, VisitReportIn, booking_to_dict)
@@ -38,7 +39,8 @@ def create_app(settings: Settings | None = None,
                geocoder: Geocoder | None = None,
                clock: Callable[[], datetime] | None = None,
                predictive_client: PredictiveClient | None = None,
-               readiness_probe: Callable[[], bool] | None = None) -> FastAPI:
+               readiness_probe: Callable[[], bool] | None = None,
+               summary_client: SummaryClient | None = None) -> FastAPI:
     cfg = settings or Settings.from_env()
     if verifier is None:
         jwks_url = f"{cfg.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json" if cfg.supabase_url else ""
@@ -54,6 +56,11 @@ def create_app(settings: Settings | None = None,
 
     predictive = predictive_client or HttpPredictiveClient(
         cfg.predictive_service_url, cfg.predictive_timeout_seconds)
+    # FR-AI-02: no client at all unless the flag is on AND a key is configured (fails closed)
+    summarizer = None
+    if cfg.ai_summary_active:
+        summarizer = summary_client or OpenAISummaryClient(
+            cfg.openai_api_key, cfg.openai_model, cfg.openai_timeout_seconds)
 
     app = FastAPI(title="home-care-crm backend", docs_url=None, redoc_url=None, openapi_url=None)
     predict_proxy.install_body_limit(app)   # added before CORS so CORS stays outermost (413 keeps CORS headers)
@@ -227,6 +234,19 @@ def create_app(settings: Settings | None = None,
     def risk_assessment(report_id: int, c: Ctx = Depends(ctx)):
         staff = None if c.identity.is_admin else c.staff()
         return c.risk.assess_visit(c.identity, staff, report_id)
+
+    @app.get("/features")
+    def features():
+        """Which optional features this deployment has on. No secrets, no auth needed."""
+        return {"ai_summary": summarizer is not None}
+
+    @app.post("/visits/{report_id}/ai-summary")
+    def ai_summary(report_id: int, c: Ctx = Depends(ctx)):
+        """LLM draft of a visit summary (FR-AI-02). Admin or the assigned staff. Never written to the DB."""
+        if summarizer is None:
+            raise DomainError(404, "ai_summary_disabled", "סיכום AI אינו מופעל בסביבה זו")
+        staff = None if c.identity.is_admin else c.staff()
+        return generate_draft(c.svc.repo, c.identity, staff, report_id, summarizer, clock)
 
     @app.post("/patients/{patient_id}/auto-alert")
     def auto_alert(patient_id: str, c: Ctx = Depends(ctx)):

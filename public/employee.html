@@ -85,6 +85,10 @@
     </div>
     <div id="vr-risk-panel"></div>
 
+    <div class="actions-row" style="justify-content:flex-start;">
+      <button type="button" class="btn btn-secondary btn-sm" id="vr-ai-summary-btn" style="display:none;">טיוטת סיכום (AI)</button>
+    </div>
+    <div id="vr-ai-summary-result"></div>
     <h3>פרוצדורות שבוצעו</h3>
     <div id="vr-procedures" class="field"></div>
 
@@ -117,6 +121,7 @@
 <script>
   // PREDICTIVE_SERVICE_URL מוגדר ב-config.js (מקור יחיד, לא כפול בין admin/employee).
   initPredictiveServiceHealthCheck();
+  aiSummaryInit();
   const staffApp = document.getElementById("staff-app");
   const appError = document.getElementById("app-error");
   const appSuccess = document.getElementById("app-success");
@@ -534,6 +539,7 @@
       cb.checked = report ? !!report[cb.dataset.proc] : false;
     });
     vrLoadSignature(report?.patient_signature_data || null);
+    aiSummaryReset(report?.id); // טיוטת AI: רק לדוח שכבר נשמר
     hideError(document.getElementById("visit-report-modal-error"));
     // דוח נשמר רק יחד עם השלמת הביקור (פעולה אטומית בשרת); ביקור שהושלם — נעול לעריכה כאן.
     const vrLocked = booking.status === "completed";

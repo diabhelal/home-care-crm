@@ -396,3 +396,59 @@ function mergeMeasurementsIntoVisits(visits, measurements) {
   const extra = (measurements || []).map((m) => ({ ...m, id: "m" + m.id, visit_date: m.measured_at, _measurement: true }));
   return (visits || []).concat(extra).sort((a, b) => new Date(b.visit_date) - new Date(a.visit_date));
 }
+
+// ===== טיוטת סיכום AI (FR-AI-02) — תצוגה בלבד, לא נשמרת =====
+// הכפתור מוצג רק אם השרת מדווח שהפיצ'ר פעיל (/features), ורק לדוח שכבר נשמר.
+// השרת בודק הרשאה (מנהל או המטפל המשובץ), שולח לספק רק מדדים/פעולות/הערה מנוקה — בלי שם או מזהים —
+// ופוסל טיוטה עם מספר שלא הופיע בדוח. הטקסט מוצג כטקסט בלבד (escapeHtml) ואינו נכתב לטופס או למסד.
+let aiSummaryEnabled = false;
+let aiSummaryReportId = null;
+
+async function aiSummaryInit() {
+  const btn = document.getElementById("vr-ai-summary-btn");
+  if (!btn) return;
+  try {
+    const f = await backendFetch("/features", { timeoutMs: 5000 });
+    aiSummaryEnabled = !!(f && f.ai_summary === true);
+  } catch (e) {
+    aiSummaryEnabled = false;
+  }
+  btn.addEventListener("click", aiSummaryRun);
+  aiSummaryReset(aiSummaryReportId);
+}
+
+function aiSummaryReset(reportId) {
+  aiSummaryReportId = reportId || null;
+  const btn = document.getElementById("vr-ai-summary-btn");
+  const out = document.getElementById("vr-ai-summary-result");
+  if (out) out.innerHTML = "";
+  if (btn) btn.style.display = aiSummaryEnabled && aiSummaryReportId ? "" : "none";
+}
+
+async function aiSummaryRun() {
+  const btn = document.getElementById("vr-ai-summary-btn");
+  const out = document.getElementById("vr-ai-summary-result");
+  const reportId = aiSummaryReportId;
+  if (!reportId) return;
+  out.innerHTML = "";
+  setButtonLoading(btn, true, "יוצר טיוטה...");
+  try {
+    const res = await backendFetch(`/visits/${encodeURIComponent(reportId)}/ai-summary`, { method: "POST", timeoutMs: 30000 });
+    if (aiSummaryReportId !== reportId) return; // נפתח דוח אחר בינתיים
+    out.innerHTML = `
+      <div class="card" style="margin-top:8px; padding:12px; border:1px dashed var(--border, #ccc);">
+        <p style="font-weight:600; margin:0 0 6px;">טיוטה שנוצרה ע"י AI — לא נשמרה. לבדיקה אנושית בלבד, לא אבחנה.</p>
+        <p id="vr-ai-summary-text" style="white-space:pre-wrap; margin:0 0 8px;">${escapeHtml(res.draft)}</p>
+        <button type="button" class="btn btn-ghost btn-sm" id="vr-ai-summary-copy">העתק</button>
+      </div>`;
+    document.getElementById("vr-ai-summary-copy").addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(res.draft); flashSuccess("הטיוטה הועתקה"); }
+      catch (e) { flashError("לא ניתן להעתיק — אפשר לסמן ולהעתיק ידנית"); }
+    });
+  } catch (err) {
+    if (aiSummaryReportId !== reportId) return;
+    out.innerHTML = `<p class="error-text" style="color:var(--danger, #b00020);">${escapeHtml(err && err.message ? err.message : "לא ניתן ליצור טיוטה כרגע")}</p>`;
+  } finally {
+    setButtonLoading(btn, false);
+  }
+}
